@@ -4,9 +4,7 @@ Handy utilities for processing nuclear shell model data from KSHELL.
 
 Installation
 ------------
-Install with pip. In root directory:
-
-.. code-block:: python
+Install with pip. In root directory ::
     pip install .
 
 Credit
