@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, "../")
-from recreate_fig_6 import ReadKshellOutput
+from kshell_utilities import ReadKshellOutput
 
 def _test_file_read():
     """
