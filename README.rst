@@ -6,7 +6,7 @@ Installation
 ------------
 Install with pip. In root directory:
 
-.. code-block:: bash
+.. code-block:: python
     pip install .
 
 Credit
