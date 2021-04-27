@@ -202,6 +202,23 @@ class ReadKshellOutput:
         self.transitions = np.array(self.transitions)
         return np.array(self.E_x), np.array(self.B_M1)
 
+    @property
+    def help(self):
+        """
+        Generate a list of instance attributes without magic methods.
+
+        Returns
+        -------
+        help_list : list
+            A list of non-magic instance attributes.
+        """
+        help_list = []
+        for elem in dir(self):
+            if not elem.startswith("__"):   # Omit magic methods.
+                help_list.append(elem)
+        
+        return help_list
+
 def loadtxt(fname):
     """
     Wrapper for using ReadKshellOutput class as a function.
