@@ -1,4 +1,5 @@
 import os
+import sys
 from fractions import Fraction
 import numpy as np
 
@@ -70,8 +71,13 @@ class ReadKshellOutput:
         self.B_M1 = None
         self.levels = None
         self.transitions = None
+        self.truncation = None
 
         if os.path.isdir(path):
+            """
+            If input 'path' is a directory containing KSHELL files,
+            extract info from both summary and .ptn file.
+            """
             for elem in os.listdir(path):
                 if elem.startswith("summary"):
                     self.fname_summary = f"{path}/{elem}"
@@ -84,6 +90,9 @@ class ReadKshellOutput:
                     self.read_ptn()
 
         else:
+            """
+            'path' is a single file, not a directory.
+            """
             fname = path.split("/")[-1]
 
             if fname.startswith("summary"):
@@ -114,9 +123,13 @@ class ReadKshellOutput:
         Read KSHELL partition file (.ptn) and extract proton partition,
         neutron partition, and particle-hole truncation data. Save as
         instance attributes.
+
+        TODO: Probably safe to rename 'line_inner' to 'line'. Or...
         """
+
         line_number = 0
         line_number_inner = 0
+        self.truncation = []
 
         with open(self.fname_ptn, "r") as infile:
             for line in infile:
@@ -157,6 +170,54 @@ class ReadKshellOutput:
                     )
                     line_number += line_number_inner
                     line_number_inner = 0
+
+                if line.startswith("# particle-hole truncation"):
+                    for line_inner in infile:
+                        """
+                        Loop over all particle-hole truncation lines.
+                        """
+                        line_number += 1
+                        line_inner_split = line_inner.split()
+
+                        if (len(line_inner_split) < 2):
+                            """
+                            Condition will probably not get fulfilled.
+                            Safety precaution due to indexing in this
+                            loop.
+                            """
+                            break
+
+                        if (line_inner_split[1]).startswith("["):
+                            """
+                            '[' indicates that 'line_inner' is still
+                            containing truncation information.
+                            """
+                            for colon_index, elem in enumerate(line_inner_split):
+                                """
+                                Find the index of the colon ':' to
+                                decide the orbit numbers and occupation
+                                numbers.
+                                """
+                                if (elem == ":"): break
+
+                            occupation = [int(occ) for occ in line_inner_split[colon_index + 1:]]   # [min, max].
+                            orbit_numbers = "".join(line_inner_split[1:colon_index])
+                            orbit_numbers = orbit_numbers.replace("[", "")
+                            orbit_numbers = orbit_numbers.replace("]", "")
+                            orbit_numbers = orbit_numbers.replace(" ", "")  # This can prob. be removed because of the earlier split.
+                            orbit_numbers = orbit_numbers.split(",")
+                            orbit_numbers = [int(orbit) for orbit in orbit_numbers]
+                            
+                            for orbit in orbit_numbers:
+                                self.truncation.append((orbit, occupation))
+                        
+                        else:
+                            """
+                            Line does not contain '[' and thus does not
+                            contain truncation information.
+                            """
+                            break
+
 
     def _extract_info_from_summary_fname(self):
         """
