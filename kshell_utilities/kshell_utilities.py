@@ -1,3 +1,4 @@
+import os
 from fractions import Fraction
 import numpy as np
 
@@ -46,18 +47,134 @@ class ReadKshellOutput:
     Implemented as class just to avoid returning a bunch of values.
     Access instance attributes instead.
     """
-    def read_kshell_output(self, fname):
+    def __init__(self, path):
+        """
+        TODO: Not necessarry to call all _extract_... methods when
+        a directory path is passed.
+
+        Parameters
+        ----------
+        path : string
+            Path of KSHELL output file directory, or path to a specific
+            KSHELL data file.
+        """
+
+        # Some attributes might not be set, depending on the input file.
+        self.fname_summary = None
+        self.fname_ptn = None
+        self.nucleus = None
+        self.model_space = None
+        self.proton_partition = None
+        self.neutron_partition = None
+        self.E_x = None
+        self.B_M1 = None
+        self.levels = None
+        self.transitions = None
+
+        if os.path.isdir(path):
+            for elem in os.listdir(path):
+                if elem.startswith("summary"):
+                    self.fname_summary = f"{path}/{elem}"
+                    self._extract_info_from_summary_fname()
+                    self.read_summary()
+
+                elif elem.endswith(".ptn"):
+                    self.fname_ptn = f"{path}/{elem}"
+                    self._extract_info_from_ptn_fname()
+                    self.read_ptn()
+
+        else:
+            fname = path.split("/")[-1]
+
+            if fname.startswith("summary"):
+                self.fname_summary = path
+                self._extract_info_from_summary_fname()
+                self.read_summary()
+
+            elif fname.endswith(".ptn"):
+                self.fname_ptn = path
+                self._extract_info_from_ptn_fname()
+                self.read_ptn()
+
+            else:
+                msg = f"Handling for file {fname} is not implemented."
+                raise NotImplementedError(msg)
+
+    def _extract_info_from_ptn_fname(self):
+        """
+        Extract nucleus and model space name.
+        """
+        fname_split = self.fname_ptn.split("/")[-1]
+        fname_split = fname_split.split("_")
+        self.nucleus = fname_split[0]
+        self.model_space = fname_split[1]
+
+    def read_ptn(self):
+        """
+        Read KSHELL partition file (.ptn) and extract proton partition,
+        neutron partition, and particle-hole truncation data. Save as
+        instance attributes.
+        """
+        line_number = 0
+        line_number_inner = 0
+
+        with open(self.fname_ptn, "r") as infile:
+            for line in infile:
+                line_number += 1
+                
+                if line.startswith("# proton partition"):
+                    for line_inner in infile:
+                        """
+                        Read until next '#'.
+                        """
+                        line_number_inner += 1
+                        if line_inner.startswith("#"):
+                            line = line_inner
+                            break
+                    
+                    self.proton_partition = np.loadtxt(
+                        fname = self.fname_ptn,
+                        skiprows = line_number,
+                        max_rows = line_number_inner
+                    )
+                    line_number += line_number_inner
+                    line_number_inner = 0
+                
+                if line.startswith("# neutron partition"):
+                    for line_inner in infile:
+                        """
+                        Read until next '#'.
+                        """
+                        line_number_inner += 1
+                        if line_inner.startswith("#"):
+                            line = line_inner
+                            break
+                    
+                    self.neutron_partition = np.loadtxt(
+                        fname = self.fname_ptn,
+                        skiprows = line_number,
+                        max_rows = line_number_inner
+                    )
+                    line_number += line_number_inner
+                    line_number_inner = 0
+
+    def _extract_info_from_summary_fname(self):
+        """
+        Extract nucleus and model space name.
+        """
+        fname_split = self.fname_summary.split("/")[-1]  # Remove path.
+        fname_split = fname_split.split("_")
+        self.nucleus = fname_split[1]
+        self.model_space = fname_split[2][:-4]  # Remove .txt and keep model space name.
+
+    def read_summary(self):
         """
         Read energy level data, transition probabilities and transition
         strengths from KSHELL output files.
 
-        Parameters
-        ----------
-        fname : string
-            Filename of KSHELL output file.
-
         Returns
         -------
+        NOTE: All return values will be removed in a future release.
         E_x : numpy.ndarray
             1D array of energy levels.
 
@@ -179,7 +296,7 @@ class ReadKshellOutput:
                     """
                     break
 
-        with open(fname, "r") as infile:
+        with open(self.fname_summary, "r") as infile:
             for line in infile:
                 tmp = line.split()
                 try:
@@ -200,7 +317,9 @@ class ReadKshellOutput:
 
         self.levels = np.array(self.levels)
         self.transitions = np.array(self.transitions)
-        return np.array(self.E_x), np.array(self.B_M1)
+        self.E_x = np.array(self.E_x)
+        self.B_M1 = np.array(self.B_M1)
+        return self.E_x, self.B_M1
 
     @property
     def help(self):
@@ -233,8 +352,8 @@ def loadtxt(fname):
     data : kshell_utilities.ReadKshellOutput
         Class object with data from KSHELL data file as attributes.
     """
-    data = ReadKshellOutput()
-    data.read_kshell_output(fname)
+    data = ReadKshellOutput(fname)
+    # data.read_summary()
     return data
 
 def div0(a, b):
