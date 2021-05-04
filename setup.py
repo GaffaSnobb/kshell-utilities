@@ -8,7 +8,7 @@ setup(
     author = 'Jon Kristian Dahl',
     author_email = 'jonkd@uio.no',
     license = '“Commons Clause” License Condition v1.0',
-    packages = ['kshell_utilities'],
+    packages = ['kshell_utilities', 'tests'],
     install_requires = ['numpy', 'matplotlib'],
 
     classifiers = [
