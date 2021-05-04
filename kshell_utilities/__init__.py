@@ -3,3 +3,4 @@ __author__ = "Jon Kristian Dahl"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
 from .kshell_utilities import *
+from .low_energy_enhancement import *
