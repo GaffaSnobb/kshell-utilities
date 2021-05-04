@@ -1,6 +1,6 @@
 import kshell_utilities
 
-def _test_file_read():
+def test_file_read():
     """
     Test that 'read_kshell_output' successfully reads output from kshell.
 
@@ -28,4 +28,4 @@ def _test_file_read():
         assert success, msg
 
 if __name__ == "__main__":
-    _test_file_read()
+    test_file_read()
