@@ -223,7 +223,6 @@ class ReadKshellOutput:
                             """
                             break
 
-
     def _extract_info_from_summary_fname(self):
         """
         Extract nucleus and model space name.
@@ -404,22 +403,92 @@ class ReadKshellOutput:
         
         return help_list
 
-def loadtxt(fname):
+def loadtxt(path: str, is_directory: bool = False) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
 
     Parameters
     ----------
-    fname : string
-        Filename (and path) of KSHELL output data file.
+    path:
+        Filename (and path) of KSHELL output data file, or path to
+        directory containing sub-directories with KSHELL output data.
+    
+    is_directory:
+        If True, and 'path' is a directory containing sub-directories
+        with KSHELL data files, the contents of 'path' will be scanned
+        for KSHELL data files. Currently supports only summary files.
 
     Returns
     -------
     data : kshell_utilities.ReadKshellOutput
         Class object with data from KSHELL data file as attributes.
     """
-    data = ReadKshellOutput(fname)
-    # data.read_summary()
+    all_fnames = None
+    data = []
+    if (is_directory) and (not os.path.isdir(path)):
+        msg = f"{path} is not a directory"
+        raise NotADirectoryError(msg)
+
+    elif (is_directory) and (os.path.isdir(path)):
+        all_fnames = {}
+
+        for element in sorted(os.listdir(path)):
+            """
+            List all content in path.
+            """
+            if os.path.isdir(path + element):
+                """
+                If element is a directory, enter it to find data files.
+                """
+                all_fnames[element] = []    # Create blank list entry in dict for current element.
+                for isotope in os.listdir(path + element):
+                    """
+                    List all content in the element directory.
+                    """
+                    if isotope.startswith("summary"):
+                        """
+                        Extract summary data files.
+                        """
+                        try:
+                            """
+                            Example: O16.
+                            """
+                            n_neutrons = int(isotope[9:11])
+                        except ValueError:
+                            """
+                            Example: Ne20.
+                            """
+                            n_neutrons = int(isotope[10:12])
+
+                        n_neutrons -= atomic_numbers[element.split("_")[1]]
+                        all_fnames[element].append([element + "/" + isotope, n_neutrons])
+        
+        for key in all_fnames:
+            """
+            Sort each list in the dict by the number of neutrons. Loop
+            over all directories in 'all_fnames' and extract KSHELL data
+            and append to a list.
+            """
+            all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
+            sub_fnames = all_fnames[key]    # For readability.
+            for i in range(len(sub_fnames)):
+                """
+                Loop over all isotopes per element.
+                """
+                print(f"{sub_fnames[i][0]}")
+
+                try:
+                    data.append(ReadKshellOutput(path + sub_fnames[i][0]))
+                except FileNotFoundError:
+                    print(f"File {sub_fnames[i][0]} skipped! File not found.")
+                    continue
+
+    else:
+        """
+        Only a single KSHELL data file.
+        """
+        data.append(ReadKshellOutput(path))
+
     return data
 
 def div0(a, b):
