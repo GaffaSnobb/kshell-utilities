@@ -403,9 +403,14 @@ class ReadKshellOutput:
         
         return help_list
 
-def loadtxt(path: str, is_directory: bool = False) -> list:
+def loadtxt(
+    path: str,
+    is_directory: bool = False,
+    filter_: str = None
+) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
+    TODO: Implement filter?
 
     Parameters
     ----------
@@ -469,6 +474,13 @@ def loadtxt(path: str, is_directory: bool = False) -> list:
             over all directories in 'all_fnames' and extract KSHELL data
             and append to a list.
             """
+            if filter_ is not None:
+                if key.split("_")[1] not in filter_:
+                    """
+                    Skip elements not in filter_.
+                    """
+                    continue
+
             all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
             sub_fnames = all_fnames[key]    # For readability.
             for i in range(len(sub_fnames)):
