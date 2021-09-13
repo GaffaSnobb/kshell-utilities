@@ -237,6 +237,9 @@ class ReadKshellOutput:
         Read energy level data, transition probabilities and transition
         strengths from KSHELL output files.
 
+        TODO: Change all the substring indexing to something more
+        rigorous, like string.split and similar.
+
         Returns
         -------
         NOTE: All return values will be removed in a future release.
@@ -285,36 +288,45 @@ class ReadKshellOutput:
                     2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
                     3+( 8) 19.503 2+(11) 18.393 1.111 0.000( 0.00) 0.000( 0.00)
                     1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
+                    5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
+                    0.0+(46)', '47.248', '1.0+(97)', '45.384', '1.864', '23.973(13.39)', '7.991(', '4.46)
                     """
                     tmp = line.split()
+                    len_tmp = len(tmp)
+                    case = None # Used for identifying which if-else case reads wrong.
                     
                     # Location of initial parity is common for all cases.
                     parity_idx = tmp[0].index("(") - 1 # Find index of initial parity.
                     p_i = 1 if tmp[0][parity_idx] == "+" else -1
+                    parity_symbol = tmp[0][parity_idx]
                     
                     # Location of initial spin is common for all cases.
                     J_i = float(Fraction(tmp[0][:parity_idx]))
                     
-                    if (tmp[1][-1] != ")") and (tmp[3][-1] != ")"):
+                    if (tmp[1][-1] != ")") and (tmp[3][-1] != ")") and (len_tmp == 9):
                         """
                         Example:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
+                        2+(11)   18.393  2+(10)    17.791  0.602    0.1(    0.0)    0.1(    0.0)
+                        5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
                         """
+                        case = 0
                         E_gamma = float(tmp[4])
                         E_i = float(tmp[1])
                         b_m1 = float(tmp[5][:-1])
-                        J_f = float(Fraction(tmp[2][:-5]))
+                        J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
                         self.B_M1.append([E_i, b_m1, E_gamma])
                         self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
 
-                    elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")"):
+
+                    elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                         """
                         Example:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
                         2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
                         """
+                        case = 1
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[1])
                         b_m1 = float(tmp[6][:-1])
@@ -323,26 +335,30 @@ class ReadKshellOutput:
                         self.B_M1.append([E_i, b_m1, E_gamma])
                         self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
                     
-                    elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")"):
+                    elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
                         Example:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        3+( 8) 19.503 2+(11) 18.393 1.111 0.000( 0.00) 0.000( 0.00)
+                        3+( 8)   19.503 2+(11)    18.393 1.111 0.000( 0.00) 0.000( 0.00)
+                        1.0+( 1) 5.357  0.0+(103) 0.000  5.357 0.002( 0.00) 0.007( 0.00)
                         """
+                        case = 2
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[2])
                         b_m1 = float(tmp[6][:-1])
-                        J_f = float(Fraction(tmp[3][:-5]))
+                        # J_f = float(Fraction(tmp[3][:-5]))
+                        J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
                         E_f = float(tmp[4])
                         self.B_M1.append([E_i, b_m1, E_gamma])
                         self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
 
-                    elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")"):
+                    elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
                         Example:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
                         1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
                         """
+                        case = 3
                         E_gamma = float(tmp[6])
                         E_i = float(tmp[2])
                         b_m1 = float(tmp[7][:-1])
@@ -350,10 +366,42 @@ class ReadKshellOutput:
                         E_f = float(tmp[5])
                         self.B_M1.append([E_i, b_m1, E_gamma])
                         self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+
+                    elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
+                        """
+                        Example:
+                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                        0.0+(46) 47.248  1.0+(97) 45.384  1.864   23.973(13.39)    7.991( 4.46)
+                        """
+                        case = 4
+                        E_gamma = float(tmp[4])
+                        E_i = float(tmp[1])
+                        b_m1 = float(tmp[5].split("(")[0])
+                        J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
+                        E_f = float(tmp[3])
+                        self.B_M1.append([E_i, b_m1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                    
+                    # elif (tmp[0][-1] == "(") and (tmp[6][-1] == "(") and (len_tmp == 10):
+                    #     """
+                    #     1.0+( 1) 5.357 0.0+(103) 0.000 5.357 0.002( 0.00) 0.007( 0.00)
+                    #     """
+                    #     case = 5
+
                     else:
                         msg = "WARNING: Structure not accounted for!"
                         msg += f"\n{line=}"
                         raise RuntimeError(msg)
+
+                except ValueError as err:
+                    """
+                    One of the float conversions failed indicating that
+                    the structure of the line is not accounted for.
+                    """
+                    print(err)
+                    print(f"{case=}")
+                    print(f"{line=}")
+                    sys.exit()
 
                 except IndexError:
                     """
@@ -500,6 +548,11 @@ def loadtxt(
         Only a single KSHELL data file.
         """
         data.append(ReadKshellOutput(path))
+
+    if not data:
+        msg = "No KSHELL data loaded. Most likely error is that the given"
+        msg += f" directory has no KSHELL data files. {path=}"
+        raise RuntimeError(msg)
 
     return data
 
