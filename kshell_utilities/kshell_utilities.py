@@ -14,6 +14,23 @@ atomic_numbers_reversed = {
     17: 'chlorine', 18: 'argon'
 }
 
+def generate_states(
+    start: int = 0,
+    stop: int = 14,
+    n_states: int = 100
+    ):
+ 
+    def correct_syntax(lst):
+        for elem in lst:
+            print(elem, end=", ")
+    
+    positive = [f"{i:g}{'+'}{n_states}" for i in np.arange(start, stop+1, 0.5)]
+    negative = [f"{i:g}{'-'}{n_states}" for i in np.arange(start, stop+1, 0.5)]
+
+    correct_syntax(positive)
+    print("\n")
+    correct_syntax(negative)
+
 def create_jpi_list(spins, parities):
     """
     Example list:
