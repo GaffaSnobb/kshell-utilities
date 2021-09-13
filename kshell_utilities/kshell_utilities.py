@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, multiprocessing
 from fractions import Fraction
 import numpy as np
 
@@ -255,7 +255,7 @@ class ReadKshellOutput:
             If the KSHELL file has unexpected structure / syntax.
         """
 
-        self.E_x = []    
+        self.E_x = []
         self.B_M1 = []
         self.levels = [] # [Ei, 2*Ji, parity].
         self.transitions = []   # [2J_f, p_i, E_f, 2J_i, p_i, E_i, E_gamma, B(.., i->f)].
@@ -346,7 +346,6 @@ class ReadKshellOutput:
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[2])
                         b_m1 = float(tmp[6][:-1])
-                        # J_f = float(Fraction(tmp[3][:-5]))
                         J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
                         E_f = float(tmp[4])
                         self.B_M1.append([E_i, b_m1, E_gamma])
@@ -381,12 +380,6 @@ class ReadKshellOutput:
                         E_f = float(tmp[3])
                         self.B_M1.append([E_i, b_m1, E_gamma])
                         self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
-                    
-                    # elif (tmp[0][-1] == "(") and (tmp[6][-1] == "(") and (len_tmp == 10):
-                    #     """
-                    #     1.0+( 1) 5.357 0.0+(103) 0.000 5.357 0.002( 0.00) 0.007( 0.00)
-                    #     """
-                    #     case = 5
 
                     else:
                         msg = "WARNING: Structure not accounted for!"
@@ -451,14 +444,21 @@ class ReadKshellOutput:
         
         return help_list
 
+
+def _process_kshell_output_in_parallel(filepath):
+    """
+    Simple wrapper for parallelizing loading of KSHELL files.
+    """
+    print(filepath)
+    return ReadKshellOutput(filepath)
+
 def loadtxt(
     path: str,
     is_directory: bool = False,
     filter_: str = None
-) -> list:
+    ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
-    TODO: Implement filter?
 
     Parameters
     ----------
@@ -473,7 +473,7 @@ def loadtxt(
 
     Returns
     -------
-    data : kshell_utilities.ReadKshellOutput
+    data : list
         Class object with data from KSHELL data file as attributes.
     """
     all_fnames = None
@@ -516,6 +516,7 @@ def loadtxt(
                         n_neutrons -= atomic_numbers[element.split("_")[1]]
                         all_fnames[element].append([element + "/" + isotope, n_neutrons])
         
+        pool = multiprocessing.Pool()
         for key in all_fnames:
             """
             Sort each list in the dict by the number of neutrons. Loop
@@ -531,17 +532,8 @@ def loadtxt(
 
             all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
             sub_fnames = all_fnames[key]    # For readability.
-            for i in range(len(sub_fnames)):
-                """
-                Loop over all isotopes per element.
-                """
-                print(f"{sub_fnames[i][0]}")
-
-                try:
-                    data.append(ReadKshellOutput(path + sub_fnames[i][0]))
-                except FileNotFoundError:
-                    print(f"File {sub_fnames[i][0]} skipped! File not found.")
-                    continue
+            sub_fnames = [path + i[0] for i in sub_fnames]
+            data += pool.map(_process_kshell_output_in_parallel, sub_fnames)
 
     else:
         """
@@ -615,6 +607,9 @@ def strength_function_average(
 
     Ex_max : int, float
         Upper limit for emitted gamma energy [MeV].
+        NOTE: If there are transitions with larger gamma energy than
+        this, the program will crash (IndexError from i_Eg).
+        TODO: Implement a way to check and skip these cases.
 
     multipole_type : string
         Choose whether to calculate for 'M1' or 'E2'.
@@ -642,7 +637,7 @@ def strength_function_average(
         Iterate over all transitions in the transitions matrix and put
         in the correct pixel.
         """
-        Ex = transitions[i_tr, 2] - Egs # Calculate relative energy.
+        Ex = transitions[i_tr, 2] - Egs # Calculate relative energy. NOTE: Why not just get Ex from the array?
         if (Ex < Ex_min) or (Ex >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
@@ -653,7 +648,7 @@ def strength_function_average(
         i_Eg = int(np.floor(transitions[i_tr, 6]/bin_width))
         i_Ex = int(np.floor(Ex/bin_width))
 
-        # Read initial spin and parity of level: NOTE: I think the name / index is wrong.
+        # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...?
         Ji = int(transitions[i_tr, 0])
         pi = int(transitions[i_tr, 1])
         try:
@@ -665,8 +660,15 @@ def strength_function_average(
             continue
 
         # Add B(M1) value and increment count to pixel, respectively
-        B_pixel_sum[i_Ex, i_Eg, i_Jpi] += transitions[i_tr, 7]
-        B_pixel_count[i_Ex, i_Eg, i_Jpi] += 1 # Original.
+        try:
+            B_pixel_sum[i_Ex, i_Eg, i_Jpi] += transitions[i_tr, 7]
+            B_pixel_count[i_Ex, i_Eg, i_Jpi] += 1 # Original.
+        except IndexError as err:
+            print(err)
+            print(f"{i_Ex=}, {i_Eg=}, {i_Jpi=}, {i_tr=}")
+            print(f"{B_pixel_sum.shape}")
+            print(f"{transitions.shape}")
+            sys.exit()
 
 
 
