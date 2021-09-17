@@ -1,6 +1,8 @@
 import os, sys, multiprocessing
 from fractions import Fraction
+from typing import Union
 import numpy as np
+import matplotlib.pyplot as plt
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
@@ -31,7 +33,7 @@ def generate_states(
     print("\n")
     correct_syntax(negative)
 
-def create_jpi_list(spins, parities):
+def create_jpi_list(spins, parities=None):
     """
     Example list:
     [[1, +1], [3, +1], [5, +1], [7, +1], [9, +1], [11, +1], [13, +1]].
@@ -602,14 +604,14 @@ def div0(a, b):
     return c
 
 def strength_function_average(
-        levels,
-        transitions,
-        Jpi_list,
-        bin_width,
-        Ex_min,
-        Ex_max,
-        multipole_type = "M1"
-    ):
+    levels: np.ndarray,
+    transitions: np.ndarray,
+    Jpi_list: list,
+    bin_width: Union[float, int],
+    Ex_min: Union[float, int],
+    Ex_max: Union[float, int],
+    multipole_type: str = "M1"
+    ) -> np.ndarray:
     """
     Author: Jørgen Midtbø.
     Modified by: Jon Dahl.
@@ -642,7 +644,10 @@ def strength_function_average(
 
     Jpi_list : list
         Set a spin window by defining a list of allowed initial
-        [[spins, parities], ...]. 
+        [[spins, parities], ...].
+
+    bin_width:
+
 
     Ex_min : int, float
         Lower limit for emitted gamma energy [MeV].
@@ -655,9 +660,14 @@ def strength_function_average(
 
     multipole_type : string
         Choose whether to calculate for 'M1' or 'E2'.
+
+    Returns
+    -------
+    gSF_ExJpiavg:
+        The gamma strength function.
     """
-    Nbins = int(np.ceil(Ex_max/bin_width)) # Make sure the number of bins cover the whole Ex region.
-    # bin_array = np.linspace(0, bin_width*Nbins, Nbins + 1) # Array of lower bin edge energy values
+    n_bins = int(np.ceil(Ex_max/bin_width)) # Make sure the number of bins cover the whole Ex region.
+    # bin_array = np.linspace(0, bin_width*n_bins, n_bins + 1) # Array of lower bin edge energy values
     # bin_array_middle = (bin_array[0: -1] + bin_array[1:])/2 # Array of middle bin values
     
     # Find index of first and last bin (lower bin edge) where we put counts.
@@ -671,8 +681,8 @@ def strength_function_average(
 
     # Allocate matrices to store the summed B(M1) values for each pixel,
     # and the number of transitions counted.
-    B_pixel_sum = np.zeros((Nbins, Nbins, len(Jpi_list)))
-    B_pixel_count = np.zeros((Nbins, Nbins, len(Jpi_list)))
+    B_pixel_sum = np.zeros((n_bins, n_bins, len(Jpi_list)))
+    B_pixel_count = np.zeros((n_bins, n_bins, len(Jpi_list)))
 
     for i_tr in range(len(transitions[:, 0])):
         """
@@ -715,7 +725,7 @@ def strength_function_average(
 
 
     # Allocate (Ex, Jpi) matrix to store level density
-    rho_ExJpi = np.zeros((Nbins, len(Jpi_list)))
+    rho_ExJpi = np.zeros((n_bins, len(Jpi_list)))
     # Count number of levels for each (Ex, J, pi) pixel.
     for i_l in range(len(levels[:, 0])):
         E, J, pi = levels[i_l]
@@ -737,10 +747,10 @@ def strength_function_average(
 
 
     # Calculate gamma strength functions for each Ex, J, pi individually, using the partial level density for each J, pi.
-    gSF = np.zeros((Nbins, Nbins, len(Jpi_list)))
+    gSF = np.zeros((n_bins, n_bins, len(Jpi_list)))
     a = prefactor[multipole_type] # mu_N^-2 MeV^-2, conversion constant
     for i_Jpi in range(len(Jpi_list)):
-        for i_Ex in range(Nbins):
+        for i_Ex in range(n_bins):
             gSF[i_Ex, :, i_Jpi] = a*rho_ExJpi[i_Ex, i_Jpi]*div0(
                 B_pixel_sum[i_Ex, :, i_Jpi],
                 B_pixel_count[i_Ex, :, i_Jpi]
@@ -757,3 +767,71 @@ def strength_function_average(
     )
     return gSF_ExJpiavg
 
+def level_plot(
+    levels: np.ndarray,
+    max_spin_states: int = 1_000,
+    filter_spins: Union[None, list] = None
+    ):
+    """
+    Generate a level plot for a single isotope. Spin on the x axis,
+    energy on the y axis.
+
+    Parameters
+    ----------
+    levels:
+        NxM array of [[energy, spin, parity], ...]. This is the instance
+        attribute 'levels' of ReadKshellOutput.
+    
+    max_spin_states:
+        The maximum amount of states to plot for each spin. Default set
+        to a large number to indicate ≈ no limit.
+
+    filter_spins:
+        Which spins to include in the plot. If None, all spins are
+        plotted.
+    """
+    energies = levels[:, 0] - levels[0, 0]  # Energies relative to the ground state energy.
+    spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
+    parity_symbol = "+" if levels[0, 2] == 1 else "-"
+    
+    if filter_spins is not None:
+        spin_scope = np.unique(filter_spins)    # x values for the plot.
+    else:
+        spin_scope = np.unique(spins)
+    
+    counts = {} # Dict to keep tabs on how many states of each spin has been plotted.
+    line_width = np.abs(spins[0] - spins[1])/2*0.9
+
+    fig, ax = plt.subplots()
+    for i in range(len(energies)):
+        if filter_spins is not None:
+            if spins[i] not in filter_spins:
+                """
+                Skip spins which are not in the filter.
+                """
+                continue
+
+        try:
+            counts[spins[i]] += 1
+        except KeyError:
+            counts[spins[i]] = 1
+        
+        if counts[spins[i]] > max_spin_states:
+            """
+            Include only the first 'max_spin_states' amount of states
+            for any of the spins.
+            """
+            continue
+
+        ax.hlines(
+            y = energies[i],
+            xmin = spins[i] - line_width,
+            xmax = spins[i] + line_width,
+            color = "black"
+        )
+
+    ax.set_xticks(spin_scope)
+    ax.set_xticklabels([f"{Fraction(i)}" + f"$^{parity_symbol}$" for i in spin_scope])
+    ax.set_xlabel("Spin")
+    ax.set_ylabel("E [MeV]")
+    plt.show()
