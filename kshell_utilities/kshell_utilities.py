@@ -83,14 +83,15 @@ class ReadKshellOutput:
         """
 
         # Some attributes might not be set, depending on the input file.
+        self.path = path
         self.fname_summary = None
         self.fname_ptn = None
         self.nucleus = None
         self.model_space = None
         self.proton_partition = None
         self.neutron_partition = None
-        self.E_x = None
-        self.B_M1 = None
+        self.Ex = None
+        self.BM1 = None
         self.levels = None
         self.transitions = None
         self.truncation = None
@@ -263,8 +264,8 @@ class ReadKshellOutput:
         E_x : numpy.ndarray
             1D array of energy levels.
 
-        B_M1 : numpy.ndarray
-            Nx3 matrix with rows [E_x, b_m1, E_gamma].
+        BM1 : numpy.ndarray
+            Nx3 matrix with rows [E_x, bm1, E_gamma].
 
         Raises
         ------
@@ -272,8 +273,27 @@ class ReadKshellOutput:
             If the KSHELL file has unexpected structure / syntax.
         """
 
-        self.E_x = []
-        self.B_M1 = []
+        levels_fname = f"{self.path[:-4]}_levels.npy"
+        transitions_fname = f"{self.path[:-4]}_transitions.npy"
+        Ex_fname = f"{self.path[:-4]}_Ex.npy"
+        BM1_fname = f"{self.path[:-4]}_BM1.npy"
+
+        fnames = [levels_fname, transitions_fname, Ex_fname, BM1_fname]
+
+        if all([os.path.isfile(fname) for fname in fnames]):
+            """
+            If all files exist, load them. If any of the files does not
+            exist, all will be generated.
+            """
+            self.Ex = np.load(file=Ex_fname)
+            self.BM1 = np.load(file=BM1_fname)
+            self.levels = np.load(file=levels_fname)
+            self.transitions = np.load(file=transitions_fname)
+            print("Summary data loaded from .npy!")
+            return
+
+        self.Ex = []
+        self.BM1 = []
         self.levels = [] # [Ei, 2*Ji, parity].
         self.transitions = []   # [2J_f, p_i, E_f, 2J_i, p_i, E_i, E_gamma, B(.., i->f)].
 
@@ -282,7 +302,7 @@ class ReadKshellOutput:
             for line in infile:
                 try:
                     tmp = line.split()
-                    self.E_x.append(float(tmp[6]))
+                    self.Ex.append(float(tmp[6]))
                     parity = 1 if tmp[2] == "+" else -1
                     self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
                 except IndexError:
@@ -330,11 +350,11 @@ class ReadKshellOutput:
                         case = 0
                         E_gamma = float(tmp[4])
                         E_i = float(tmp[1])
-                        b_m1 = float(tmp[5][:-1])
+                        bm1 = float(tmp[5][:-1])
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        self.B_M1.append([E_i, b_m1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                        self.BM1.append([E_i, bm1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
 
 
                     elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
@@ -346,11 +366,11 @@ class ReadKshellOutput:
                         case = 1
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[1])
-                        b_m1 = float(tmp[6][:-1])
+                        bm1 = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[2][:-2]))
                         E_f = float(tmp[4])
-                        self.B_M1.append([E_i, b_m1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                        self.BM1.append([E_i, bm1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
                     
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
@@ -362,11 +382,11 @@ class ReadKshellOutput:
                         case = 2
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[2])
-                        b_m1 = float(tmp[6][:-1])
+                        bm1 = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
                         E_f = float(tmp[4])
-                        self.B_M1.append([E_i, b_m1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                        self.BM1.append([E_i, bm1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
 
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
@@ -377,11 +397,11 @@ class ReadKshellOutput:
                         case = 3
                         E_gamma = float(tmp[6])
                         E_i = float(tmp[2])
-                        b_m1 = float(tmp[7][:-1])
+                        bm1 = float(tmp[7][:-1])
                         J_f = float(Fraction(tmp[3][:-2]))
                         E_f = float(tmp[5])
-                        self.B_M1.append([E_i, b_m1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                        self.BM1.append([E_i, bm1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
 
                     elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                         """
@@ -392,11 +412,11 @@ class ReadKshellOutput:
                         case = 4
                         E_gamma = float(tmp[4])
                         E_i = float(tmp[1])
-                        b_m1 = float(tmp[5].split("(")[0])
+                        bm1 = float(tmp[5].split("(")[0])
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        self.B_M1.append([E_i, b_m1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, b_m1])
+                        self.BM1.append([E_i, bm1, E_gamma])
+                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
 
                     else:
                         msg = "WARNING: Structure not accounted for!"
@@ -440,9 +460,15 @@ class ReadKshellOutput:
 
         self.levels = np.array(self.levels)
         self.transitions = np.array(self.transitions)
-        self.E_x = np.array(self.E_x)
-        self.B_M1 = np.array(self.B_M1)
-        return self.E_x, self.B_M1
+        self.Ex = np.array(self.Ex)
+        self.BM1 = np.array(self.BM1)
+
+        np.save(file=levels_fname, arr=self.levels)
+        np.save(file=transitions_fname, arr=self.transitions)
+        np.save(file=Ex_fname, arr=self.Ex)
+        np.save(file=BM1_fname, arr=self.BM1)
+
+        return self.Ex, self.BM1
 
     @property
     def help(self):
@@ -460,7 +486,6 @@ class ReadKshellOutput:
                 help_list.append(elem)
         
         return help_list
-
 
 def _process_kshell_output_in_parallel(filepath):
     """
@@ -548,7 +573,7 @@ def loadtxt(
                     continue
 
             all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
-            sub_fnames = all_fnames[key]    # For readability.
+            sub_fnames = all_fnames[key]
             sub_fnames = [path + i[0] for i in sub_fnames]
             data += pool.map(_process_kshell_output_in_parallel, sub_fnames)
 
