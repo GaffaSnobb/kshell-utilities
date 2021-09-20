@@ -67,10 +67,35 @@ def create_jpi_list(spins, parities=None):
     
     return sorted(spins_new, key=lambda tup: tup[0])
 
+class DataStructureNotAccountedForError(Exception):
+    pass
+
 class ReadKshellOutput:
     """
     Implemented as class just to avoid returning a bunch of values.
     Access instance attributes instead.
+    TODO: Implement call to level_plot as a method.
+    TODO: Why is initial parity twice in self.transitions? Fix.
+
+    Attributes
+    ----------
+    self.Ex:
+        Array of excitation energies zeroed at the ground state energy.
+
+    self.BM1:
+        Array of [[E, B_decay_prob, E_gamma], ...].
+        Reduced transition probabilities for M1.
+
+    self.BE2:
+        Array of [[E, B_decay_prob, E_gamma], ...].
+        Reduced transition probabilities for E2.
+
+    self.levels:
+        Array containing energy, spin, and parity for each excited
+        state. [[E, 2J, parity], ...].
+
+    self.transitions:
+        Mx8 array containing [2Jf, pi, Ef, 2Ji, pi, Ei, Egamma, B(.., i->f)]
     """
     def __init__(self, path):
         """
@@ -84,7 +109,7 @@ class ReadKshellOutput:
             KSHELL data file.
         """
 
-        # Some attributes might not be set, depending on the input file.
+        # Some attributes might not be altered, depending on the input file.
         self.path = path
         self.fname_summary = None
         self.fname_ptn = None
@@ -94,6 +119,7 @@ class ReadKshellOutput:
         self.neutron_partition = None
         self.Ex = None
         self.BM1 = None
+        self.BE2 = None
         self.levels = None
         self.transitions = None
         self.truncation = None
@@ -260,15 +286,6 @@ class ReadKshellOutput:
         TODO: Change all the substring indexing to something more
         rigorous, like string.split and similar.
 
-        Returns
-        -------
-        NOTE: All return values will be removed in a future release.
-        E_x : numpy.ndarray
-            1D array of energy levels.
-
-        BM1 : numpy.ndarray
-            Nx3 matrix with rows [E_x, bm1, E_gamma].
-
         Raises
         ------
         RuntimeError
@@ -279,6 +296,7 @@ class ReadKshellOutput:
         transitions_fname = f"{self.path[:-4]}_transitions.npy"
         Ex_fname = f"{self.path[:-4]}_Ex.npy"
         BM1_fname = f"{self.path[:-4]}_BM1.npy"
+        BE2_fname = f"{self.path[:-4]}_BE2.npy"
 
         fnames = [levels_fname, transitions_fname, Ex_fname, BM1_fname]
 
@@ -289,15 +307,11 @@ class ReadKshellOutput:
             """
             self.Ex = np.load(file=Ex_fname)
             self.BM1 = np.load(file=BM1_fname)
+            self.BE2 = np.load(file=BE2_fname)
             self.levels = np.load(file=levels_fname)
             self.transitions = np.load(file=transitions_fname)
             print("Summary data loaded from .npy!")
             return
-
-        self.Ex = []
-        self.BM1 = []
-        self.levels = [] # [Ei, 2*Ji, parity].
-        self.transitions = []   # [2J_f, p_i, E_f, 2J_i, p_i, E_i, E_gamma, B(.., i->f)].
 
         def load_energy_levels(infile):
             for _ in range(3): infile.readline()
@@ -313,8 +327,15 @@ class ReadKshellOutput:
                     """
                     break
 
-        def load_m1_probabilities(infile):
+        def load_transition_probabilities(infile, multipole_list):
             """
+            Parameters
+            ----------
+            infile:
+                The KSHELL summary file.
+
+            multipole_list:
+                List for storing B(M1) or B(E2) values.
             """
             for _ in range(2): infile.readline()
             for line in infile:
@@ -352,12 +373,11 @@ class ReadKshellOutput:
                         case = 0
                         E_gamma = float(tmp[4])
                         E_i = float(tmp[1])
-                        bm1 = float(tmp[5][:-1])
+                        reduced_transition_prob = float(tmp[5][:-1])    # B(M1) or B(E2).
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        self.BM1.append([E_i, bm1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
-
+                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
+                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                         """
@@ -368,11 +388,11 @@ class ReadKshellOutput:
                         case = 1
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[1])
-                        bm1 = float(tmp[6][:-1])
+                        reduced_transition_prob = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[2][:-2]))
                         E_f = float(tmp[4])
-                        self.BM1.append([E_i, bm1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
+                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
+                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
                     
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
@@ -384,11 +404,11 @@ class ReadKshellOutput:
                         case = 2
                         E_gamma = float(tmp[5])
                         E_i = float(tmp[2])
-                        bm1 = float(tmp[6][:-1])
+                        reduced_transition_prob = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
                         E_f = float(tmp[4])
-                        self.BM1.append([E_i, bm1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
+                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
+                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
@@ -399,11 +419,11 @@ class ReadKshellOutput:
                         case = 3
                         E_gamma = float(tmp[6])
                         E_i = float(tmp[2])
-                        bm1 = float(tmp[7][:-1])
+                        reduced_transition_prob = float(tmp[7][:-1])
                         J_f = float(Fraction(tmp[3][:-2]))
                         E_f = float(tmp[5])
-                        self.BM1.append([E_i, bm1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
+                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
+                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                         """
@@ -414,26 +434,27 @@ class ReadKshellOutput:
                         case = 4
                         E_gamma = float(tmp[4])
                         E_i = float(tmp[1])
-                        bm1 = float(tmp[5].split("(")[0])
+                        reduced_transition_prob = float(tmp[5].split("(")[0])
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        self.BM1.append([E_i, bm1, E_gamma])
-                        self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, bm1])
+                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
+                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     else:
-                        msg = "WARNING: Structure not accounted for!"
+                        msg = "ERROR: Structure not accounted for!"
                         msg += f"\n{line=}"
-                        raise RuntimeError(msg)
+                        raise DataStructureNotAccountedForError(msg)
+
+                    multipole_list.append([E_i, reduced_transition_prob, E_gamma])
+                    self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                 except ValueError as err:
                     """
                     One of the float conversions failed indicating that
                     the structure of the line is not accounted for.
                     """
-                    print(err)
-                    print(f"{case=}")
-                    print(f"{line=}")
-                    sys.exit()
+                    msg = "\n" + err.__str__() + f"\n{case=}" + f"\n{line=}"
+                    raise DataStructureNotAccountedForError(msg)
 
                 except IndexError:
                     """
@@ -446,13 +467,21 @@ class ReadKshellOutput:
                 tmp = line.split()
                 try:
                     if tmp[0] == "Energy":
+                        self.Ex = []
+                        self.levels = [] # [Ei, 2*Ji, parity].
                         load_energy_levels(infile)
                     
                     elif tmp[0] == "B(E2)":
-                        continue
+                        self.BE2 = []
+                        if self.transitions is None:
+                            self.transitions = []
+                        load_transition_probabilities(infile, self.BE2)
                     
                     elif tmp[0] == "B(M1)":
-                        load_m1_probabilities(infile)
+                        self.BM1 = []
+                        if self.transitions is None:
+                            self.transitions = []
+                        load_transition_probabilities(infile, self.BM1)
                 
                 except IndexError:
                     """
@@ -464,13 +493,13 @@ class ReadKshellOutput:
         self.transitions = np.array(self.transitions)
         self.Ex = np.array(self.Ex)
         self.BM1 = np.array(self.BM1)
+        self.BE2 = np.array(self.BE2)
 
         np.save(file=levels_fname, arr=self.levels)
         np.save(file=transitions_fname, arr=self.transitions)
         np.save(file=Ex_fname, arr=self.Ex)
         np.save(file=BM1_fname, arr=self.BM1)
-
-        return self.Ex, self.BM1
+        np.save(file=BE2_fname, arr=self.BE2)
 
     @property
     def help(self):
@@ -525,6 +554,10 @@ def loadtxt(
     if (is_directory) and (not os.path.isdir(path)):
         msg = f"{path} is not a directory"
         raise NotADirectoryError(msg)
+
+    elif (not is_directory) and (not os.path.isfile(path)):
+        msg = f"{path} is not a file"
+        raise FileNotFoundError(msg)
 
     elif (is_directory) and (os.path.isdir(path)):
         all_fnames = {}
@@ -592,16 +625,20 @@ def loadtxt(
 
     return data
 
-def div0(a, b):
+def div0(numerator, denominator):
     """
-    Author: Jørgen Midtbø.
-    Division function designed to ignore / 0, i.e.
-    div0( [-1, 0, 1], 0 ) -> [0, 0, 0].
+    Suppress ZeroDivisionError, set x/0 to 0, and set inf, -inf and nan
+    to 0. Author Jørgen Midtbø.
+
+    Examples
+    --------
+    >>> div0([1, 1, 1], [1, 2, 0])
+    array([1. , 0.5, 0. ])
     """
     with np.errstate(divide='ignore', invalid='ignore'):
-        c = np.true_divide( a, b )
-        c[ ~ np.isfinite( c )] = 0    # -inf inf NaN
-    return c
+        res = np.true_divide(numerator, denominator)
+        res[~np.isfinite(res)] = 0    # -inf inf NaN
+    return res
 
 def strength_function_average(
     levels: np.ndarray,
@@ -639,7 +676,7 @@ def strength_function_average(
         Nx3 matrix containing [Ei, 2*Ji, parity] in each row.
 
     transitions : numpy.ndarray
-        Mx8 matrix containing [2Jf, pi, Ef, 2Ji, pi, Ei, Ex, B(.., i->f)]
+        Mx8 matrix containing [2Jf, pi, Ef, 2Ji, pi, Ei, Egamma, B(.., i->f)]
         in each row.
 
     Jpi_list : list
@@ -689,7 +726,12 @@ def strength_function_average(
         Iterate over all transitions in the transitions matrix and put
         in the correct pixel.
         """
-        Ex = transitions[i_tr, 2] - Egs # Calculate relative energy. NOTE: Why not just get Ex from the array?
+        Ex = transitions[i_tr, 2] - Egs # Calculate energy relative to ground state.
+        # print(f"{Egs=}")
+        # print(f"{Ex=}")
+        # print(f"{Ex_min=}")
+        # print(f"{Ex_max=}")
+        # return
         if (Ex < Ex_min) or (Ex >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
@@ -761,6 +803,7 @@ def strength_function_average(
     # return gSF[i_Ex_min:i_Ex_max+1,:,:].mean(axis=(0,2))
     # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,pi) pixels:
     gSF_currentExrange = gSF[i_Ex_min:i_Ex_max + 1, :, :]
+    print(f"{gSF=}")
     gSF_ExJpiavg = div0(
         gSF_currentExrange.sum(axis = (0, 2)),
         (gSF_currentExrange != 0).sum(axis = (0, 2))
