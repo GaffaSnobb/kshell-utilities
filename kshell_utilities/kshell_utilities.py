@@ -327,14 +327,14 @@ class ReadKshellOutput:
                     """
                     break
 
-        def load_transition_probabilities(infile, multipole_list):
+        def load_transition_probabilities(infile, reduced_transition_prob_list):
             """
             Parameters
             ----------
             infile:
                 The KSHELL summary file.
 
-            multipole_list:
+            reduced_transition_prob_list:
                 List for storing B(M1) or B(E2) values.
             """
             for _ in range(2): infile.readline()
@@ -376,8 +376,6 @@ class ReadKshellOutput:
                         reduced_transition_prob = float(tmp[5][:-1])    # B(M1) or B(E2).
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
-                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                         """
@@ -391,8 +389,6 @@ class ReadKshellOutput:
                         reduced_transition_prob = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[2][:-2]))
                         E_f = float(tmp[4])
-                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
-                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
                     
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
@@ -407,8 +403,6 @@ class ReadKshellOutput:
                         reduced_transition_prob = float(tmp[6][:-1])
                         J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
                         E_f = float(tmp[4])
-                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
-                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
@@ -422,8 +416,6 @@ class ReadKshellOutput:
                         reduced_transition_prob = float(tmp[7][:-1])
                         J_f = float(Fraction(tmp[3][:-2]))
                         E_f = float(tmp[5])
-                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
-                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                         """
@@ -437,15 +429,13 @@ class ReadKshellOutput:
                         reduced_transition_prob = float(tmp[5].split("(")[0])
                         J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
                         E_f = float(tmp[3])
-                        # self.BM1.append([E_i, reduced_transition_prob, E_gamma])
-                        # self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                     else:
                         msg = "ERROR: Structure not accounted for!"
                         msg += f"\n{line=}"
                         raise DataStructureNotAccountedForError(msg)
 
-                    multipole_list.append([E_i, reduced_transition_prob, E_gamma])
+                    reduced_transition_prob_list.append([E_i, reduced_transition_prob, E_gamma])
                     self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
 
                 except ValueError as err:
