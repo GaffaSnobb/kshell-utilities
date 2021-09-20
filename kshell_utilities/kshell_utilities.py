@@ -76,6 +76,7 @@ class ReadKshellOutput:
     Access instance attributes instead.
     TODO: Implement call to level_plot as a method.
     TODO: Why is initial parity twice in self.transitions? Fix.
+    TODO: Skip -1 spin states. These are bad outputs from KSHELL.
 
     Attributes
     ----------
@@ -97,7 +98,7 @@ class ReadKshellOutput:
     self.transitions:
         Mx8 array containing [2Jf, pi, Ef, 2Ji, pi, Ei, Egamma, B(.., i->f)]
     """
-    def __init__(self, path):
+    def __init__(self, path: str, load_and_save_to_file: bool):
         """
         TODO: Not necessarry to call all _extract_... methods when
         a directory path is passed.
@@ -107,10 +108,14 @@ class ReadKshellOutput:
         path : string
             Path of KSHELL output file directory, or path to a specific
             KSHELL data file.
+
+        load_and_save_to_file:
+            Toggle saving data as .npy files on / off.
         """
 
-        # Some attributes might not be altered, depending on the input file.
         self.path = path
+        self.load_and_save_to_file = load_and_save_to_file
+        # Some attributes might not be altered, depending on the input file.
         self.fname_summary = None
         self.fname_ptn = None
         self.nucleus = None
@@ -298,9 +303,11 @@ class ReadKshellOutput:
         BM1_fname = f"{self.path[:-4]}_BM1.npy"
         BE2_fname = f"{self.path[:-4]}_BE2.npy"
 
-        fnames = [levels_fname, transitions_fname, Ex_fname, BM1_fname]
+        fnames = [
+            levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname
+        ]
 
-        if all([os.path.isfile(fname) for fname in fnames]):
+        if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file:
             """
             If all files exist, load them. If any of the files does not
             exist, all will be generated.
@@ -485,11 +492,12 @@ class ReadKshellOutput:
         self.BM1 = np.array(self.BM1)
         self.BE2 = np.array(self.BE2)
 
-        np.save(file=levels_fname, arr=self.levels)
-        np.save(file=transitions_fname, arr=self.transitions)
-        np.save(file=Ex_fname, arr=self.Ex)
-        np.save(file=BM1_fname, arr=self.BM1)
-        np.save(file=BE2_fname, arr=self.BE2)
+        if self.load_and_save_to_file:
+            np.save(file=levels_fname, arr=self.levels)
+            np.save(file=transitions_fname, arr=self.transitions)
+            np.save(file=Ex_fname, arr=self.Ex)
+            np.save(file=BM1_fname, arr=self.BM1)
+            np.save(file=BE2_fname, arr=self.BE2)
 
     @property
     def help(self):
@@ -508,17 +516,19 @@ class ReadKshellOutput:
         
         return help_list
 
-def _process_kshell_output_in_parallel(filepath):
+def _process_kshell_output_in_parallel(args):
     """
     Simple wrapper for parallelizing loading of KSHELL files.
     """
+    filepath, load_and_save_to_file = args
     print(filepath)
-    return ReadKshellOutput(filepath)
+    return ReadKshellOutput(filepath, load_and_save_to_file)
 
 def loadtxt(
     path: str,
     is_directory: bool = False,
-    filter_: str = None
+    filter_: Union[None, str] = None,
+    load_and_save_to_file: bool = True
     ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
@@ -533,6 +543,12 @@ def loadtxt(
         If True, and 'path' is a directory containing sub-directories
         with KSHELL data files, the contents of 'path' will be scanned
         for KSHELL data files. Currently supports only summary files.
+
+    filter_:
+        NOTE: Shouldnt the type be list, not str?
+
+    load_and_save_to_file:
+        Toggle saving data as .npy files on / off.
 
     Returns
     -------
@@ -599,14 +615,14 @@ def loadtxt(
 
             all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
             sub_fnames = all_fnames[key]
-            sub_fnames = [path + i[0] for i in sub_fnames]
-            data += pool.map(_process_kshell_output_in_parallel, sub_fnames)
+            arg_list = [(path + i[0], load_and_save_to_file) for i in sub_fnames]
+            data += pool.map(_process_kshell_output_in_parallel, arg_list)
 
     else:
         """
         Only a single KSHELL data file.
         """
-        data.append(ReadKshellOutput(path))
+        data.append(ReadKshellOutput(path, load_and_save_to_file))
 
     if not data:
         msg = "No KSHELL data loaded. Most likely error is that the given"
@@ -717,11 +733,12 @@ def strength_function_average(
         in the correct pixel.
         """
         Ex = transitions[i_tr, 2] - Egs # Calculate energy relative to ground state.
-        # print(f"{Egs=}")
-        # print(f"{Ex=}")
-        # print(f"{Ex_min=}")
-        # print(f"{Ex_max=}")
-        # return
+        print(f"{transitions[i_tr, 2]=}")
+        print(f"{Egs=}")
+        print(f"{Ex=}")
+        print(f"{Ex_min=}")
+        print(f"{Ex_max=}")
+        return
         if (Ex < Ex_min) or (Ex >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
