@@ -1,6 +1,9 @@
 import kshell_utilities
 
-res = kshell_utilities.loadtxt("summary_test_text_file.txt")[0]
+res = kshell_utilities.loadtxt(
+    path = "summary_test_text_file.txt",
+    load_and_save_to_file = False
+)[0]
 
 def test_file_read_excitation_energy():
     """
