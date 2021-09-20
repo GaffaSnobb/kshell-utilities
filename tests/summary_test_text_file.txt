@@ -4,7 +4,13 @@
     N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
 
     1     0 +     1     4    -41.394    0.000  log_S24_usda_m0p.txt
-    6     3 +     1     4    -33.378    8.016  log_S24_usda_m0p.txt 
+    6     3 +     1     4    -33.378    8.016  log_S24_usda_m0p.txt
+    5   2.0 +     1   2.0   -114.552    0.240  log_V50_gxpf1a_j4p.txt 
+    6   5.0 +     2   2.0   -114.044    0.748  log_V50_gxpf1a_j10p.txt 
+    7   4.0 +     2   2.0   -113.972    0.820  log_V50_gxpf1a_j8p.txt 
+    8   7.0 +     1   2.0   -113.898    0.894  log_V50_gxpf1a_j14p.txt 
+    9   2.0 +     2   2.0   -113.762    1.030  log_V50_gxpf1a_j4p.txt 
+   10   3.0 +     2   2.0   -113.602    1.190  log_V50_gxpf1a_j6p.txt
 
 
 B(E2)  ( > -0.0 W.u.)  mass = 50    1 W.u. = 10.9 e^2 fm^4
