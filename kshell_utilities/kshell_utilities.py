@@ -110,7 +110,8 @@ class ReadKshellOutput:
             KSHELL data file.
 
         load_and_save_to_file:
-            Toggle saving data as .npy files on / off.
+            Toggle saving data as .npy files on / off. If 'overwrite',
+            saved .npy files are overwritten.
         """
 
         self.path = path
@@ -127,7 +128,14 @@ class ReadKshellOutput:
         self.BE2 = None
         self.levels = None
         self.transitions = None
+        self.transitions_BM1 = None
+        self.transitions_BE2 = None
         self.truncation = None
+
+        if isinstance(self.load_and_save_to_file, str) and (self.load_and_save_to_file != "overwrite"):
+            msg = "Allowed values for 'load_and_save_to_file' are: 'True', 'False', 'overwrite'."
+            msg += f" Got '{self.load_and_save_to_file}'."
+            raise ValueError(msg)
 
         if os.path.isdir(path):
             """
@@ -293,32 +301,59 @@ class ReadKshellOutput:
 
         Raises
         ------
-        RuntimeError
+        DataStructureNotAccountedForError
             If the KSHELL file has unexpected structure / syntax.
         """
+        # path_split = self.path.split("/")
+        # if len(path_split) == 1:
+        #     """
+        #     self.path is only the filename.
+        #     """
+        #     npy_path = "tmp"
+        #     base_fname = path_split[0][:-4]
+        # else:
+        #     npy_path = f"{path_split[:path_split.rfind('/')]}/tmp"
+        #     base_fname = path_split[-1][:-4]
 
-        levels_fname = f"{self.path[:-4]}_levels.npy"
-        transitions_fname = f"{self.path[:-4]}_transitions.npy"
-        Ex_fname = f"{self.path[:-4]}_Ex.npy"
-        BM1_fname = f"{self.path[:-4]}_BM1.npy"
-        BE2_fname = f"{self.path[:-4]}_BE2.npy"
+        npy_path = "tmp"
+        base_fname = self.path.split("/")[-1][:-4]
+
+        try:
+            os.mkdir(npy_path)
+        except FileExistsError:
+            pass
+            
+        levels_fname = f"{npy_path}/{base_fname}_levels.npy"
+        transitions_fname = f"{npy_path}/{base_fname}_transitions.npy"
+        transitions_BM1_fname = f"{npy_path}/{base_fname}_transitions_BM1.npy"
+        transitions_BE2_fname = f"{npy_path}/{base_fname}_transitions_BE2.npy"
+        Ex_fname = f"{npy_path}/{base_fname}_Ex.npy"
+        BM1_fname = f"{npy_path}/{base_fname}_BM1.npy"
+        BE2_fname = f"{npy_path}/{base_fname}_BE2.npy"
 
         fnames = [
-            levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname
+            levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
+            transitions_BM1_fname, transitions_BE2_fname
         ]
 
-        if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file:
+        if self.load_and_save_to_file != "overwrite":
             """
-            If all files exist, load them. If any of the files does not
-            exist, all will be generated.
+            Do not load files if overwrite parameter has been passed.
             """
-            self.Ex = np.load(file=Ex_fname)
-            self.BM1 = np.load(file=BM1_fname)
-            self.BE2 = np.load(file=BE2_fname)
-            self.levels = np.load(file=levels_fname)
-            self.transitions = np.load(file=transitions_fname)
-            print("Summary data loaded from .npy!")
-            return
+            if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file:
+                """
+                If all files exist, load them. If any of the files does
+                not exist, all will be generated.
+                """
+                self.Ex = np.load(file=Ex_fname, allow_pickle=True)
+                self.BM1 = np.load(file=BM1_fname, allow_pickle=True)
+                self.BE2 = np.load(file=BE2_fname, allow_pickle=True)
+                self.levels = np.load(file=levels_fname, allow_pickle=True)
+                self.transitions = np.load(file=transitions_fname, allow_pickle=True)
+                self.transitions_BM1 = np.load(file=transitions_fname, allow_pickle=True)
+                self.transitions_BE2 = np.load(file=transitions_fname, allow_pickle=True)
+                print("Summary data loaded from .npy!")
+                return
 
         def load_energy_levels(infile):
             for _ in range(3): infile.readline()
@@ -493,11 +528,11 @@ class ReadKshellOutput:
         self.BE2 = np.array(self.BE2)
 
         if self.load_and_save_to_file:
-            np.save(file=levels_fname, arr=self.levels)
-            np.save(file=transitions_fname, arr=self.transitions)
-            np.save(file=Ex_fname, arr=self.Ex)
-            np.save(file=BM1_fname, arr=self.BM1)
-            np.save(file=BE2_fname, arr=self.BE2)
+            np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
+            np.save(file=transitions_fname, arr=self.transitions, allow_pickle=True)
+            np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
+            np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
+            np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
 
     @property
     def help(self):
@@ -528,7 +563,7 @@ def loadtxt(
     path: str,
     is_directory: bool = False,
     filter_: Union[None, str] = None,
-    load_and_save_to_file: bool = True
+    load_and_save_to_file: Union[bool, str] = True
     ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
@@ -548,7 +583,8 @@ def loadtxt(
         NOTE: Shouldnt the type be list, not str?
 
     load_and_save_to_file:
-        Toggle saving data as .npy files on / off.
+        Toggle saving data as .npy files on / off. If 'overwrite', saved
+        .npy files are overwritten.
 
     Returns
     -------
@@ -581,7 +617,7 @@ def loadtxt(
                     """
                     List all content in the element directory.
                     """
-                    if isotope.startswith("summary"):
+                    if isotope.startswith("summary") and isotope.endswith(".txt"):
                         """
                         Extract summary data files.
                         """
@@ -733,12 +769,12 @@ def strength_function_average(
         in the correct pixel.
         """
         Ex = transitions[i_tr, 2] - Egs # Calculate energy relative to ground state.
-        print(f"{transitions[i_tr, 2]=}")
-        print(f"{Egs=}")
-        print(f"{Ex=}")
-        print(f"{Ex_min=}")
-        print(f"{Ex_max=}")
-        return
+        # print(f"{transitions[i_tr, 2]=}")
+        # print(f"{Egs=}")
+        # print(f"{Ex=}")
+        # print(f"{Ex_min=}")
+        # print(f"{Ex_max=}")
+        # return
         if (Ex < Ex_min) or (Ex >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
@@ -810,7 +846,7 @@ def strength_function_average(
     # return gSF[i_Ex_min:i_Ex_max+1,:,:].mean(axis=(0,2))
     # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,pi) pixels:
     gSF_currentExrange = gSF[i_Ex_min:i_Ex_max + 1, :, :]
-    print(f"{gSF=}")
+    # print(f"{gSF=}")
     gSF_ExJpiavg = div0(
         gSF_currentExrange.sum(axis = (0, 2)),
         (gSF_currentExrange != 0).sum(axis = (0, 2))
