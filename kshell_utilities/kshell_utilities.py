@@ -96,7 +96,8 @@ class ReadKshellOutput:
         state. [[E, 2J, parity], ...].
 
     self.transitions:
-        Mx8 array containing [2Jf, pi, Ef, 2Ji, pi, Ei, Egamma, B(.., i->f)]
+        Mx8 array containing [2J_final, parity_initial, Ex_final,
+        2J_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
     """
     def __init__(self, path: str, load_and_save_to_file: bool):
         """
@@ -304,17 +305,6 @@ class ReadKshellOutput:
         DataStructureNotAccountedForError
             If the KSHELL file has unexpected structure / syntax.
         """
-        # path_split = self.path.split("/")
-        # if len(path_split) == 1:
-        #     """
-        #     self.path is only the filename.
-        #     """
-        #     npy_path = "tmp"
-        #     base_fname = path_split[0][:-4]
-        # else:
-        #     npy_path = f"{path_split[:path_split.rfind('/')]}/tmp"
-        #     base_fname = path_split[-1][:-4]
-
         npy_path = "tmp"
         base_fname = self.path.split("/")[-1][:-4]
 
@@ -350,8 +340,8 @@ class ReadKshellOutput:
                 self.BE2 = np.load(file=BE2_fname, allow_pickle=True)
                 self.levels = np.load(file=levels_fname, allow_pickle=True)
                 self.transitions = np.load(file=transitions_fname, allow_pickle=True)
-                self.transitions_BM1 = np.load(file=transitions_fname, allow_pickle=True)
-                self.transitions_BE2 = np.load(file=transitions_fname, allow_pickle=True)
+                self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
+                self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
                 print("Summary data loaded from .npy!")
                 return
 
@@ -399,11 +389,11 @@ class ReadKshellOutput:
                     
                     # Location of initial parity is common for all cases.
                     parity_idx = tmp[0].index("(") - 1 # Find index of initial parity.
-                    p_i = 1 if tmp[0][parity_idx] == "+" else -1
+                    parity_initial = 1 if tmp[0][parity_idx] == "+" else -1
                     parity_symbol = tmp[0][parity_idx]
                     
                     # Location of initial spin is common for all cases.
-                    J_i = float(Fraction(tmp[0][:parity_idx]))
+                    J_initial = float(Fraction(tmp[0][:parity_idx]))
                     
                     if (tmp[1][-1] != ")") and (tmp[3][-1] != ")") and (len_tmp == 9):
                         """
@@ -414,10 +404,10 @@ class ReadKshellOutput:
                         """
                         case = 0
                         E_gamma = float(tmp[4])
-                        E_i = float(tmp[1])
+                        Ex_initial = float(tmp[1])
                         reduced_transition_prob = float(tmp[5][:-1])    # B(M1) or B(E2).
-                        J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
-                        E_f = float(tmp[3])
+                        J_final = float(Fraction(tmp[2].split(parity_symbol)[0]))
+                        Ex_final = float(tmp[3])
 
                     elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                         """
@@ -427,10 +417,10 @@ class ReadKshellOutput:
                         """
                         case = 1
                         E_gamma = float(tmp[5])
-                        E_i = float(tmp[1])
+                        Ex_initial = float(tmp[1])
                         reduced_transition_prob = float(tmp[6][:-1])
-                        J_f = float(Fraction(tmp[2][:-2]))
-                        E_f = float(tmp[4])
+                        J_final = float(Fraction(tmp[2][:-2]))
+                        Ex_final = float(tmp[4])
                     
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
@@ -441,10 +431,10 @@ class ReadKshellOutput:
                         """
                         case = 2
                         E_gamma = float(tmp[5])
-                        E_i = float(tmp[2])
+                        Ex_initial = float(tmp[2])
                         reduced_transition_prob = float(tmp[6][:-1])
-                        J_f = float(Fraction(tmp[3].split(parity_symbol)[0]))
-                        E_f = float(tmp[4])
+                        J_final = float(Fraction(tmp[3].split(parity_symbol)[0]))
+                        Ex_final = float(tmp[4])
 
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
@@ -454,10 +444,10 @@ class ReadKshellOutput:
                         """
                         case = 3
                         E_gamma = float(tmp[6])
-                        E_i = float(tmp[2])
+                        Ex_initial = float(tmp[2])
                         reduced_transition_prob = float(tmp[7][:-1])
-                        J_f = float(Fraction(tmp[3][:-2]))
-                        E_f = float(tmp[5])
+                        J_final = float(Fraction(tmp[3][:-2]))
+                        Ex_final = float(tmp[5])
 
                     elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                         """
@@ -467,18 +457,24 @@ class ReadKshellOutput:
                         """
                         case = 4
                         E_gamma = float(tmp[4])
-                        E_i = float(tmp[1])
+                        Ex_initial = float(tmp[1])
                         reduced_transition_prob = float(tmp[5].split("(")[0])
-                        J_f = float(Fraction(tmp[2].split(parity_symbol)[0]))
-                        E_f = float(tmp[3])
+                        J_final = float(Fraction(tmp[2].split(parity_symbol)[0]))
+                        Ex_final = float(tmp[3])
 
                     else:
                         msg = "ERROR: Structure not accounted for!"
                         msg += f"\n{line=}"
                         raise DataStructureNotAccountedForError(msg)
 
-                    reduced_transition_prob_list.append([E_i, reduced_transition_prob, E_gamma])
-                    self.transitions.append([2*J_f, p_i, E_f, 2*J_i, p_i, E_i, E_gamma, reduced_transition_prob])
+                    reduced_transition_prob_list.append([
+                        Ex_initial, reduced_transition_prob, E_gamma
+                    ])
+                    self.transitions.append([
+                        2*J_final, parity_initial, Ex_final, 2*J_initial,
+                        parity_initial, Ex_initial, E_gamma,
+                        reduced_transition_prob
+                    ])
 
                 except ValueError as err:
                     """
@@ -500,7 +496,7 @@ class ReadKshellOutput:
                 try:
                     if tmp[0] == "Energy":
                         self.Ex = []
-                        self.levels = [] # [Ei, 2*Ji, parity].
+                        self.levels = [] # [Ei, 2*J_initial, parity].
                         load_energy_levels(infile)
                     
                     elif tmp[0] == "B(E2)":
@@ -527,9 +523,21 @@ class ReadKshellOutput:
         self.BM1 = np.array(self.BM1)
         self.BE2 = np.array(self.BE2)
 
+        try:
+            self.transitions_BE2 = self.transitions[:len(self.BE2)]
+            self.transitions_BM1 = self.transitions[len(self.BE2):]
+        except TypeError:
+            """
+            TypeError: len() of unsized object because self.BE2 = None.
+            """
+            self.transitions_BE2 = np.array(None)
+            self.transitions_BM1 = np.array(None)
+
         if self.load_and_save_to_file:
             np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
             np.save(file=transitions_fname, arr=self.transitions, allow_pickle=True)
+            np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
+            np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
             np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
             np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
             np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
@@ -694,9 +702,9 @@ def strength_function_average(
     """
     Author: Jørgen Midtbø.
     Modified by: Jon Dahl.
-    20171009: Updated the way we average over Ex, J, pi to only count pixels with non-zero gSF.
+    20171009: Updated the way we average over Ex, J, parity_initial to only count pixels with non-zero gSF.
     20170815: This function returns the strength function the way we now think is the correct way:
-    By taking only the partial level density corresponding to the specific (Ex, J, pi) pixel in the
+    By taking only the partial level density corresponding to the specific (Ex, J, parity_initial) pixel in the
     calculation of the strength function, and then averaging over all three variables to produce
     <f(Eg)>.
     This code was first developed in the script strength_function_individual_Jpi.py
@@ -709,35 +717,37 @@ def strength_function_average(
 
     # 20170920: We thought this was more correct, but now think not.
     # if not Ex in Ex_already_seen[i_Eg]:
-    #     B_pixel_count[i_Ex,i_Eg,i_Jpi] += 1
+    #     B_pixel_count[i_Ex,i_Eg,Jpi_idx] += 1
     #     Ex_already_seen[i_Eg].append(Ex)
+
+    TODO: Fix the subtract E_ground_state thing. (Ex = transitions[transition_idx, 2] - E_ground_state)
 
     Parameters
     ----------
-    levels : numpy.ndarray
-        Nx3 matrix containing [Ei, 2*Ji, parity] in each row.
+    levels:
+        Nx3 matrix containing [Ei, 2*J_initial, parity] in each row.
 
-    transitions : numpy.ndarray
-        Mx8 matrix containing [2Jf, pi, Ef, 2Ji, pi, Ei, Egamma, B(.., i->f)]
-        in each row.
+    transitions:
+        Mx8 array containing [2J_final, parity_initial, Ex_final,
+        2J_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
 
-    Jpi_list : list
+    Jpi_list:
         Set a spin window by defining a list of allowed initial
         [[spins, parities], ...].
 
     bin_width:
 
 
-    Ex_min : int, float
+    Ex_min:
         Lower limit for emitted gamma energy [MeV].
 
-    Ex_max : int, float
+    Ex_max:
         Upper limit for emitted gamma energy [MeV].
         NOTE: If there are transitions with larger gamma energy than
         this, the program will crash (IndexError from i_Eg).
         TODO: Implement a way to check and skip these cases.
 
-    multipole_type : string
+    multipole_type:
         Choose whether to calculate for 'M1' or 'E2'.
 
     Returns
@@ -751,101 +761,111 @@ def strength_function_average(
     
     # Find index of first and last bin (lower bin edge) where we put counts.
     # It's important to not include the other Ex bins in the averaging later, because they contain zeros which will pull the average down.
-    i_Ex_min = int(np.floor(Ex_min/bin_width)) 
-    i_Ex_max = int(np.floor(Ex_max/bin_width))    
+    Ex_min_idx = int(np.floor(Ex_min/bin_width)) 
+    Ex_max_idx = int(np.floor(Ex_max/bin_width))    
 
-    prefactor = {"M1": 11.5473e-9, "E1": 1.047e-6}
+    prefactor = {   # Factor from the def. of the GSF.
+        "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
+        "E1": 1.047e-6
+    }
 
-    Egs = levels[0, 0] # Read out the absolute ground state energy, so we can get relative energies later.
+    E_ground_state = levels[0, 0] # Read out the absolute ground state energy so we can get relative energies later.
+    Ex_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+    
+    if Ex_final[0] != 0:
+        """
+        Adjust energies relative to the ground state energy if they have
+        not been adjusted already.
+        """
+        Ex_final -= E_ground_state
 
-    # Allocate matrices to store the summed B(M1) values for each pixel,
-    # and the number of transitions counted.
-    B_pixel_sum = np.zeros((n_bins, n_bins, len(Jpi_list)))
-    B_pixel_count = np.zeros((n_bins, n_bins, len(Jpi_list)))
+    B_pixel_sum = np.zeros((n_bins, n_bins, len(Jpi_list)))     # Summed B(..) values for each pixel.
+    B_pixel_count = np.zeros((n_bins, n_bins, len(Jpi_list)))   # The number of transitions counted.
 
-    for i_tr in range(len(transitions[:, 0])):
+    for transition_idx in range(len(transitions[:, 0])):
         """
         Iterate over all transitions in the transitions matrix and put
         in the correct pixel.
         """
-        Ex = transitions[i_tr, 2] - Egs # Calculate energy relative to ground state.
-        # print(f"{transitions[i_tr, 2]=}")
-        # print(f"{Egs=}")
+        # Ex = transitions[transition_idx, 2]# - E_ground_state # Calculate energy relative to ground state.
+        # print(f"{transition_idx=}")
+        # print(f"{transitions[transition_idx, 2]=}")
+        # print(f"{E_ground_state=}")
         # print(f"{Ex=}")
         # print(f"{Ex_min=}")
         # print(f"{Ex_max=}")
-        # return
-        if (Ex < Ex_min) or (Ex >= Ex_max):
+        # sys.exit()
+        if (Ex_final[transition_idx] < Ex_min) or (Ex_final[transition_idx] >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
             """
             continue
 
         # Get bin index for Eg and Ex (initial). Indices are defined with respect to the lower bin edge.
-        i_Eg = int(np.floor(transitions[i_tr, 6]/bin_width))
-        i_Ex = int(np.floor(Ex/bin_width))
+        E_gamma_idx = int(np.floor(transitions[transition_idx, 6]/bin_width))
+        Ex_final_idx = int(np.floor(Ex_final[transition_idx]/bin_width))
 
         # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...?
-        Ji = int(transitions[i_tr, 0])
-        pi = int(transitions[i_tr, 1])
+        J_initial = int(transitions[transition_idx, 0])
+        parity_initial = int(transitions[transition_idx, 1])
         try:
             """
-            Get index for current [Ji, pi] combination in Jpi_list.
+            Get index for current [J_initial, parity_initial] combination in Jpi_list.
             """
-            i_Jpi = Jpi_list.index([Ji, pi])
+            Jpi_idx = Jpi_list.index([J_initial, parity_initial])
         except ValueError:
+            print("Transition skipped due to lack of Jpi.")
             continue
 
-        # Add B(M1) value and increment count to pixel, respectively
         try:
-            B_pixel_sum[i_Ex, i_Eg, i_Jpi] += transitions[i_tr, 7]
-            B_pixel_count[i_Ex, i_Eg, i_Jpi] += 1 # Original.
+            # Add B(M1) value and increment count to pixel, respectively
+            B_pixel_sum[Ex_final_idx, E_gamma_idx, Jpi_idx] += transitions[transition_idx, 7]
+            B_pixel_count[Ex_final_idx, E_gamma_idx, Jpi_idx] += 1 # Original.
         except IndexError as err:
             print(err)
-            print(f"{i_Ex=}, {i_Eg=}, {i_Jpi=}, {i_tr=}")
+            print(f"{Ex_final_idx=}, {E_gamma_idx=}, {Jpi_idx=}, {transition_idx=}")
             print(f"{B_pixel_sum.shape}")
             print(f"{transitions.shape}")
             sys.exit()
 
-
-
-    # Allocate (Ex, Jpi) matrix to store level density
-    rho_ExJpi = np.zeros((n_bins, len(Jpi_list)))
-    # Count number of levels for each (Ex, J, pi) pixel.
+    rho_ExJpi = np.zeros((n_bins, len(Jpi_list)))   # (Ex, Jpi) matrix to store level density
     for i_l in range(len(levels[:, 0])):
-        E, J, pi = levels[i_l]
+        """
+        Count number of levels for each (Ex, J, parity_initial) pixel.
+        """
+        Ex, J, parity_initial = levels[i_l]
         
-        if (E - Egs) >= Ex_max:
+        if (Ex - E_ground_state) >= Ex_max:
             """
             Skip if level is outside range.
             """
             continue
 
-        i_Ex = int(np.floor((E - Egs)/bin_width))
+        Ex_idx = int(np.floor((Ex - E_ground_state)/bin_width))
         try:
-            i_Jpi = Jpi_list.index([J, pi])
+            Jpi_idx = Jpi_list.index([J, parity_initial])
         except:
             continue
-        rho_ExJpi[i_Ex, i_Jpi] += 1
+        rho_ExJpi[Ex_idx, Jpi_idx] += 1
 
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
 
 
-    # Calculate gamma strength functions for each Ex, J, pi individually, using the partial level density for each J, pi.
+    # Calculate gamma strength functions for each Ex, J, parity_initial individually, using the partial level density for each J, parity_initial.
     gSF = np.zeros((n_bins, n_bins, len(Jpi_list)))
     a = prefactor[multipole_type] # mu_N^-2 MeV^-2, conversion constant
-    for i_Jpi in range(len(Jpi_list)):
-        for i_Ex in range(n_bins):
-            gSF[i_Ex, :, i_Jpi] = a*rho_ExJpi[i_Ex, i_Jpi]*div0(
-                B_pixel_sum[i_Ex, :, i_Jpi],
-                B_pixel_count[i_Ex, :, i_Jpi]
+    for Jpi_idx in range(len(Jpi_list)):
+        for Ex_idx in range(n_bins):
+            gSF[Ex_idx, :, Jpi_idx] = a*rho_ExJpi[Ex_idx, Jpi_idx]*div0(
+                B_pixel_sum[Ex_idx, :, Jpi_idx],
+                B_pixel_count[Ex_idx, :, Jpi_idx]
             )
 
-    # Return the average gSF(Eg) over all (Ex,J,pi)
+    # Return the average gSF(Eg) over all (Ex,J,parity_initial)
 
-    # return gSF[i_Ex_min:i_Ex_max+1,:,:].mean(axis=(0,2))
-    # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,pi) pixels:
-    gSF_currentExrange = gSF[i_Ex_min:i_Ex_max + 1, :, :]
+    # return gSF[Ex_min_idx:Ex_max_idx+1,:,:].mean(axis=(0,2))
+    # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,parity_initial) pixels:
+    gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
     # print(f"{gSF=}")
     gSF_ExJpiavg = div0(
         gSF_currentExrange.sum(axis = (0, 2)),
