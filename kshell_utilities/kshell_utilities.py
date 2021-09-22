@@ -720,7 +720,7 @@ def strength_function_average(
     #     B_pixel_count[i_Ex,i_Eg,Jpi_idx] += 1
     #     Ex_already_seen[i_Eg].append(Ex)
 
-    TODO: Fix the subtract E_ground_state thing. (Ex = transitions[transition_idx, 2] - E_ground_state)
+    NOTE: Ex_final or Ex_initial?
 
     Parameters
     ----------
@@ -733,10 +733,12 @@ def strength_function_average(
 
     Jpi_list:
         Set a spin window by defining a list of allowed initial
-        [[spins, parities], ...].
+        [[spins, parities], ...]. NOTE: I think the purpose of the list
+        is to give a unique index to each pair of [spin, parity].
 
     bin_width:
-
+        The width of the energy bins. A bin width of 0.2 contains 20
+        states of uniform spacing of 0.01.
 
     Ex_min:
         Lower limit for emitted gamma energy [MeV].
@@ -764,7 +766,7 @@ def strength_function_average(
     Ex_min_idx = int(np.floor(Ex_min/bin_width)) 
     Ex_max_idx = int(np.floor(Ex_max/bin_width))    
 
-    prefactor = {   # Factor from the def. of the GSF.
+    prefactors = {   # Factor from the def. of the GSF.
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
         "E1": 1.047e-6
     }
@@ -779,8 +781,15 @@ def strength_function_average(
         """
         Ex_final -= E_ground_state
 
+    """
+    B_pixel_sum[Ex_final_idx, E_gamma_idx, Jpi_idx] contains the summed
+    reduced transition probabilities for all transitions contained
+    within the Ex_final_idx bin, E_gamma_idx bin, and Jpi_idx bin.
+    B_pixel_counts counts the number of transitions within the same
+    bins.
+    """
     B_pixel_sum = np.zeros((n_bins, n_bins, len(Jpi_list)))     # Summed B(..) values for each pixel.
-    B_pixel_count = np.zeros((n_bins, n_bins, len(Jpi_list)))   # The number of transitions counted.
+    B_pixel_count = np.zeros((n_bins, n_bins, len(Jpi_list)))   # The number of transitions.
 
     for transition_idx in range(len(transitions[:, 0])):
         """
@@ -798,6 +807,8 @@ def strength_function_average(
         if (Ex_final[transition_idx] < Ex_min) or (Ex_final[transition_idx] >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
+            NOTE: Is it correct to check the energy of the final state
+            here? Why not the initial?
             """
             continue
 
@@ -818,9 +829,14 @@ def strength_function_average(
             continue
 
         try:
-            # Add B(M1) value and increment count to pixel, respectively
-            B_pixel_sum[Ex_final_idx, E_gamma_idx, Jpi_idx] += transitions[transition_idx, 7]
-            B_pixel_count[Ex_final_idx, E_gamma_idx, Jpi_idx] += 1 # Original.
+            """
+            Add B(..) value and increment transition count,
+            respectively. NOTE: Hope to remove this try-except by
+            implementing suitable input checks to this function.
+            """
+            B_pixel_sum[Ex_final_idx, E_gamma_idx, Jpi_idx] += \
+                transitions[transition_idx, 7]
+            B_pixel_count[Ex_final_idx, E_gamma_idx, Jpi_idx] += 1
         except IndexError as err:
             print(err)
             print(f"{Ex_final_idx=}, {E_gamma_idx=}, {Jpi_idx=}, {transition_idx=}")
@@ -829,12 +845,12 @@ def strength_function_average(
             sys.exit()
 
     rho_ExJpi = np.zeros((n_bins, len(Jpi_list)))   # (Ex, Jpi) matrix to store level density
-    for i_l in range(len(levels[:, 0])):
+    for levels_idx in range(len(levels[:, 0])):
         """
         Count number of levels for each (Ex, J, parity_initial) pixel.
         """
-        Ex, J, parity_initial = levels[i_l]
-        
+        Ex, spin, parity_initial = levels[levels_idx]
+
         if (Ex - E_ground_state) >= Ex_max:
             """
             Skip if level is outside range.
@@ -843,20 +859,21 @@ def strength_function_average(
 
         Ex_idx = int(np.floor((Ex - E_ground_state)/bin_width))
         try:
-            Jpi_idx = Jpi_list.index([J, parity_initial])
+            Jpi_idx = Jpi_list.index([spin, parity_initial])
         except:
+            print("Transition skipped due to lack of Jpi.")
             continue
+        
         rho_ExJpi[Ex_idx, Jpi_idx] += 1
 
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
 
-
     # Calculate gamma strength functions for each Ex, J, parity_initial individually, using the partial level density for each J, parity_initial.
     gSF = np.zeros((n_bins, n_bins, len(Jpi_list)))
-    a = prefactor[multipole_type] # mu_N^-2 MeV^-2, conversion constant
+    prefactor = prefactors[multipole_type] # mu_N^-2 MeV^-2, conversion constant
     for Jpi_idx in range(len(Jpi_list)):
         for Ex_idx in range(n_bins):
-            gSF[Ex_idx, :, Jpi_idx] = a*rho_ExJpi[Ex_idx, Jpi_idx]*div0(
+            gSF[Ex_idx, :, Jpi_idx] = prefactor*rho_ExJpi[Ex_idx, Jpi_idx]*div0(
                 B_pixel_sum[Ex_idx, :, Jpi_idx],
                 B_pixel_count[Ex_idx, :, Jpi_idx]
             )
