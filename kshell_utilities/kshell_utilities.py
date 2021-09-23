@@ -740,7 +740,8 @@ def strength_function_average(
         #     B_pixel_count[i_Ex,i_Eg,spin_parity_idx] += 1
         #     Ex_already_seen[i_Eg].append(Ex)
 
-    NOTE: Ex_final or Ex_initial?
+    NOTE: Ex_final or Ex_initial? Ask about this!
+    TODO: Try to change to Ex_final!
 
     Parameters
     ----------
@@ -761,9 +762,6 @@ def strength_function_average(
 
     Ex_max:
         Upper limit for emitted gamma energy [MeV].
-        NOTE: If there are transitions with larger gamma energy than
-        this, the program will crash (IndexError from i_Eg).
-        TODO: Implement a way to check and skip these cases.
 
     multipole_type:
         Choose whether to calculate for 'M1' or 'E2'.
@@ -809,6 +807,7 @@ def strength_function_average(
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
         "E1": 1.047e-6
     }
+    prefactor = prefactors[multipole_type]
 
     n_transitions = len(transitions[:, 0])
     n_levels = len(levels[:, 0])
@@ -830,6 +829,13 @@ def strength_function_average(
         """
         Ex -= E_ground_state
 
+    if (Ex_actual_max := np.max(Ex)) < Ex_max:
+        msg = "Requested max excitation energy is greater than the largest"
+        msg += " excitation energy in the data file."
+        msg += f" Changing Ex_max from {Ex_max} to {Ex_actual_max}."
+        Ex_max = Ex_actual_max
+        print(msg)
+
     """
     B_pixel_sum[Ex_final_idx, E_gamma_idx, spin_parity_idx] contains the
     summed reduced transition probabilities for all transitions
@@ -838,13 +844,17 @@ def strength_function_average(
     within the same bins.
     """
     spin_parity_list = create_spin_parity_list(spins, parities)
-    B_pixel_sum = np.zeros((n_bins, n_bins, len(spin_parity_list)))     # Summed B(..) values for each pixel.
-    B_pixel_count = np.zeros((n_bins, n_bins, len(spin_parity_list)))   # The number of transitions.
+    n_unique_spin_parity_pairs = len(spin_parity_list)
+    B_pixel_sum = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))     # Summed B(..) values for each pixel.
+    B_pixel_count = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))   # The number of transitions.
+    rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))   # (Ex, Jpi) matrix to store level density
+    gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))
 
     for transition_idx in range(n_transitions):
         """
-        Iterate over all transitions in the transitions matrix and put
-        in the correct pixel.
+        Iterate over all transitions in the transitions matrix and add
+        up all reduced transition probabilities and the number of
+        transitions in the correct bins.
         """
         if (Ex_final[transition_idx] < Ex_min) or (Ex_final[transition_idx] >= Ex_max):
             """
@@ -881,13 +891,12 @@ def strength_function_average(
                 transitions[transition_idx, 7]
             B_pixel_count[Ex_final_idx, E_gamma_idx, spin_parity_idx] += 1
         except IndexError as err:
-            print(err)
-            print(f"{Ex_final_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}")
-            print(f"{B_pixel_sum.shape}")
-            print(f"{transitions.shape}")
-            sys.exit()
+            msg = f"{err.__str__()}\n"
+            msg += f"{Ex_final_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
+            msg += f"{B_pixel_sum.shape=}\n"
+            msg += f"{transitions.shape=}\n"
+            raise IndexError(msg)
 
-    rho_ExJpi = np.zeros((n_bins, len(spin_parity_list)))   # (Ex, Jpi) matrix to store level density
     for levels_idx in range(n_levels):
         """
         Count number of levels for each (Ex, J, parity_initial) pixel.
@@ -902,7 +911,8 @@ def strength_function_average(
         Ex_idx = int(np.floor(Ex[levels_idx]/bin_width))
 
         try:
-            spin_parity_idx = spin_parity_list.index([spins[levels_idx], parities[levels_idx]])
+            spin_parity_idx = \
+                spin_parity_list.index([spins[levels_idx], parities[levels_idx]])
         except ValueError:
             print("Transition skipped due to lack of spin_parity_list.")
             continue
@@ -911,10 +921,12 @@ def strength_function_average(
 
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
 
-    # Calculate gamma strength functions for each Ex, J, parity_initial individually, using the partial level density for each J, parity_initial.
-    gSF = np.zeros((n_bins, n_bins, len(spin_parity_list)))
-    prefactor = prefactors[multipole_type] # mu_N^-2 MeV^-2, conversion constant
-    for spin_parity_idx in range(len(spin_parity_list)):
+    for spin_parity_idx in range(n_unique_spin_parity_pairs):
+        """
+        Calculate gamma strength functions for each [Ex, spin,
+        parity_initial] individually using the partial level density for
+        each [spin, parity_initial].
+        """
         for Ex_idx in range(n_bins):
             gSF[Ex_idx, :, spin_parity_idx] = \
                 prefactor*rho_ExJpi[Ex_idx, spin_parity_idx]*div0(
@@ -927,7 +939,6 @@ def strength_function_average(
     # return gSF[Ex_min_idx:Ex_max_idx+1,:,:].mean(axis=(0,2))
     # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,parity_initial) pixels:
     gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
-    # print(f"{gSF=}")
     gSF_ExJpiavg = div0(
         gSF_currentExrange.sum(axis = (0, 2)),
         (gSF_currentExrange != 0).sum(axis = (0, 2))
