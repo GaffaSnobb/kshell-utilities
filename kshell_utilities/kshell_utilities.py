@@ -33,40 +33,35 @@ def generate_states(
     print("\n")
     correct_syntax(negative)
 
-def create_jpi_list(spins, parities=None):
+def create_jpi_list(
+    spins: np.ndarray,
+    parities: np.ndarray
+    ) -> list:
     """
     Example list:
     [[1, +1], [3, +1], [5, +1], [7, +1], [9, +1], [11, +1], [13, +1]].
-    Currently hard-coded for only positive parity states.
 
     Parameters
     ----------
-    spins : numpy.ndarray
+    spins:
         Array of spins for each energy level.
+
+    parities:
+        Array of corresponding parities for each energy level.
 
     Returns
     -------
-    spins_new : list
-        A nested list of spins and parities [[spin, parity], ...] sorted
-        with respect to the spin.
+    spins_parities:
+        A Nx2 array of spins and parities [[spin, parity], ...] sorted
+        with respect to the spin. N is the number of unique spins in
+        'spins'.
     """
-    spins[spins < 0] = 0    # Discard negative entries.
-    # unique_spins = 
-    spins_new = []
-    for elem in spins:
-        if elem not in spins_new:
-            """
-            Extract each distinct value only once.
-            """
-            spins_new.append([elem])
+    unique_spins, unique_spins_idx = np.unique(spins, return_index=True)
+    spins_parities = np.empty((len(unique_spins), 2))
+    spins_parities[:, 0] = unique_spins
+    spins_parities[:, 1] = parities[unique_spins_idx]
 
-    for i in range(len(spins_new)):
-        """
-        Add parity for each spin. [spin, parity].
-        """
-        spins_new[i].append(+1)
-    
-    return sorted(spins_new, key=lambda tup: tup[0])
+    return spins_parities.tolist()  # Convert to list since list.index is much faster than np.where.
 
 class DataStructureNotAccountedForError(Exception):
     pass
@@ -622,7 +617,7 @@ def loadtxt(
     Returns
     -------
     data : list
-        Class object with data from KSHELL data file as attributes.
+        List of instances with data from KSHELL data file as attributes.
     """
     all_fnames = None
     data = []
@@ -885,7 +880,7 @@ def strength_function_average(
         Ex_idx = int(np.floor((Ex - E_ground_state)/bin_width))
         try:
             Jpi_idx = Jpi_list.index([spin, parity_initial])
-        except:
+        except ValueError:
             print("Transition skipped due to lack of Jpi.")
             continue
         
