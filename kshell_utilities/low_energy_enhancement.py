@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from .kshell_utilities import atomic_numbers
 from .kshell_utilities import loadtxt
-from .kshell_utilities import create_jpi_list
+from .kshell_utilities import create_spin_parity_list
 from .kshell_utilities import strength_function_average
 
 class LEE:
