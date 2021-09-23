@@ -51,6 +51,7 @@ def create_jpi_list(spins, parities=None):
         with respect to the spin.
     """
     spins[spins < 0] = 0    # Discard negative entries.
+    # unique_spins = 
     spins_new = []
     for elem in spins:
         if elem not in spins_new:
@@ -132,6 +133,8 @@ class ReadKshellOutput:
         self.transitions_BM1 = None
         self.transitions_BE2 = None
         self.truncation = None
+        # Debug.
+        self.minus_one_spin_counts = np.array([0, 0])  # The number of skipped -1 spin states for [levels, transitions].
 
         if isinstance(self.load_and_save_to_file, str) and (self.load_and_save_to_file != "overwrite"):
             msg = "Allowed values for 'load_and_save_to_file' are: 'True', 'False', 'overwrite'."
@@ -147,7 +150,7 @@ class ReadKshellOutput:
                 if elem.startswith("summary"):
                     self.fname_summary = f"{path}/{elem}"
                     self._extract_info_from_summary_fname()
-                    self.read_summary()
+                    self._read_summary()
 
                 elif elem.endswith(".ptn"):
                     self.fname_ptn = f"{path}/{elem}"
@@ -163,16 +166,16 @@ class ReadKshellOutput:
             if fname.startswith("summary"):
                 self.fname_summary = path
                 self._extract_info_from_summary_fname()
-                self.read_summary()
+                self._read_summary()
 
             elif fname.endswith(".ptn"):
                 self.fname_ptn = path
                 self._extract_info_from_ptn_fname()
-                self.read_ptn()
+                self._read_ptn()
 
             else:
                 msg = f"Handling for file {fname} is not implemented."
-                raise NotImplementedError(msg)
+                raise DataStructureNotAccountedForError(msg)
 
     def _extract_info_from_ptn_fname(self):
         """
@@ -183,13 +186,11 @@ class ReadKshellOutput:
         self.nucleus = fname_split[0]
         self.model_space = fname_split[1]
 
-    def read_ptn(self):
+    def _read_ptn(self):
         """
         Read KSHELL partition file (.ptn) and extract proton partition,
         neutron partition, and particle-hole truncation data. Save as
         instance attributes.
-
-        TODO: Probably safe to rename 'line_inner' to 'line'. Or...
         """
 
         line_number = 0
@@ -292,7 +293,7 @@ class ReadKshellOutput:
         self.nucleus = fname_split[1]
         self.model_space = fname_split[2][:-4]  # Remove .txt and keep model space name.
 
-    def read_summary(self):
+    def _read_summary(self):
         """
         Read energy level data, transition probabilities and transition
         strengths from KSHELL output files.
@@ -320,10 +321,11 @@ class ReadKshellOutput:
         Ex_fname = f"{npy_path}/{base_fname}_Ex.npy"
         BM1_fname = f"{npy_path}/{base_fname}_BM1.npy"
         BE2_fname = f"{npy_path}/{base_fname}_BE2.npy"
+        debug_fname = f"{npy_path}/{base_fname}_debug.npy"
 
         fnames = [
             levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
-            transitions_BM1_fname, transitions_BE2_fname
+            transitions_BM1_fname, transitions_BE2_fname, debug_fname
         ]
 
         if self.load_and_save_to_file != "overwrite":
@@ -342,6 +344,7 @@ class ReadKshellOutput:
                 self.transitions = np.load(file=transitions_fname, allow_pickle=True)
                 self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
                 self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
+                self.debug = np.load(file=debug_fname, allow_pickle=True)
                 print("Summary data loaded from .npy!")
                 return
 
@@ -350,6 +353,15 @@ class ReadKshellOutput:
             for line in infile:
                 try:
                     tmp = line.split()
+                    
+                    if tmp[1] == "-1":
+                        """
+                        -1 spin states in the KSHELL data file indicates
+                        bad states which should not be included.
+                        """
+                        self.minus_one_spin_counts[0] += 1  # Debug.
+                        continue
+                    
                     self.Ex.append(float(tmp[6]))
                     parity = 1 if tmp[2] == "+" else -1
                     self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
@@ -467,6 +479,14 @@ class ReadKshellOutput:
                         msg += f"\n{line=}"
                         raise DataStructureNotAccountedForError(msg)
 
+                    if (J_final == -1) or (J_initial == -1):
+                        """
+                        -1 spin states in the KSHELL data file indicates
+                        bad states which should not be included.
+                        """
+                        self.minus_one_spin_counts[1] += 1  # Debug.
+                        continue
+                    
                     reduced_transition_prob_list.append([
                         Ex_initial, reduced_transition_prob, E_gamma
                     ])
@@ -522,6 +542,10 @@ class ReadKshellOutput:
         self.Ex = np.array(self.Ex)
         self.BM1 = np.array(self.BM1)
         self.BE2 = np.array(self.BE2)
+        self.debug = "DEBUG\n"
+        self.debug += f"skipped -1 states in levels: {self.minus_one_spin_counts[0]}\n"
+        self.debug += f"skipped -1 states in transitions: {self.minus_one_spin_counts[1]}\n"
+        self.debug = np.array(self.debug)
 
         try:
             self.transitions_BE2 = self.transitions[:len(self.BE2)]
@@ -541,6 +565,7 @@ class ReadKshellOutput:
             np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
             np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
             np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
+            np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     @property
     def help(self):
