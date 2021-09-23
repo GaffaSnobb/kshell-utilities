@@ -1,3 +1,4 @@
+from itertools import zip_longest
 import kshell_utilities
 
 res = kshell_utilities.loadtxt(
@@ -8,7 +9,8 @@ res = kshell_utilities.loadtxt(
 def test_file_read_excitation_energy():
     """
     Test that kshell_utilities.loadtxt successfully reads excitation
-    energy output from KSHELL.
+    energy output from KSHELL. Note that -1 spin states are supposed to
+    be skipped.
 
     Raises
     ------
@@ -17,8 +19,8 @@ def test_file_read_excitation_energy():
     """
     Ex_expected = [0.0, 8.016, 0.240, 0.748, 0.820, 0.894, 1.030, 1.190]
 
-    for calculated, expected in zip(res.Ex, Ex_expected):
-        msg = f"Error in E_x. Expected: {expected}, got: {calculated}."
+    for calculated, expected in zip_longest(res.Ex, Ex_expected):
+        msg = f"Error in Ex. Expected: {expected}, got: {calculated}."
         assert calculated == expected, msg
 
 def test_file_read_BE2():
@@ -39,8 +41,12 @@ def test_file_read_BE2():
         [0.221,  35.0, 0.045]
     ]
 
-    for calculated, expected in zip(res.BE2, BE2_expected):
+    for calculated, expected in zip_longest(res.BE2, BE2_expected, fillvalue=[None, None, None]):
         msg = f"Error in BE2. Expected: {expected}, got: {calculated}."
+        
+        if len(BE2_expected) != len(res.BE2):
+            msg += f" Check for -1 spin states."
+        
         success = (calculated[0] == expected[0]) and (calculated[1] == expected[1]) and (calculated[2] == expected[2])
         assert success, msg
 
@@ -62,8 +68,12 @@ def test_file_read_BM1():
         [18.393, 0.1, 0.602]
     ]
 
-    for calculated, expected in zip(res.BM1, BM1_expected):
+    for calculated, expected in zip_longest(res.BM1, BM1_expected, fillvalue=[None, None, None]):
         msg = f"Error in BM1. Expected: {expected}, got: {calculated}."
+
+        if len(BM1_expected) != len(res.BM1):
+            msg += f" Check for -1 spin states."
+
         success = (calculated[0] == expected[0]) and (calculated[1] == expected[1]) and (calculated[2] == expected[2])
         assert success, msg
 
