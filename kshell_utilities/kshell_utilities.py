@@ -9,7 +9,7 @@ atomic_numbers = {
     "aluminium": 13, "silicon": 14, "phosphorus": 15, "sulfur": 16,
     "chlorine": 17, "argon": 18
 }
-# atomic_numbers_reversed = dict([(y, x) for x,y in ksutil.atomic_numbers.items()])
+
 atomic_numbers_reversed = {
     8: 'oxygen', 9: 'fluorine', 10: 'neon', 11: 'sodium', 12: 'magnesium',
     13: 'aluminium', 14: 'silicon', 15: 'phosphorus', 16: 'sulfur',
@@ -562,6 +562,31 @@ class ReadKshellOutput:
             np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
             np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
+    def level_plot(self,    
+        max_spin_states: int = 1_000,
+        filter_spins: Union[None, list] = None
+        ):
+        """
+        Wrapper method to include level plot as an attribute to this
+        class. Generate a level plot for a single isotope. Spin on the x
+        axis, energy on the y axis.
+
+        Parameters
+        ----------        
+        max_spin_states:
+            The maximum amount of states to plot for each spin. Default set
+            to a large number to indicate ≈ no limit.
+
+        filter_spins:
+            Which spins to include in the plot. If None, all spins are
+            plotted.
+        """
+        level_plot(
+            levels = self.levels,
+            max_spin_states = max_spin_states,
+            filter_spins = filter_spins
+        )
+
     @property
     def help(self):
         """
@@ -741,7 +766,7 @@ def strength_function_average(
         #     Ex_already_seen[i_Eg].append(Ex)
 
     NOTE: Ex_final or Ex_initial? Ask about this!
-    TODO: Try to change to Ex_final!
+    TODO: Figure out the pre-factors.
 
     Parameters
     ----------
@@ -812,15 +837,18 @@ def strength_function_average(
     n_transitions = len(transitions[:, 0])
     n_levels = len(levels[:, 0])
     E_ground_state = levels[0, 0] # Read out the absolute ground state energy so we can get relative energies later.
-    Ex_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+    Ex_initial = np.copy(transitions[:, 5])   # To avoid altering the raw data.
     Ex, spins, parities = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2]
     
-    if Ex_final[0] != 0:
+    if abs(Ex_initial[0]) > 10:
         """
         Adjust energies relative to the ground state energy if they have
-        not been adjusted already.
+        not been adjusted already. The ground state energy is usually
+        ~ -100 MeV so checking absolute value above 10 MeV is probably
+        safe. Cant check for equality to zero since the initial state
+        will never be zero.
         """
-        Ex_final -= E_ground_state
+        Ex_initial -= E_ground_state
 
     if Ex[0] != 0:
         """
@@ -856,7 +884,7 @@ def strength_function_average(
         up all reduced transition probabilities and the number of
         transitions in the correct bins.
         """
-        if (Ex_final[transition_idx] < Ex_min) or (Ex_final[transition_idx] >= Ex_max):
+        if (Ex_initial[transition_idx] < Ex_min) or (Ex_initial[transition_idx] >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
             NOTE: Is it correct to check the energy of the final state
@@ -866,7 +894,7 @@ def strength_function_average(
 
         # Get bin index for Eg and Ex (initial). Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(np.floor(transitions[transition_idx, 6]/bin_width))
-        Ex_final_idx = int(np.floor(Ex_final[transition_idx]/bin_width))
+        Ex_final_idx = int(np.floor(Ex_initial[transition_idx]/bin_width))
 
         # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...?
         spin_initial = int(transitions[transition_idx, 0])
@@ -902,10 +930,11 @@ def strength_function_average(
         Count number of levels for each (Ex, J, parity_initial) pixel.
         """
 
-        if Ex[levels_idx] >= Ex_max:
+        if Ex[levels_idx] > Ex_max:
             """
             Skip if level is outside range.
             """
+            print("LOL level density")
             continue
 
         Ex_idx = int(np.floor(Ex[levels_idx]/bin_width))
