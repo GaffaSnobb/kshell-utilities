@@ -1,4 +1,4 @@
-kshell_utilities
+kshell-utilities
 ================
 Handy utilities for processing nuclear shell model data from KSHELL.
 
@@ -7,6 +7,10 @@ Installation
 Clone this repository to your downloads directory. cd to the root directory of this repository. Run ::
     
     pip install .
+    
+Or install from the PyPi repository (probably not the newest version) ::
+
+    pip install kshell-utilities
 
 Credit
 ------
