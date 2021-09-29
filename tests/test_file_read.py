@@ -1,5 +1,6 @@
 from itertools import zip_longest
-import kshell_utilities
+# import kshell_utilities
+import kshell_utilities.kshell_utilities
 
 res = kshell_utilities.loadtxt(
     path = "summary_test_text_file.txt",
