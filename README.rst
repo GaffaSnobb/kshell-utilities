@@ -4,7 +4,7 @@ Handy utilities for processing nuclear shell model data from KSHELL.
 
 Installation
 ------------
-Install with pip. In root directory ::
+Clone this repository to your downloads directory. cd to the root directory of this repository. Run ::
     
     pip install .
 
