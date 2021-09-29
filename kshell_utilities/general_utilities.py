@@ -399,3 +399,43 @@ def level_plot(
     ax.set_xlabel("Spin")
     ax.set_ylabel("E [MeV]")
     plt.show()
+
+def level_density(
+    levels: Union[np.ndarray, list],
+    bin_size: Union[int, float]
+    ) -> np.ndarray:
+    """
+    Calculate the level density for a given bin size.
+
+    Parameters
+    ----------
+    levels:
+        1D array of energy levels.
+
+    bin_size:
+        Energy interval of which to calculate the density.
+
+    Returns
+    -------
+    counts/bin_size:
+        The level density.
+
+    bins:
+        The corresponding bins (x value for plotting).
+    """
+    if isinstance(levels, list):
+        levels = np.array(levels)
+
+    if len(levels.shape) != 1:
+        msg = "'levels' input to 'level_density' must be a 1D array or list"
+        msg += " containing the energies for the different levels."
+        raise ValueError(msg)
+
+    bins = np.arange(0, levels[-1] + bin_size, bin_size)
+    n_bins = len(bins)
+    counts = np.zeros(n_bins)
+
+    for i in range(n_bins - 1):
+        counts[i] = np.sum(bins[i] <= levels[levels < bins[i + 1]])
+
+    return (counts/bin_size)[:-1], bins[1:]
