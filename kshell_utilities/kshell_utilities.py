@@ -20,7 +20,8 @@ atomic_numbers_reversed = {
 def generate_states(
     start: int = 0,
     stop: int = 14,
-    n_states: int = 100
+    n_states: int = 100,
+    parity: Union[str, int] = "both"
     ):
     """
     Generate correct string for input to kshell_ui.py when asked for
@@ -37,15 +38,20 @@ def generate_states(
     7-200, 7.5-200, 8-200, 8.5-200, 9-200, 9.5-200, 10-200, 10.5-200, 11-200,
     11.5-200, 12-200, 12.5-200, 13-200, 13.5-200, 14-200, 14.5-200,
     """
+    allowed_positive_parity_inputs = ["positive", "pos", "+", "1", "+1", 1, "both"]
+    allowed_negative_parity_inputs = ["negative", "neg", "-", "-1", -1, "both"]
+    
     def correct_syntax(lst):
         for elem in lst:
             print(elem, end=", ")
     
-    positive = [f"{i:g}{'+'}{n_states}" for i in np.arange(start, stop+1, 0.5)]
-    negative = [f"{i:g}{'-'}{n_states}" for i in np.arange(start, stop+1, 0.5)]
-
-    correct_syntax(positive)
-    correct_syntax(negative)
+    if parity in allowed_positive_parity_inputs:
+        positive = [f"{i:g}{'+'}{n_states}" for i in np.arange(start, stop+0.5, 0.5)]
+        correct_syntax(positive)
+    
+    if parity in allowed_negative_parity_inputs:
+        negative = [f"{i:g}{'-'}{n_states}" for i in np.arange(start, stop+0.5, 0.5)]
+        correct_syntax(negative)
 
 class ReadKshellOutput:
     """
