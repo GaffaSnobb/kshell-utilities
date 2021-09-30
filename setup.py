@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = 'kshell_utilities',
-    version = '1.0.1',    
+    version = '1.0.1.1',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
     url = 'https://github.com/GaffaSnobb/kshell_utilities',
     author = 'Jon Kristian Dahl',
