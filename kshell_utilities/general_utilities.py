@@ -49,7 +49,7 @@ def div0(numerator, denominator):
         res[~np.isfinite(res)] = 0    # -inf inf NaN
     return res
 
-def strength_function_average(
+def gamma_strength_function_average(
     levels: np.ndarray,
     transitions: np.ndarray,
     bin_width: Union[float, int],
@@ -98,17 +98,20 @@ def strength_function_average(
         states of uniform spacing of 0.01.
 
     Ex_min:
-        Lower limit for emitted gamma energy [MeV].
+        Lower limit for initial level excitation energy, usually in MeV.
 
     Ex_max:
-        Upper limit for emitted gamma energy [MeV].
+        Upper limit for initial level excitation energy, usually in MeV.
 
     multipole_type:
-        Choose whether to calculate for 'M1' or 'E2'.
+        Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
+        Currently only M1 is implemented.
 
     initial_or_final:
         Choose whether to use the energy of the initial or final state
-        for the transition calculations.
+        for the transition calculations. NOTE: This will be removed in
+        a future release since the correct alternative is to use the
+        initial energy.
 
     Variables
     ---------
@@ -129,11 +132,11 @@ def strength_function_average(
 
     Returns
     -------
-    gSF_ExJpiavg:
-        The gamma strength function.
-
     bins:
         The bins corresponding to gSF_ExJpiavg (x values for plot).
+        
+    gSF_ExJpiavg:
+        The gamma strength function.
     """
     prefactors = {   # Factor from the def. of the GSF.
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
@@ -328,7 +331,7 @@ def strength_function_average(
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
 
-    return gSF_ExJpiavg, bins
+    return bins, gSF_ExJpiavg
 
 def level_plot(
     levels: np.ndarray,
