@@ -580,7 +580,7 @@ class ReadKshellOutput:
         """
         help_list = []
         for elem in dir(self):
-            if not elem.startswith("__"):   # Omit magic methods.
+            if not elem.startswith("_"):   # Omit magic and private methods.
                 help_list.append(elem)
         
         return help_list

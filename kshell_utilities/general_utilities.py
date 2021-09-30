@@ -332,8 +332,9 @@ def strength_function_average(
 def level_plot(
     levels: np.ndarray,
     max_spin_states: int = 1_000,
-    filter_spins: Union[None, list] = None
-    ):
+    filter_spins: Union[None, list] = None,
+    ax_input: plt.Axes = None
+    ) -> Union[plt.Axes, None]:
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
@@ -353,6 +354,16 @@ def level_plot(
     filter_spins:
         Which spins to include in the plot. If None, all spins are
         plotted.
+
+    ax_input:
+        matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
+        generated in this function.
+
+    Returns
+    -------
+    ax:
+        If ax_input is of type plt.Axes, ax is returned. ax is the
+        plt.Axes wich contains the level density plotted.
     """
     energies = levels[:, 0] - levels[0, 0]  # Energies relative to the ground state energy.
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
@@ -363,10 +374,14 @@ def level_plot(
     else:
         spin_scope = np.unique(spins)
     
-    counts = {} # Dict to keep tabs on how many states of each spin has been plotted.
+    counts = {} # Dict to keep tabs on how many states of each spin have been plotted.
     line_width = np.abs(spins[0] - spins[1])/2*0.9
 
-    fig, ax = plt.subplots()
+    if ax_input is None:
+        fig, ax = plt.subplots()
+    else:
+        ax = ax_input
+
     for i in range(len(energies)):
         if filter_spins is not None:
             if spins[i] not in filter_spins:
@@ -398,7 +413,11 @@ def level_plot(
     ax.set_xticklabels([f"{Fraction(i)}" + f"$^{parity_symbol}$" for i in spin_scope])
     ax.set_xlabel("Spin")
     ax.set_ylabel("E [MeV]")
-    plt.show()
+
+    if ax_input is None:
+        plt.show()
+    else:
+        return ax
 
 def level_density(
     levels: Union[np.ndarray, list],
