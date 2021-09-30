@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-    name = 'kshell_utilities',
-    version = '1.0.1.2',    
+    name = 'kshell-utilities',
+    version = '1.0.1.3',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
-    url = 'https://github.com/GaffaSnobb/kshell_utilities',
+    url = 'https://github.com/GaffaSnobb/kshell-utilities',
     author = 'Jon Kristian Dahl',
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities', 'tests'],
