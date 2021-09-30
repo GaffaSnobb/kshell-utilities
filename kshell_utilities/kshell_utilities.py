@@ -585,8 +585,7 @@ class ReadKshellOutput:
         level_density(
             energy_levels = self.levels[:, 0],
             bin_size = bin_size,
-            plot = True,
-            ax = None
+            plot = True
         )
 
     @property
