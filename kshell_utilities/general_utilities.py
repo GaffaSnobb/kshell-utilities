@@ -460,7 +460,7 @@ def level_density(
         Calculate energies relative to the ground state if not already
         done.
         """
-        energy_levels -= energy_levels[0]
+        energy_levels = energy_levels - energy_levels[0]
 
     bins = np.arange(0, energy_levels[-1] + bin_size, bin_size)
     n_bins = len(bins)
