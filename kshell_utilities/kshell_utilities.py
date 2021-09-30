@@ -586,7 +586,7 @@ class ReadKshellOutput:
             energy_levels = self.levels[:, 0],
             bin_size = bin_size,
             plot = True,
-            ax_input = None
+            ax = None
         )
 
     @property
