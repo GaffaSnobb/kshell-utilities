@@ -1,3 +1,4 @@
+import sys
 from typing import Union, Tuple
 from fractions import Fraction
 import numpy as np
@@ -333,13 +334,11 @@ def level_plot(
     levels: np.ndarray,
     max_spin_states: int = 1_000,
     filter_spins: Union[None, list] = None,
-    ax_input: plt.Axes = None
-    ) -> Union[plt.Axes, None]:
+    ax: plt.Axes = None
+    ):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
-
-    TODO: fig, ax as argument to make plot which can later be adjusted.
 
     Parameters
     ----------
@@ -355,17 +354,20 @@ def level_plot(
         Which spins to include in the plot. If None, all spins are
         plotted.
 
-    ax_input:
+    ax:
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
-
-    Returns
-    -------
-    ax:
-        If ax_input is of type plt.Axes, ax is returned. ax is the
-        plt.Axes wich contains the level density plotted.
     """
-    energies = levels[:, 0] - levels[0, 0]  # Energies relative to the ground state energy.
+    ax_input = False if (ax is None) else True
+
+    if levels[0, 0] != 0:
+        """
+        Adjust energies relative to the ground state energy.
+        """
+        energies = levels[:, 0] - levels[0, 0]
+    else:
+        energies = levels[:, 0]
+
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
     parity_symbol = "+" if levels[0, 2] == 1 else "-"
     
@@ -375,12 +377,10 @@ def level_plot(
         spin_scope = np.unique(spins)
     
     counts = {} # Dict to keep tabs on how many states of each spin have been plotted.
-    line_width = np.abs(spins[0] - spins[1])/2*0.9
+    line_width = np.abs(spins[0] - spins[1])/4*0.9
 
-    if ax_input is None:
+    if not ax_input:
         fig, ax = plt.subplots()
-    else:
-        ax = ax_input
 
     for i in range(len(energies)):
         if filter_spins is not None:
@@ -414,47 +414,70 @@ def level_plot(
     ax.set_xlabel("Spin")
     ax.set_ylabel("E [MeV]")
 
-    if ax_input is None:
+    if not ax_input:
         plt.show()
-    else:
-        return ax
 
 def level_density(
-    levels: Union[np.ndarray, list],
-    bin_size: Union[int, float]
-    ) -> np.ndarray:
+    energy_levels: Union[np.ndarray, list],
+    bin_size: Union[int, float],
+    plot: bool = False,
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the level density for a given bin size.
 
     Parameters
     ----------
-    levels:
+    energy_levels:
         1D array of energy levels.
 
     bin_size:
         Energy interval of which to calculate the density.
 
+    plot:
+        For toggling plotting on / off.
+
     Returns
     -------
-    counts/bin_size:
-        The level density.
-
     bins:
         The corresponding bins (x value for plotting).
-    """
-    if isinstance(levels, list):
-        levels = np.array(levels)
 
-    if len(levels.shape) != 1:
-        msg = "'levels' input to 'level_density' must be a 1D array or list"
-        msg += " containing the energies for the different levels."
+    density:
+        The level density.
+    """
+    if isinstance(energy_levels, list):
+        energy_levels = np.array(energy_levels)
+
+    if len(energy_levels.shape) != 1:
+        msg = "'energy_levels' input to 'level_density' must be a 1D array or"
+        msg += " list containing the energies for the different levels."
         raise ValueError(msg)
 
-    bins = np.arange(0, levels[-1] + bin_size, bin_size)
+    if energy_levels[0] != 0:
+        """
+        Calculate energies relative to the ground state if not already
+        done.
+        """
+        energy_levels -= energy_levels[0]
+
+    bins = np.arange(0, energy_levels[-1] + bin_size, bin_size)
     n_bins = len(bins)
     counts = np.zeros(n_bins)
 
     for i in range(n_bins - 1):
-        counts[i] = np.sum(bins[i] <= levels[levels < bins[i + 1]])
+        counts[i] = np.sum(bins[i] <= energy_levels[energy_levels < bins[i + 1]])
+    
+    density = (counts/bin_size)[:-1]
+    bins = bins[1:]
 
-    return (counts/bin_size)[:-1], bins[1:]
+    if plot:
+        _, ax = plt.subplots()
+
+        ax.step(bins, density)
+
+        if plot:
+            ax.set_ylabel("Density")
+            ax.set_xlabel("Bins")
+            ax.legend([f"{bin_size=}"])
+            plt.show()
+
+    return bins, density
