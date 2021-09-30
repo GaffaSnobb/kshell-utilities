@@ -1,4 +1,4 @@
-__version__ = "1.0.1.1"
+__version__ = "1.0.1.2"
 __author__ = "Jon Kristian Dahl"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
