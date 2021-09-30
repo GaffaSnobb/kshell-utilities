@@ -3,7 +3,7 @@ from fractions import Fraction
 from typing import Union
 import numpy as np
 from .kshell_exceptions import DataStructureNotAccountedForError
-from .general_utilities import level_plot
+from .general_utilities import level_plot, level_density
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
@@ -566,6 +566,21 @@ class ReadKshellOutput:
             levels = self.levels,
             max_spin_states = max_spin_states,
             filter_spins = filter_spins
+        )
+
+    def level_density_plot(self,
+            bin_size: Union[int, float]
+        ):
+        """
+        Wrapper method to include level density plotting as
+        an attribute to this class. Generate the level density with the
+        input bin size.
+        """
+        level_density(
+            energy_levels = self.levels[:, 0],
+            bin_size = bin_size,
+            plot = True,
+            ax_input = None
         )
 
     @property
