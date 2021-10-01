@@ -11,7 +11,11 @@ Or, for the very latest version, clone this repository to your downloads directo
 pip install .
 ```
 
-#### Load and view data from KSHELL
+## Usage
+
+<details>
+<summary>Load and view data from KSHELL</summary>
+<p>
 
 `KSHELL` summary files are easily read with:
 ``` python
@@ -65,7 +69,13 @@ Slice the array to get only selected values, if needed (`ne20.levels[:, 0]` for 
 [2.0000e+00 1.0000e+00 1.4336e+01 ... 1.4638e+01 3.0200e-01 0.0000e+00]]
 ```
 
-#### Visualise data from KSHELL 
+</p>
+</details>
+
+<details>
+<summary>Visualise data from KSHELL </summary>
+<p>
+
 
 You can easily create a level density plot by
 ``` python
@@ -169,6 +179,8 @@ where `bin_width`, `Ex_max` and `Ex_min` are in the same unit as the input energ
 </p>
 </details>
 
+</p>
+</details>
 
 
 ## Credits
