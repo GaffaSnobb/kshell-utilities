@@ -9,23 +9,29 @@ def create_spin_parity_list(
     parities: np.ndarray
     ) -> list:
     """
-    Example list:
-    [[1, +1], [3, +1], [5, +1], [7, +1], [9, +1], [11, +1], [13, +1]].
+    Pair up input spins and parities in a list of lists.
 
     Parameters
     ----------
-    spins:
+    spins : np.ndarray
         Array of spins for each energy level.
 
-    parities:
+    parities : np.ndarray
         Array of corresponding parities for each energy level.
 
     Returns
     -------
-    spins_parities:
+    spins_parities : list
         A nested list of spins and parities [[spin, parity], ...] sorted
         with respect to the spin. N is the number of unique spins in
         'spins'.
+
+    Examples
+    --------
+    Example list:
+    ``` python
+    [[1, +1], [3, +1], [5, +1], [7, +1], [9, +1], [11, +1], [13, +1]]
+    ```
     """
     unique_spins, unique_spins_idx = np.unique(spins, return_index=True)
     spins_parities = np.empty((len(unique_spins), 2))
@@ -59,55 +65,40 @@ def gamma_strength_function_average(
     initial_or_final: str = "initial"
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
+    Calculate the gamma strength function averaged over spins and
+    parities.
+    
     Author: Jørgen Midtbø.
-    Modified by: Jon Dahl.
-    Notes from Jørgen:
-        20171009: Updated the way we average over Ex, J, parity_initial to only count pixels with non-zero gSF.
-        20170815: This function returns the strength function the way we now think is the correct way:
-        By taking only the partial level density corresponding to the specific (Ex, J, parity_initial) pixel in the
-        calculation of the strength function, and then averaging over all three variables to produce
-        <f(Eg)>.
-        This code was first developed in the script strength_function_individual_Jpi.py
+    Modified by: GaffaSnobb.
 
-        # # Update 20170915: Realized a problem with summing vs averaging, adding this list to fix that
-        # # Update 20170920: Realized that the fix was wrong, the original was correct.
-        # Ex_already_seen = []
-        # for i_Ex in range(Nbins):
-        #     Ex_already_seen.append([])
-
-        # 20170920: We thought this was more correct, but now think not.
-        # if not Ex in Ex_already_seen[i_Eg]:
-        #     B_pixel_count[i_Ex,i_Eg,spin_parity_idx] += 1
-        #     Ex_already_seen[i_Eg].append(Ex)
-
-    TODO: Ex_final or Ex_initial? Ask about this!
+    TODO: Ex_final or Ex_initial?
     TODO: Figure out the pre-factors.
 
     Parameters
     ----------
-    levels:
+    levels : np.ndarray
         Array containing energy, spin, and parity for each excited
         state. [[E, 2*spin, parity], ...].
 
-    transitions:
+    transitions : np.ndarray
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
 
-    bin_width:
+    bin_width : Union[float, int]
         The width of the energy bins. A bin width of 0.2 contains 20
         states of uniform spacing of 0.01.
 
-    Ex_min:
+    Ex_min : Union[float, int]
         Lower limit for initial level excitation energy, usually in MeV.
 
-    Ex_max:
+    Ex_max : Union[float, int]
         Upper limit for initial level excitation energy, usually in MeV.
 
-    multipole_type:
+    multipole_type : str
         Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
         Currently only M1 is implemented.
 
-    initial_or_final:
+    initial_or_final : str
         Choose whether to use the energy of the initial or final state
         for the transition calculations. NOTE: This will be removed in
         a future release since the correct alternative is to use the
@@ -115,27 +106,24 @@ def gamma_strength_function_average(
 
     Variables
     ---------
-    Ex:
+    Ex : np.ndarray 
         The excitation energy of all levels.
 
-    Ex_final:
-        The excitation energy of the final state of a transition.
-
-    Ex_initial:
+    Ex_initial : np.ndarray
         The excitation energy of the initial state of a transition.
 
-    spins:
+    spins : np.ndarray
         The spins of all levels.
 
-    parities:
+    parities : np.ndarray
         The parities of all levels.
 
     Returns
     -------
-    bins:
+    bins : np.ndarray
         The bins corresponding to gSF_ExJpiavg (x values for plot).
         
-    gSF_ExJpiavg:
+    gSF_ExJpiavg : np.ndarray
         The gamma strength function.
     """
     prefactors = {   # Factor from the def. of the GSF.
@@ -337,7 +325,7 @@ def level_plot(
     levels: np.ndarray,
     max_spin_states: int = 1_000,
     filter_spins: Union[None, list] = None,
-    ax: plt.Axes = None
+    ax: Union[None, plt.Axes] = None
     ):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
@@ -345,19 +333,19 @@ def level_plot(
 
     Parameters
     ----------
-    levels:
+    levels : np.ndarray
         NxM array of [[energy, spin, parity], ...]. This is the instance
         attribute 'levels' of ReadKshellOutput.
     
-    max_spin_states:
+    max_spin_states : int
         The maximum amount of states to plot for each spin. Default set
         to a large number to indicate ≈ no limit.
 
-    filter_spins:
+    filter_spins : Union[None, list]
         Which spins to include in the plot. If None, all spins are
         plotted.
 
-    ax:
+    ax : Union[None, plt.Axes]
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
     """
@@ -430,21 +418,21 @@ def level_density(
 
     Parameters
     ----------
-    energy_levels:
+    energy_levels : Union[np.ndarray, list]
         1D array of energy levels.
 
-    bin_size:
+    bin_size : Union[int, float]
         Energy interval of which to calculate the density.
 
-    plot:
+    plot : bool
         For toggling plotting on / off.
 
     Returns
     -------
-    bins:
+    bins : np.ndarray
         The corresponding bins (x value for plotting).
 
-    density:
+    density : np.ndarray
         The level density.
     """
     if isinstance(energy_levels, list):
