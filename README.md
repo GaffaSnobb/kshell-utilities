@@ -1,5 +1,5 @@
 # kshell-utilities
-Handy utilities for processing nuclear shell model data from KSHELL. Se the [KSHELL repository](https://github.com/GaffaSnobb/kshell) for installation and usage instructions.
+Handy utilities for processing nuclear shell model data from `KSHELL`. Se the [KSHELL repository](https://github.com/GaffaSnobb/kshell) for installation and usage instructions for `KSHELL`.
 
 ## Installation
 Install from the PyPi repository
