@@ -3,7 +3,7 @@ from fractions import Fraction
 from typing import Union
 import numpy as np
 from .kshell_exceptions import DataStructureNotAccountedForError
-from .general_utilities import level_plot, level_density
+from .general_utilities import level_plot, level_density, gamma_strength_function_average
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
@@ -602,6 +602,25 @@ class ReadKshellOutput:
             plot = True
         )
 
+    def gamma_strength_function_average(self,
+        bin_width: Union[float, int],
+        Ex_min: Union[float, int],
+        Ex_max: Union[float, int],
+        multipole_type: str = "M1",
+        ):
+        """
+        Wrapper method to include gamma ray strength function
+        calculations as an attribute to this class.
+        """
+        return gamma_strength_function_average(
+            levels = self.levels,
+            transitions = self.transitions,
+            bin_width = bin_width,
+            Ex_min = Ex_min,
+            Ex_max = Ex_max,
+            multipole_type = multipole_type
+        )
+
     @property
     def help(self):
         """
@@ -636,6 +655,8 @@ def loadtxt(
     ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
+    TODO: Consider changing 'path' to 'fname' to be the same as
+    np.loadtxt.
 
     Parameters
     ----------
@@ -736,3 +757,47 @@ def loadtxt(
         raise RuntimeError(msg)
 
     return data
+
+def get_timing_data(path: str):
+    """
+    Get timing data from KSHELL log files.
+
+    Parameters
+    ----------
+    path : str
+        Path to log file.
+
+    Examples
+    --------
+    Last 10 lines of log_Ar30_usda_m0p.txt:
+    ```
+          total      20.899         2    10.44928   1.0000
+    pre-process       0.029         1     0.02866   0.0014
+        operate       3.202      1007     0.00318   0.1532
+     re-orthog.      11.354       707     0.01606   0.5433
+  thick-restart       0.214        12     0.01781   0.0102
+   diag tri-mat       3.880       707     0.00549   0.1857
+           misc       2.220                         0.1062
+
+           tmp        0.002       101     0.00002   0.0001
+    ```
+    """
+
+    if "tr" in path:
+        msg = "Truncation log read not implemented yet!"
+        raise DataStructureNotAccountedForError(msg)
+
+    res = os.popen(f'tail -n 20 {path}').read()    # Get the final 10 lines.
+    res = res.split("\n")
+    total = None
+
+    for elem in res:
+        tmp = elem.split()
+        try:
+            if tmp[0] == "total":
+                total = float(tmp[1])
+                break
+        except IndexError:
+            continue
+
+    return total
