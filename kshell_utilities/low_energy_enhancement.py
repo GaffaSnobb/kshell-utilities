@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from .kshell_utilities import atomic_numbers, loadtxt
-from .general_utilities import create_spin_parity_list, strength_function_average
+from .general_utilities import create_spin_parity_list, gamma_strength_function_average
 
 class LEE:
     def __init__(self, directory):
