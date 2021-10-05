@@ -62,7 +62,8 @@ def gamma_strength_function_average(
     Ex_min: Union[float, int],
     Ex_max: Union[float, int],
     multipole_type: str = "M1",
-    initial_or_final: str = "initial"
+    initial_or_final: str = "initial",
+    plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the gamma strength function averaged over spins and
@@ -103,6 +104,9 @@ def gamma_strength_function_average(
         for the transition calculations. NOTE: This will be removed in
         a future release since the correct alternative is to use the
         initial energy.
+
+    plot : bool
+        Toogle plotting on / off.
 
     Variables
     ---------
@@ -318,6 +322,13 @@ def gamma_strength_function_average(
     bins = np.linspace(0, Ex_max, n_bins + 1)   # Not used in this function, only returned.
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
+
+    if plot:
+        fig, ax = plt.subplots()
+        ax.plot(bins, gSF_ExJpiavg)
+        ax.set_xlabel("bins")
+        ax.set_ylabel("gsf")
+        plt.show()
 
     return bins, gSF_ExJpiavg
 

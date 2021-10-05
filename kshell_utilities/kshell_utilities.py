@@ -336,7 +336,10 @@ class ReadKshellOutput:
                 self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
                 self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
                 self.debug = np.load(file=debug_fname, allow_pickle=True)
-                print("Summary data loaded from .npy!")
+                msg = "Summary data loaded from .npy!"
+                msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
+                msg += " to re-read data from the summary file."
+                print(msg)
                 return
 
         def load_energy_levels(infile):
@@ -584,7 +587,8 @@ class ReadKshellOutput:
         )
 
     def level_density_plot(self,
-            bin_size: Union[int, float]
+            bin_size: Union[int, float],
+            plot: bool = True
         ):
         """
         Wrapper method to include level density plotting as
@@ -595,31 +599,67 @@ class ReadKshellOutput:
         ----------
         bin_size : Union[int, float]
             Energy interval of which to calculate the density.
+
+        plot : bool
+            Toogle plotting on / off.
+
+        Returns
+        -------
+        bins : np.ndarray
+            The corresponding bins (x value for plotting).
+
+        density : np.ndarray
+            The level density.
         """
-        level_density(
+        bins, density = level_density(
             energy_levels = self.levels[:, 0],
             bin_size = bin_size,
-            plot = True
+            plot = plot
         )
 
-    def gamma_strength_function_average(self,
+        return bins, density
+
+    def gamma_strength_function_average_plot(self,
         bin_width: Union[float, int],
         Ex_min: Union[float, int],
         Ex_max: Union[float, int],
         multipole_type: str = "M1",
+        plot: bool = True
         ):
         """
         Wrapper method to include gamma ray strength function
         calculations as an attribute to this class.
+
+        Parameters
+        ----------
+        bin_width : Union[float, int]
+            The width of the energy bins. A bin width of 0.2 contains 20
+            states of uniform spacing of 0.01.
+
+        Ex_min : Union[float, int]
+            Lower limit for initial level excitation energy, usually in MeV.
+
+        Ex_max : Union[float, int]
+            Upper limit for initial level excitation energy, usually in MeV.
+
+        multipole_type : str
+            Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
+            Currently only M1 is implemented.
+
+        plot : bool
+            Toogle plotting on / off.
         """
-        return gamma_strength_function_average(
+        bins, gsf =  gamma_strength_function_average(
             levels = self.levels,
             transitions = self.transitions,
             bin_width = bin_width,
             Ex_min = Ex_min,
             Ex_max = Ex_max,
-            multipole_type = multipole_type
+            multipole_type = multipole_type,
+            plot = plot
         )
+
+        return bins, gsf
 
     @property
     def help(self):
