@@ -1,5 +1,5 @@
 from itertools import zip_longest
-# import kshell_utilities
+import numpy as np
 import kshell_utilities.kshell_utilities
 
 res = kshell_utilities.loadtxt(
@@ -78,7 +78,19 @@ def test_file_read_BM1():
         success = (calculated[0] == expected[0]) and (calculated[1] == expected[1]) and (calculated[2] == expected[2])
         assert success, msg
 
+def test_int_vs_floor():
+    """
+    Check that floor yields the same result as casting to int. This does
+    not work for negative values.
+    """
+    res_1 = np.floor(res.transitions[:, 5])
+    res_2 = res.transitions[:, 5].astype(int)
+
+    for elem_1, elem_2 in zip(res_1, res_2):
+        assert elem_1 == elem_2
+
 if __name__ == "__main__":
     test_file_read_excitation_energy()
     test_file_read_BE2()
     test_file_read_BM1()
+    test_int_vs_floor()
