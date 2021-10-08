@@ -511,20 +511,6 @@ class ReadKshellOutput:
                     reduced_transition_prob_decay_list.append([
                         Ex_initial, reduced_transition_prob_decay, E_gamma
                     ])
-                    """
-                        transitions : np.ndarray
-                            OLD:
-                            Mx8 array containing [2*spin_final, parity_initial, Ex_final,
-                            2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)].
-                            NEW:
-                            [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-                            parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
-                    """
-                    # self.transitions.append([
-                    #     2*spin_final, parity_initial, Ex_final, 2*spin_initial,
-                    #     parity_initial, Ex_initial, E_gamma,
-                    #     reduced_transition_prob_decay
-                    # ])
                     if parity_final == "+":
                         parity_final = 1
                     elif parity_final == "-":
