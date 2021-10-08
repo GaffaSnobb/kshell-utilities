@@ -428,7 +428,8 @@ class ReadKshellOutput:
                         case_ = 0
                         E_gamma = float(tmp[4])
                         Ex_initial = float(tmp[1])
-                        reduced_transition_prob_decay = float(tmp[5][:-1])    # B(M1) or B(E2).
+                        reduced_transition_prob_decay = float(tmp[5][:-1])
+                        reduced_transition_prob_excite = float(tmp[7][:-1])
                         spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[3])
                         parity_final = tmp[2].split("(")[0][-1]
@@ -443,6 +444,7 @@ class ReadKshellOutput:
                         E_gamma = float(tmp[5])
                         Ex_initial = float(tmp[1])
                         reduced_transition_prob_decay = float(tmp[6][:-1])
+                        reduced_transition_prob_excite = float(tmp[8][:-1])
                         spin_final = float(Fraction(tmp[2][:-2]))
                         Ex_final = float(tmp[4])
                         parity_final = tmp[2].split("(")[0][-1]
@@ -458,6 +460,7 @@ class ReadKshellOutput:
                         E_gamma = float(tmp[5])
                         Ex_initial = float(tmp[2])
                         reduced_transition_prob_decay = float(tmp[6][:-1])
+                        reduced_transition_prob_excite = float(tmp[8][:-1])
                         spin_final = float(Fraction(tmp[3].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[4])
                         parity_final = tmp[3].split("(")[0][-1]
@@ -472,6 +475,7 @@ class ReadKshellOutput:
                         E_gamma = float(tmp[6])
                         Ex_initial = float(tmp[2])
                         reduced_transition_prob_decay = float(tmp[7][:-1])
+                        reduced_transition_prob_excite = float(tmp[9][:-1])
                         spin_final = float(Fraction(tmp[3][:-2]))
                         Ex_final = float(tmp[5])
                         parity_final = tmp[3].split("(")[0][-1]
@@ -486,6 +490,7 @@ class ReadKshellOutput:
                         E_gamma = float(tmp[4])
                         Ex_initial = float(tmp[1])
                         reduced_transition_prob_decay = float(tmp[5].split("(")[0])
+                        reduced_transition_prob_excite = float(tmp[6][:-1])
                         spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[3])
                         parity_final = tmp[2].split("(")[0][-1]
@@ -531,7 +536,7 @@ class ReadKshellOutput:
                     self.transitions.append([
                         2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
                         parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
-                        # reduced_transition_prob_excite
+                        reduced_transition_prob_excite
                     ])
 
                 except ValueError as err:
@@ -693,9 +698,13 @@ class ReadKshellOutput:
         plot : bool
             Toogle plotting on / off.
         """
+        transitions_dict = {
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2
+        }
         bins, gsf =  gamma_strength_function_average(
             levels = self.levels,
-            transitions = self.transitions,
+            transitions = transitions_dict[multipole_type],
             bin_width = bin_width,
             Ex_min = Ex_min,
             Ex_max = Ex_max,
