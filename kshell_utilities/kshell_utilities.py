@@ -343,6 +343,20 @@ class ReadKshellOutput:
                 return
 
         def load_energy_levels(infile):
+            """
+            Example
+            -------
+            Energy levels
+
+            N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
+
+            1   5/2 +     1   3/2    -16.565    0.000  log_O19_sdpf-mu_m1p.txt 
+            2   3/2 +     1   3/2    -15.977    0.588  log_O19_sdpf-mu_m1p.txt 
+            3   1/2 +     1   3/2    -15.192    1.374  log_O19_sdpf-mu_m1p.txt 
+            4   9/2 +     1   3/2    -13.650    2.915  log_O19_sdpf-mu_m1p.txt 
+            5   7/2 +     1   3/2    -13.267    3.298  log_O19_sdpf-mu_m1p.txt 
+            6   5/2 +     2   3/2    -13.074    3.491  log_O19_sdpf-mu_m1p.txt
+            """
             for _ in range(3): infile.readline()
             for line in infile:
                 try:
@@ -823,21 +837,39 @@ def get_timing_data(path: str):
     ```
     """
 
-    if "tr" in path:
-        msg = "Truncation log read not implemented yet!"
+    if "log" not in path:
+        msg = "Unknown log file name!"
         raise DataStructureNotAccountedForError(msg)
 
     res = os.popen(f'tail -n 20 {path}').read()    # Get the final 10 lines.
     res = res.split("\n")
     total = None
-
-    for elem in res:
-        tmp = elem.split()
-        try:
-            if tmp[0] == "total":
-                total = float(tmp[1])
-                break
-        except IndexError:
-            continue
-
+    
+    if "tr" not in path:
+        """
+        KSHELL log.
+        """
+        for elem in res:
+            tmp = elem.split()
+            try:
+                if tmp[0] == "total":
+                    total = float(tmp[1])
+                    break
+            except IndexError:
+                continue
+        
+    elif "tr" in path:
+        """
+        Transit log.
+        """
+        for elem in res:
+            tmp = elem.split()
+            try:
+                if tmp[0] == "total":
+                    total = float(tmp[3])
+                    break
+            except IndexError:
+                continue
+    
     return total
+
