@@ -702,7 +702,7 @@ class ReadKshellOutput:
             "M1": self.transitions_BM1,
             "E2": self.transitions_BE2
         }
-        bins, gsf =  gamma_strength_function_average(
+        bins, gsf = gamma_strength_function_average(
             levels = self.levels,
             transitions = transitions_dict[multipole_type],
             bin_width = bin_width,
@@ -713,6 +713,18 @@ class ReadKshellOutput:
         )
 
         return bins, gsf
+
+    def gsf(self,
+        bin_width: Union[float, int],
+        Ex_min: Union[float, int],
+        Ex_max: Union[float, int],
+        multipole_type: str = "M1",
+        plot: bool = True
+        ):
+        """
+        Alias for gamma_strength_function_average_plot.
+        """
+        return self.gamma_strength_function_average_plot(bin_width, Ex_min, Ex_max, multipole_type, plot)
 
     @property
     def help(self):
