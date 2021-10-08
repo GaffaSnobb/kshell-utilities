@@ -83,6 +83,7 @@ def gamma_strength_function_average(
         state. [[E, 2*spin, parity], ...].
 
     transitions : np.ndarray
+        OLD:
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
 
@@ -157,11 +158,15 @@ def gamma_strength_function_average(
     
     if initial_or_final == "initial":
         Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+        spin_initial_or_final_idx = 0
+        parity_initial_or_final_idx = 1
     elif initial_or_final == "final":
         """
         NOTE: This option will be removed in a future release.
         """
         Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
+        spin_initial_or_final_idx = 3
+        parity_initial_or_final_idx = 4
     else:
         msg = "'initial_or_final' must be either 'initial' or 'final'."
         msg += f" Got {initial_or_final}"
@@ -204,7 +209,7 @@ def gamma_strength_function_average(
     Ex_min_idx = int(Ex_min/bin_width)
     Ex_max_idx = int(Ex_max/bin_width)
     n_bins = int(np.ceil(Ex_max/bin_width)) # Make sure the number of bins cover the whole Ex region.
-    Ex_max = bin_width*n_bins # Adjust Ex_max to match the round-off in the bin width. NOTE: Unsure if this is needed.
+    # Ex_max = bin_width*n_bins # Adjust Ex_max to match the round-off in the bin width. NOTE: Unsure if this is needed.
 
     """
     B_pixel_sum[Ex_final_idx, E_gamma_idx, spin_parity_idx] contains the
@@ -213,12 +218,12 @@ def gamma_strength_function_average(
     spin_parity_idx bin. B_pixel_counts counts the number of transitions
     within the same bins.
     """
-    spin_parity_list = create_spin_parity_list(spins, parities)
+    spin_parity_list = create_spin_parity_list(spins, parities) # To create a unique index for every [spin, parity] pair.
     n_unique_spin_parity_pairs = len(spin_parity_list)
     B_pixel_sum = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))     # Summed B(..) values for each pixel.
     B_pixel_count = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))   # The number of transitions.
-    rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))   # (Ex, Jpi) matrix to store level density
-    gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))
+    rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))  # (Ex, Jpi) matrix to store level density
+    gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))    
 
     for transition_idx in range(n_transitions):
         """
@@ -232,7 +237,7 @@ def gamma_strength_function_average(
             """
             continue
 
-        # Get bin index for Eg and Ex (initial). Indices are defined with respect to the lower bin edge.
+        # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
         Ex_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
 
@@ -245,10 +250,8 @@ def gamma_strength_function_average(
             [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
             parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
         """
-        # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...? I think I do!
-        spin_initial = int(transitions[transition_idx, 0])
-        parity_initial = int(transitions[transition_idx, 1])    # NOTE: Initial or final? See OLD vs NEW.
-
+        spin_initial = int(transitions[transition_idx, spin_initial_or_final_idx])
+        parity_initial = int(transitions[transition_idx, parity_initial_or_final_idx])
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
         try:
@@ -292,7 +295,6 @@ def gamma_strength_function_average(
         """
         Count number of levels for each (Ex, J, parity_initial) pixel.
         """
-
         if Ex[levels_idx] > Ex_max:
             """
             Skip if level is outside range.
@@ -301,12 +303,8 @@ def gamma_strength_function_average(
 
         Ex_idx = int(Ex[levels_idx]/bin_width)
 
-        try:
-            spin_parity_idx = \
-                spin_parity_list.index([spins[levels_idx], parities[levels_idx]])
-        except ValueError:
-            print("Transition skipped due to lack of spin_parity_list.")
-            continue
+        spin_parity_idx = \
+            spin_parity_list.index([spins[levels_idx], parities[levels_idx]])
         
         rho_ExJpi[Ex_idx, spin_parity_idx] += 1
 
@@ -321,8 +319,8 @@ def gamma_strength_function_average(
         for Ex_idx in range(n_bins):
             gSF[Ex_idx, :, spin_parity_idx] = \
                 prefactor*rho_ExJpi[Ex_idx, spin_parity_idx]*div0(
-                B_pixel_sum[Ex_idx, :, spin_parity_idx],
-                B_pixel_count[Ex_idx, :, spin_parity_idx]
+                    B_pixel_sum[Ex_idx, :, spin_parity_idx],
+                    B_pixel_count[Ex_idx, :, spin_parity_idx]
                 )
 
     # Return the average gSF(Eg) over all (Ex,J,parity_initial)
@@ -335,7 +333,7 @@ def gamma_strength_function_average(
         (gSF_currentExrange != 0).sum(axis = (0, 2))
     )
 
-    bins = np.linspace(0, Ex_max, n_bins + 1)   # Not used in this function, only returned.
+    bins = np.linspace(0, Ex_max, n_bins + 1)
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
 
