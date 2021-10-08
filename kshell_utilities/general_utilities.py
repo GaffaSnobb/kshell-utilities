@@ -131,6 +131,14 @@ def gamma_strength_function_average(
     gSF_ExJpiavg : np.ndarray
         The gamma strength function.
     """
+    if (Ex_min < 0) or (Ex_max < 0):
+        msg = "Ex_min and Ex_max cannot be negative!"
+        raise ValueError(msg)
+
+    if Ex_max < Ex_min:
+        msg = "Ex_max cannot be smaller than Ex_min!"
+        raise ValueError(msg)
+
     prefactors = {   # Factor from the def. of the GSF.
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
         "E1": 1.047e-6
@@ -189,8 +197,8 @@ def gamma_strength_function_average(
     bin_array = np.linspace(0, bin_width*n_bins, n_bins + 1) # Array of lower bin edge energy values
     bin_array_middle = (bin_array[0: -1] + bin_array[1:])/2 # Array of middle bin values
     """
-    Ex_min_idx = int(np.floor(Ex_min/bin_width)) 
-    Ex_max_idx = int(np.floor(Ex_max/bin_width))    
+    Ex_min_idx = int(Ex_min/bin_width)
+    Ex_max_idx = int(Ex_max/bin_width)
     n_bins = int(np.ceil(Ex_max/bin_width)) # Make sure the number of bins cover the whole Ex region.
     Ex_max = bin_width*n_bins # Adjust Ex_max to match the round-off in the bin width. NOTE: Unsure if this is needed.
 
@@ -285,7 +293,7 @@ def gamma_strength_function_average(
             """
             continue
 
-        Ex_idx = int(np.floor(Ex[levels_idx]/bin_width))
+        Ex_idx = int(Ex[levels_idx]/bin_width)
 
         try:
             spin_parity_idx = \
