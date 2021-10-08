@@ -1,4 +1,4 @@
-import sys
+import sys, time
 from typing import Union, Tuple
 from fractions import Fraction
 import numpy as np
@@ -33,12 +33,13 @@ def create_spin_parity_list(
     [[1, +1], [3, +1], [5, +1], [7, +1], [9, +1], [11, +1], [13, +1]]
     ```
     """
-    unique_spins, unique_spins_idx = np.unique(spins, return_index=True)
-    spins_parities = np.empty((len(unique_spins), 2))
-    spins_parities[:, 0] = unique_spins
-    spins_parities[:, 1] = parities[unique_spins_idx]
+    spin_parity_list = []
+    for i in range(len(spins)):
+        if (tmp := [int(spins[i]), int(parities[i])]) in spin_parity_list:
+            continue
+        spin_parity_list.append(tmp)
 
-    return spins_parities.tolist()  # Convert to list since list.index is much faster than np.where.
+    return spin_parity_list
 
 def div0(numerator, denominator):
     """
@@ -145,6 +146,9 @@ def gamma_strength_function_average(
     if initial_or_final == "initial":
         Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
     elif initial_or_final == "final":
+        """
+        NOTE: This option will be removed in a future release.
+        """
         Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
     else:
         msg = "'initial_or_final' must be either 'initial' or 'final'."
@@ -219,21 +223,19 @@ def gamma_strength_function_average(
             continue
 
         # Get bin index for Eg and Ex (initial). Indices are defined with respect to the lower bin edge.
-        E_gamma_idx = int(np.floor(transitions[transition_idx, 6]/bin_width))
-        Ex_final_idx = int(np.floor(Ex_initial_or_final[transition_idx]/bin_width))
+        E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
+        Ex_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
 
-        # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...?
-        spin_initial = int(transitions[transition_idx, 0])
+        """
+        transitions : np.ndarray
+            Mx8 array containing [2*spin_final, parity_initial, Ex_final,
+            2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
+        """
+        # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...? I think I do!
+        spin_initial = int(transitions[transition_idx, 3])
         parity_initial = int(transitions[transition_idx, 1])
-        try:
-            """
-            Get index for current [spin_initial, parity_initial]
-            combination in spin_parity_list.
-            """
-            spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
-        except ValueError:
-            print("Transition skipped due to lack of spin_parity_list.")
-            continue
+
+        spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
         try:
             """
