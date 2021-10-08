@@ -7,7 +7,7 @@ res = kshell_utilities.loadtxt(
     load_and_save_to_file = False
 )[0]
 
-def test_file_read_excitation_energy():
+def test_file_read_levels():
     """
     Test that kshell_utilities.loadtxt successfully reads excitation
     energy output from KSHELL. Note that -1 spin states are supposed to
@@ -18,10 +18,27 @@ def test_file_read_excitation_energy():
     AssertionError
         If the read values are not exactly equal to the expected values.
     """
-    Ex_expected = [0.0, 8.016, 0.240, 0.748, 0.820, 0.894, 1.030, 1.190]
+    E_expected = [
+        -41.394, -33.378, -114.552, -114.044, -113.972, -113.898, -113.762,
+        -113.602, -9.896, -9.052
+    ]
+    spin_expected = [
+        2*0, 2*3, 2*2, 2*5, 2*4, 2*7, 2*2, 2*3, 2*3/2, 2*7/2
+    ]
+    parity_expected = [
+        1, 1, 1, 1, 1, 1, 1, 1, -1, -1
+    ]
 
-    for calculated, expected in zip_longest(res.Ex, Ex_expected):
+    for calculated, expected in zip_longest(res.levels[:, 0], E_expected):
         msg = f"Error in Ex. Expected: {expected}, got: {calculated}."
+        assert calculated == expected, msg
+
+    for calculated, expected in zip_longest(res.levels[:, 1], spin_expected):
+        msg = f"Error in spin. Expected: {expected}, got: {calculated}."
+        assert calculated == expected, msg
+
+    for calculated, expected in zip_longest(res.levels[:, 2], parity_expected):
+        msg = f"Error in parity. Expected: {expected}, got: {calculated}."
         assert calculated == expected, msg
 
 def test_file_read_BE2():
@@ -89,8 +106,12 @@ def test_int_vs_floor():
     for elem_1, elem_2 in zip(res_1, res_2):
         assert elem_1 == elem_2
 
+def test_initial_and_final_parity():
+    pass
+
 if __name__ == "__main__":
-    test_file_read_excitation_energy()
+    test_file_read_levels()
     test_file_read_BE2()
     test_file_read_BM1()
     test_int_vs_floor()
+    test_initial_and_final_parity()
