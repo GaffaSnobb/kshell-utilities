@@ -90,9 +90,12 @@ class ReadKshellOutput:
         state. [[E, 2*spin, parity], ...].
 
     transitions : np.ndarray
+        OLD:
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)].
-        TODO: Why is initial parity twice in self.transitions? Fix.
+        NEW:
+        [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+        parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
     """
     def __init__(self, path: str, load_and_save_to_file: bool):
         """
@@ -325,7 +328,7 @@ class ReadKshellOutput:
             """
             if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file:
                 """
-                If all files exist, load them. If any of the files does
+                If all files exist, load them. If any of the files do
                 not exist, all will be generated.
                 """
                 self.Ex = np.load(file=Ex_fname, allow_pickle=True)
@@ -379,14 +382,14 @@ class ReadKshellOutput:
                     """
                     break
 
-        def load_transition_probabilities(infile, reduced_transition_prob_list):
+        def load_transition_probabilities(infile, reduced_transition_prob_decay_list):
             """
             Parameters
             ----------
             infile:
                 The KSHELL summary file.
 
-            reduced_transition_prob_list:
+            reduced_transition_prob_decay_list:
                 List for storing B(M1) or B(E2) values.
             """
             for _ in range(2): infile.readline()
@@ -405,12 +408,12 @@ class ReadKshellOutput:
                     """
                     tmp = line.split()
                     len_tmp = len(tmp)
-                    case = None # Used for identifying which if-else case reads wrong.
+                    case_ = None # Used for identifying which if-else case reads wrong.
                     
                     # Location of initial parity is common for all cases.
                     parity_idx = tmp[0].index("(") - 1 # Find index of initial parity.
                     parity_initial = 1 if tmp[0][parity_idx] == "+" else -1
-                    parity_symbol = tmp[0][parity_idx]
+                    parity_initial_symbol = tmp[0][parity_idx]
                     
                     # Location of initial spin is common for all cases.
                     spin_initial = float(Fraction(tmp[0][:parity_idx]))
@@ -422,12 +425,13 @@ class ReadKshellOutput:
                         2+(11)   18.393  2+(10)    17.791  0.602    0.1(    0.0)    0.1(    0.0)
                         5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
                         """
-                        case = 0
+                        case_ = 0
                         E_gamma = float(tmp[4])
                         Ex_initial = float(tmp[1])
-                        reduced_transition_prob = float(tmp[5][:-1])    # B(M1) or B(E2).
-                        spin_final = float(Fraction(tmp[2].split(parity_symbol)[0]))
+                        reduced_transition_prob_decay = float(tmp[5][:-1])    # B(M1) or B(E2).
+                        spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[3])
+                        parity_final = tmp[2].split("(")[0][-1]
 
                     elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                         """
@@ -435,12 +439,13 @@ class ReadKshellOutput:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
                         2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
                         """
-                        case = 1
+                        case_ = 1
                         E_gamma = float(tmp[5])
                         Ex_initial = float(tmp[1])
-                        reduced_transition_prob = float(tmp[6][:-1])
+                        reduced_transition_prob_decay = float(tmp[6][:-1])
                         spin_final = float(Fraction(tmp[2][:-2]))
                         Ex_final = float(tmp[4])
+                        parity_final = tmp[2].split("(")[0][-1]
                     
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                         """
@@ -449,12 +454,13 @@ class ReadKshellOutput:
                         3+( 8)   19.503 2+(11)    18.393 1.111 0.000( 0.00) 0.000( 0.00)
                         1.0+( 1) 5.357  0.0+(103) 0.000  5.357 0.002( 0.00) 0.007( 0.00)
                         """
-                        case = 2
+                        case_ = 2
                         E_gamma = float(tmp[5])
                         Ex_initial = float(tmp[2])
-                        reduced_transition_prob = float(tmp[6][:-1])
-                        spin_final = float(Fraction(tmp[3].split(parity_symbol)[0]))
+                        reduced_transition_prob_decay = float(tmp[6][:-1])
+                        spin_final = float(Fraction(tmp[3].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[4])
+                        parity_final = tmp[3].split("(")[0][-1]
 
                     elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                         """
@@ -462,12 +468,13 @@ class ReadKshellOutput:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
                         1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
                         """
-                        case = 3
+                        case_ = 3
                         E_gamma = float(tmp[6])
                         Ex_initial = float(tmp[2])
-                        reduced_transition_prob = float(tmp[7][:-1])
+                        reduced_transition_prob_decay = float(tmp[7][:-1])
                         spin_final = float(Fraction(tmp[3][:-2]))
                         Ex_final = float(tmp[5])
+                        parity_final = tmp[3].split("(")[0][-1]
 
                     elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                         """
@@ -475,12 +482,13 @@ class ReadKshellOutput:
                         J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
                         0.0+(46) 47.248  1.0+(97) 45.384  1.864   23.973(13.39)    7.991( 4.46)
                         """
-                        case = 4
+                        case_ = 4
                         E_gamma = float(tmp[4])
                         Ex_initial = float(tmp[1])
-                        reduced_transition_prob = float(tmp[5].split("(")[0])
-                        spin_final = float(Fraction(tmp[2].split(parity_symbol)[0]))
+                        reduced_transition_prob_decay = float(tmp[5].split("(")[0])
+                        spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
                         Ex_final = float(tmp[3])
+                        parity_final = tmp[2].split("(")[0][-1]
 
                     else:
                         msg = "ERROR: Structure not accounted for!"
@@ -495,13 +503,35 @@ class ReadKshellOutput:
                         self.minus_one_spin_counts[1] += 1  # Debug.
                         continue
                     
-                    reduced_transition_prob_list.append([
-                        Ex_initial, reduced_transition_prob, E_gamma
+                    reduced_transition_prob_decay_list.append([
+                        Ex_initial, reduced_transition_prob_decay, E_gamma
                     ])
+                    """
+                        transitions : np.ndarray
+                            OLD:
+                            Mx8 array containing [2*spin_final, parity_initial, Ex_final,
+                            2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)].
+                            NEW:
+                            [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+                            parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+                    """
+                    # self.transitions.append([
+                    #     2*spin_final, parity_initial, Ex_final, 2*spin_initial,
+                    #     parity_initial, Ex_initial, E_gamma,
+                    #     reduced_transition_prob_decay
+                    # ])
+                    if parity_final == "+":
+                        parity_final = 1
+                    elif parity_final == "-":
+                        parity_final = -1
+                    else:
+                        msg = "Could not properly read the final parity!"
+                        raise DataStructureNotAccountedForError(msg)
+
                     self.transitions.append([
-                        2*spin_final, parity_initial, Ex_final, 2*spin_initial,
-                        parity_initial, Ex_initial, E_gamma,
-                        reduced_transition_prob
+                        2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+                        parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
+                        # reduced_transition_prob_excite
                     ])
 
                 except ValueError as err:
@@ -509,7 +539,7 @@ class ReadKshellOutput:
                     One of the float conversions failed indicating that
                     the structure of the line is not accounted for.
                     """
-                    msg = "\n" + err.__str__() + f"\n{case=}" + f"\n{line=}"
+                    msg = "\n" + err.__str__() + f"\n{case_=}" + f"\n{line=}"
                     raise DataStructureNotAccountedForError(msg)
 
                 except IndexError:
@@ -523,7 +553,7 @@ class ReadKshellOutput:
                 tmp = line.split()
                 try:
                     if tmp[0] == "Energy":
-                        self.Ex = []
+                        self.Ex = []    # NOTE: Remove this?
                         self.levels = [] # [Ei, 2*spin_initial, parity].
                         load_energy_levels(infile)
                     

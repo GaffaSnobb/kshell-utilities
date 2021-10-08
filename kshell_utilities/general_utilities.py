@@ -86,6 +86,10 @@ def gamma_strength_function_average(
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
 
+        NEW:
+        [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+        parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+
     bin_width : Union[float, int]
         The width of the energy bins. A bin width of 0.2 contains 20
         states of uniform spacing of 0.01.
@@ -152,12 +156,12 @@ def gamma_strength_function_average(
     Ex, spins, parities = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2]
     
     if initial_or_final == "initial":
-        Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
+        Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
     elif initial_or_final == "final":
         """
         NOTE: This option will be removed in a future release.
         """
-        Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+        Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
     else:
         msg = "'initial_or_final' must be either 'initial' or 'final'."
         msg += f" Got {initial_or_final}"
@@ -225,8 +229,6 @@ def gamma_strength_function_average(
         if (Ex_initial_or_final[transition_idx] < Ex_min) or (Ex_initial_or_final[transition_idx] >= Ex_max):
             """
             Check if transition is within min max limits, skip if not.
-            NOTE: Is it correct to check the energy of the final state
-            here? Why not the initial?
             """
             continue
 
@@ -236,12 +238,16 @@ def gamma_strength_function_average(
 
         """
         transitions : np.ndarray
+            OLD:
             Mx8 array containing [2*spin_final, parity_initial, Ex_final,
             2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
+            NEW:
+            [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+            parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
         """
         # Read initial spin and parity of level: NOTE: I think the name / index is wrong. Or do I...? I think I do!
-        spin_initial = int(transitions[transition_idx, 3])
-        parity_initial = int(transitions[transition_idx, 1])
+        spin_initial = int(transitions[transition_idx, 0])
+        parity_initial = int(transitions[transition_idx, 1])    # NOTE: Initial or final? See OLD vs NEW.
 
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
@@ -272,12 +278,12 @@ def gamma_strength_function_average(
             msg += f"{B_pixel_sum.shape=}\n"
             msg += f"{transitions.shape=}\n"
             msg += f"{Ex_max=}\n"
-            msg += f"2*spin_final: {transitions[transition_idx, 0]}\n"
+            msg += f"2*spin_final: {transitions[transition_idx, 3]}\n"
             msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            msg += f"Ex_final: {transitions[transition_idx, 2]}\n"
-            msg += f"2*spin_initial: {transitions[transition_idx, 3]}\n"
-            msg += f"parity_initial: {transitions[transition_idx, 4]}\n"
-            msg += f"Ex_initial: {transitions[transition_idx, 5]}\n"
+            msg += f"Ex_final: {transitions[transition_idx, 5]}\n"
+            msg += f"2*spin_initial: {transitions[transition_idx, 0]}\n"
+            msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
+            msg += f"Ex_initial: {transitions[transition_idx, 2]}\n"
             msg += f"E_gamma: {transitions[transition_idx, 6]}\n"
             msg += f"B(.., i->f): {transitions[transition_idx, 7]}\n"
             raise Exception(msg) from err
