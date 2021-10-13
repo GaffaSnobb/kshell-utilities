@@ -849,7 +849,7 @@ def loadtxt(
 
     return data
 
-def get_timing_data(path: str):
+def _get_timing_data(path: str):
     """
     Get timing data from KSHELL log files.
 
@@ -877,6 +877,9 @@ def get_timing_data(path: str):
     if "log" not in path:
         msg = "Unknown log file name!"
         raise KshellDataStructureError(msg)
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
 
     res = os.popen(f'tail -n 20 {path}').read()    # Get the final 10 lines.
     res = res.split("\n")
@@ -914,3 +917,28 @@ def get_timing_data(path: str):
     
     return total
 
+def get_timing_data(path: str):
+    """
+    Wrapper for _get_timing_data. Input a single log filename and get
+    the timing data. Input a path to a directory several log files and
+    get the summed timing data. In units of seconds.
+
+    Parameters
+    ----------
+    path : str
+        Path to a single log file or path to a directory of log files.
+    """
+    if os.path.isfile(path):
+        return _get_timing_data(path)
+    
+    elif os.path.isdir(path):
+        total = 0
+        for elem in os.listdir(path):
+            if "log" in elem:
+                total += _get_timing_data(f"{path}/{elem}")
+        
+        return total
+
+    else:
+        msg = "Unexpected error in 'get_timing_data'!"
+        raise KshellDataStructureError(msg)
