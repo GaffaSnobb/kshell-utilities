@@ -239,7 +239,7 @@ def gamma_strength_function_average(
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
-        Ex_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
+        Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
 
         """
         transitions : np.ndarray
@@ -260,9 +260,9 @@ def gamma_strength_function_average(
             respectively. NOTE: Hope to remove this try-except by
             implementing suitable input checks to this function.
             """
-            B_pixel_sum[Ex_final_idx, E_gamma_idx, spin_parity_idx] += \
+            B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
                 transitions[transition_idx, 7]
-            B_pixel_count[Ex_final_idx, E_gamma_idx, spin_parity_idx] += 1
+            B_pixel_count[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += 1
         except IndexError as err:
             """
             NOTE: This error usually occurs because Ex_max is set to
@@ -277,7 +277,7 @@ def gamma_strength_function_average(
             is larger.
             """
             msg = f"{err.__str__()}\n"
-            msg += f"{Ex_final_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
+            msg += f"{Ex_initial_or_final_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
             msg += f"{B_pixel_sum.shape=}\n"
             msg += f"{transitions.shape=}\n"
             msg += f"{Ex_max=}\n"
@@ -289,15 +289,17 @@ def gamma_strength_function_average(
             msg += f"Ex_initial: {transitions[transition_idx, 2]}\n"
             msg += f"E_gamma: {transitions[transition_idx, 6]}\n"
             msg += f"B(.., i->f): {transitions[transition_idx, 7]}\n"
+            msg += f"B(.., f<-i): {transitions[transition_idx, 8]}\n"
             raise Exception(msg) from err
 
     for levels_idx in range(n_levels):
         """
-        Count number of levels for each (Ex, J, parity_initial) pixel.
+        Calculate the level density for each (Ex, spin_parity) pixel.
         """
-        if Ex[levels_idx] > Ex_max:
+        if Ex[levels_idx] >= Ex_max:
             """
-            Skip if level is outside range.
+            Skip if level is outside range. Only upper limit since
+            decays to states below the lower limit are allowed.
             """
             continue
 
@@ -312,25 +314,25 @@ def gamma_strength_function_average(
 
     for spin_parity_idx in range(n_unique_spin_parity_pairs):
         """
-        Calculate gamma strength functions for each [Ex, spin,
-        parity_initial] individually using the partial level density for
-        each [spin, parity_initial].
+        Calculate gamma strength functions for each [Ex, E_gamma,
+        spin_parity] individually using the partial level density for
+        each [Ex, spin_parity].
         """
         for Ex_idx in range(n_bins):
             gSF[Ex_idx, :, spin_parity_idx] = \
                 prefactor*rho_ExJpi[Ex_idx, spin_parity_idx]*div0(
-                    B_pixel_sum[Ex_idx, :, spin_parity_idx],
-                    B_pixel_count[Ex_idx, :, spin_parity_idx]
+                    numerator = B_pixel_sum[Ex_idx, :, spin_parity_idx],
+                    denominator = B_pixel_count[Ex_idx, :, spin_parity_idx]
                 )
 
     # Return the average gSF(Eg) over all (Ex,J,parity_initial)
 
     # return gSF[Ex_min_idx:Ex_max_idx+1,:,:].mean(axis=(0,2))
     # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,parity_initial) pixels:
-    gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
+    gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]   # NOTE: Probably not necessary to set an upper limit here due to the input adjustment of Ex_max.
     gSF_ExJpiavg = div0(
-        gSF_currentExrange.sum(axis = (0, 2)),
-        (gSF_currentExrange != 0).sum(axis = (0, 2))
+        numerator = gSF_currentExrange.sum(axis = (0, 2)),
+        denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))  # NOTE: Here is where I left off! Why != 0?
     )
 
     bins = np.linspace(0, Ex_max, n_bins + 1)

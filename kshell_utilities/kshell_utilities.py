@@ -2,7 +2,7 @@ import os, sys, multiprocessing
 from fractions import Fraction
 from typing import Union
 import numpy as np
-from .kshell_exceptions import DataStructureNotAccountedForError
+from .kshell_exceptions import KshellDataStructureError
 from .general_utilities import level_plot, level_density, gamma_strength_function_average
 
 atomic_numbers = {
@@ -169,7 +169,7 @@ class ReadKshellOutput:
 
             else:
                 msg = f"Handling for file {fname} is not implemented."
-                raise DataStructureNotAccountedForError(msg)
+                raise KshellDataStructureError(msg)
 
     def _extract_info_from_ptn_fname(self):
         """
@@ -297,7 +297,7 @@ class ReadKshellOutput:
 
         Raises
         ------
-        DataStructureNotAccountedForError
+        KshellDataStructureError
             If the `KSHELL` file has unexpected structure / syntax.
         """
         npy_path = "tmp"
@@ -498,7 +498,7 @@ class ReadKshellOutput:
                     else:
                         msg = "ERROR: Structure not accounted for!"
                         msg += f"\n{line=}"
-                        raise DataStructureNotAccountedForError(msg)
+                        raise KshellDataStructureError(msg)
 
                     if (spin_final == -1) or (spin_initial == -1):
                         """
@@ -517,7 +517,7 @@ class ReadKshellOutput:
                         parity_final = -1
                     else:
                         msg = "Could not properly read the final parity!"
-                        raise DataStructureNotAccountedForError(msg)
+                        raise KshellDataStructureError(msg)
 
                     self.transitions.append([
                         2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
@@ -531,7 +531,7 @@ class ReadKshellOutput:
                     the structure of the line is not accounted for.
                     """
                     msg = "\n" + err.__str__() + f"\n{case_=}" + f"\n{line=}"
-                    raise DataStructureNotAccountedForError(msg)
+                    raise KshellDataStructureError(msg)
 
                 except IndexError:
                     """
@@ -876,7 +876,7 @@ def get_timing_data(path: str):
 
     if "log" not in path:
         msg = "Unknown log file name!"
-        raise DataStructureNotAccountedForError(msg)
+        raise KshellDataStructureError(msg)
 
     res = os.popen(f'tail -n 20 {path}').read()    # Get the final 10 lines.
     res = res.split("\n")
@@ -907,6 +907,10 @@ def get_timing_data(path: str):
                     break
             except IndexError:
                 continue
+
+    if total is None:
+        msg = f"Not able to extract timing data from '{path.split('/')[-1]}'!"
+        raise KshellDataStructureError(msg)
     
     return total
 
