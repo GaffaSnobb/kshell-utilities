@@ -940,5 +940,5 @@ def get_timing_data(path: str):
         return total
 
     else:
-        msg = "Unexpected error in 'get_timing_data'!"
-        raise KshellDataStructureError(msg)
+        msg = f"'{path}' is neither a file nor a directory!"
+        raise NotADirectoryError(msg)
