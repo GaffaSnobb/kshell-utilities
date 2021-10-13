@@ -934,7 +934,7 @@ def get_timing_data(path: str):
     elif os.path.isdir(path):
         total = 0
         for elem in os.listdir(path):
-            if "log" in elem:
+            if ("log_" in elem) and elem.endswith(".txt"):
                 total += _get_timing_data(f"{path}/{elem}")
         
         return total
