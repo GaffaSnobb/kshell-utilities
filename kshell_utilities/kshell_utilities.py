@@ -1,6 +1,6 @@
 import os, sys, multiprocessing
 from fractions import Fraction
-from typing import Union
+from typing import Union, Callable
 import numpy as np
 from .kshell_exceptions import KshellDataStructureError
 from .general_utilities import level_plot, level_density, gamma_strength_function_average
@@ -917,7 +917,77 @@ def _get_timing_data(path: str):
     
     return total
 
-def get_timing_data(path: str):
+def _get_memory_usage(path: str) -> Union[float, None]:
+    """
+    Get memory usage from KSHELL log files.
+
+    Parameters
+    ----------
+    path : str
+        Path to a single log file.
+
+    Returns
+    -------
+    total : float, None
+        Memory usage in GB or None if memory usage could not be read.
+    """
+    total = None
+    
+    if "tr" not in path:
+        """
+        KSHELL log.
+        """
+        with open(path, "r") as infile:
+            for line in infile:
+                if line.startswith("Total Memory for Lanczos vectors:"):
+                    try:
+                        total = float(line.split()[-2])
+                    except ValueError:
+                        msg = f"Error reading memory usage from '{path}'."
+                        msg += f" Got '{line.split()[-2]}'."
+                        raise KshellDataStructureError(msg)
+                    break
+        
+    elif "tr" in path:
+        """
+        Transit log. NOTE: Not yet implemented.
+        """
+        return 0
+
+    if total is None:
+        msg = f"Not able to extract memory data from '{path.split('/')[-1]}'!"
+        raise KshellDataStructureError(msg)
+    
+    return total
+
+def _get_data_general(path: str, func: Callable):
+    """
+    General input handling for timing data and memory data.
+
+    Parameters
+    ----------
+    path : str
+        Path to a single log file or path to a directory of log files.
+
+    func : Callable
+        _get_timing_data or _get_memory_usage.
+    """
+    if os.path.isfile(path):
+        return func(path)
+    
+    elif os.path.isdir(path):
+        total = 0
+        for elem in os.listdir(path):
+            if elem.startswith("log_") and elem.endswith(".txt"):
+                total += func(f"{path}/{elem}")
+        
+        return total
+
+    else:
+        msg = f"'{path}' is neither a file nor a directory!"
+        raise NotADirectoryError(msg)
+
+def get_timing_data(path: str) -> float:
     """
     Wrapper for _get_timing_data. Input a single log filename and get
     the timing data. Input a path to a directory several log files and
@@ -927,18 +997,28 @@ def get_timing_data(path: str):
     ----------
     path : str
         Path to a single log file or path to a directory of log files.
-    """
-    if os.path.isfile(path):
-        return _get_timing_data(path)
-    
-    elif os.path.isdir(path):
-        total = 0
-        for elem in os.listdir(path):
-            if elem.startswith("log_") and elem.endswith(".txt"):
-                total += _get_timing_data(f"{path}/{elem}")
-        
-        return total
 
-    else:
-        msg = f"'{path}' is neither a file nor a directory!"
-        raise NotADirectoryError(msg)
+    Returns
+    -------
+    : float
+        The summed times for all input log files.
+    """
+    return _get_data_general(path, _get_timing_data)
+
+def get_memory_usage(path: str) -> float:
+    """
+    Wrapper for _get_memory_usage. Input a single log filename and get
+    the memory data. Input a path to a directory several log files and
+    get the summed memory data. In units of GB.
+
+    Parameters
+    ----------
+    path : str
+        Path to a single log file or path to a directory of log files.
+
+    Returns
+    -------
+    : float
+        The summed memory usage for all input log files.
+    """
+    return _get_data_general(path, _get_memory_usage)
