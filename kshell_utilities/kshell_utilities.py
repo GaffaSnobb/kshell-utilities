@@ -1,4 +1,4 @@
-import os, sys, multiprocessing
+import os, sys, multiprocessing, hashlib
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
@@ -66,6 +66,42 @@ def generate_states(
     if parity in allowed_negative_parity_inputs:
         negative = [f"{i:g}{'-'}{n_states}" for i in np.arange(start, stop+0.5, 0.5)]
         correct_syntax(negative)
+
+def _generate_unique_identifier(path: str) -> str:
+    """
+    Generate a unique identifier based on the shell script and the
+    save_input file from KSHELL.
+
+    Parameters
+    ----------
+    path : str
+        The path to a summary file or a directory with a summary file.
+    """
+    shell_file_content = ""
+    save_input_content = ""
+    if os.path.isfile(path):
+        """
+        If a file is specified, extract the directory from the path.
+        """
+        directory = path.rsplit("/", 1)[0]
+        for elem in os.listdir(directory):
+            """
+            Loop over all elements in the directory and find the shell
+            script and save_input file.
+            """
+            if elem.endswith(".sh"):
+                with open(f"{directory}/{elem}", "r") as infile:
+                    shell_file_content = infile.read()
+            elif elem.endswith(".input"):
+                with open(f"{directory}/{elem}", "r") as infile:
+                    save_input_content = infile.read()
+    else:
+        print("Not able to generate unique identifier!")
+
+    
+    return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
+
+
 
 class ReadKshellOutput:
     """
@@ -307,15 +343,16 @@ class ReadKshellOutput:
             os.mkdir(npy_path)
         except FileExistsError:
             pass
-            
-        levels_fname = f"{npy_path}/{base_fname}_levels.npy"
-        transitions_fname = f"{npy_path}/{base_fname}_transitions.npy"
-        transitions_BM1_fname = f"{npy_path}/{base_fname}_transitions_BM1.npy"
-        transitions_BE2_fname = f"{npy_path}/{base_fname}_transitions_BE2.npy"
-        Ex_fname = f"{npy_path}/{base_fname}_Ex.npy"
-        BM1_fname = f"{npy_path}/{base_fname}_BM1.npy"
-        BE2_fname = f"{npy_path}/{base_fname}_BE2.npy"
-        debug_fname = f"{npy_path}/{base_fname}_debug.npy"
+        
+        unique_id = _generate_unique_identifier(self.path)
+        levels_fname = f"{npy_path}/{base_fname}_levels_{unique_id}.npy"
+        transitions_fname = f"{npy_path}/{base_fname}_transitions_{unique_id}.npy"
+        transitions_BM1_fname = f"{npy_path}/{base_fname}_transitions_BM1_{unique_id}.npy"
+        transitions_BE2_fname = f"{npy_path}/{base_fname}_transitions_BE2_{unique_id}.npy"
+        Ex_fname = f"{npy_path}/{base_fname}_Ex_{unique_id}.npy"
+        BM1_fname = f"{npy_path}/{base_fname}_BM1_{unique_id}.npy"
+        BE2_fname = f"{npy_path}/{base_fname}_BE2_{unique_id}.npy"
+        debug_fname = f"{npy_path}/{base_fname}_debug_{unique_id}.npy"
 
         fnames = [
             levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
