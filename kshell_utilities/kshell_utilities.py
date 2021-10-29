@@ -1,4 +1,4 @@
-import os, sys, multiprocessing, hashlib
+import os, sys, multiprocessing, hashlib, ast
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
@@ -912,7 +912,7 @@ def _get_timing_data(path: str):
     """
 
     if "log" not in path:
-        msg = "Unknown log file name!"
+        msg = f"Unknown log file name! Got '{path}'"
         raise KshellDataStructureError(msg)
 
     if not os.path.isfile(path):
@@ -949,7 +949,7 @@ def _get_timing_data(path: str):
                 continue
 
     if total is None:
-        msg = f"Not able to extract timing data from '{path.split('/')[-1]}'!"
+        msg = f"Not able to extract timing data from '{path}'!"
         raise KshellDataStructureError(msg)
     
     return total
@@ -1059,3 +1059,67 @@ def get_memory_usage(path: str) -> float:
         The summed memory usage for all input log files.
     """
     return _get_data_general(path, _get_memory_usage)
+
+def get_parameters(path: str) -> dict:
+    """
+    Extract the parameters which are fed to KSHELL throught the shell
+    script.
+
+    Parameters
+    ----------
+    path : str
+        Path to a KSHELL work directory.
+
+    Returns
+    -------
+    res : dict
+        A dictionary where the keys are the parameter names and the
+        values are the corresponding values.
+    """
+    res = {}
+    shell_filename = None
+    if os.path.isdir(path):
+        for elem in os.listdir(path):
+            if elem.endswith(".sh"):
+                # res = os.popen(f"head -n 50 {path}/{elem}").read()
+                shell_filename = f"{path}/{elem}"
+                break
+
+    if shell_filename is None:
+        msg = f"No .sh file found in path '{path}'."
+        raise KshellDataStructureError(msg)
+    
+    with open(shell_filename, "r") as infile:
+        for line in infile:
+            if line.startswith(r"&input"):
+                break
+        
+        for line in infile:
+            if line.startswith(r"&end"):
+                """
+                End of parameters.
+                """
+                break
+            
+            tmp = line.split("=")
+            key = tmp[0].strip()
+            value = tmp[1].strip()
+
+            try:
+                value = ast.literal_eval(value)
+            except ValueError:
+                """
+                Cant convert strings. Keep them as strings.
+                """
+                pass
+            except SyntaxError:
+                """
+                Cant convert Fortran booleans (.true., .false.). Keep
+                them as strings.
+                """
+                pass
+            
+            res[key] = value
+
+    return res
+            
