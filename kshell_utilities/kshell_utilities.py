@@ -4,18 +4,7 @@ from typing import Union, Callable
 import numpy as np
 from .kshell_exceptions import KshellDataStructureError
 from .general_utilities import level_plot, level_density, gamma_strength_function_average
-
-atomic_numbers = {
-    "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
-    "aluminium": 13, "silicon": 14, "phosphorus": 15, "sulfur": 16,
-    "chlorine": 17, "argon": 18
-}
-
-atomic_numbers_reversed = {
-    8: 'oxygen', 9: 'fluorine', 10: 'neon', 11: 'sodium', 12: 'magnesium',
-    13: 'aluminium', 14: 'silicon', 15: 'phosphorus', 16: 'sulfur',
-    17: 'chlorine', 18: 'argon'
-}
+from .parameters import atomic_numbers
 
 def generate_states(
     start: int = 0,
@@ -100,8 +89,6 @@ def _generate_unique_identifier(path: str) -> str:
 
     
     return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
-
-
 
 class ReadKshellOutput:
     """
@@ -767,6 +754,21 @@ class ReadKshellOutput:
         
         return help_list
 
+    @property
+    def parameters(self) -> dict:
+        """
+        Get the KSHELL parameters from the shell file.
+
+        Returns
+        -------
+        : dict
+            A dictionary of KSHELL parameters.
+        """
+        path = self.path
+        if os.path.isfile(path):
+            path = path.rsplit("/", 1)[0]
+        return get_parameters(path)
+
 def _process_kshell_output_in_parallel(args):
     """
     Simple wrapper for parallelizing loading of KSHELL files.
@@ -1060,7 +1062,7 @@ def get_memory_usage(path: str) -> float:
     """
     return _get_data_general(path, _get_memory_usage)
 
-def get_parameters(path: str) -> dict:
+def get_parameters(path: str, verbose: bool = True) -> dict:
     """
     Extract the parameters which are fed to KSHELL throught the shell
     script.
@@ -1081,13 +1083,17 @@ def get_parameters(path: str) -> dict:
     if os.path.isdir(path):
         for elem in os.listdir(path):
             if elem.endswith(".sh"):
-                # res = os.popen(f"head -n 50 {path}/{elem}").read()
                 shell_filename = f"{path}/{elem}"
                 break
+    else:
+        print("Directly specifying path to .sh file not yet implemented!")
 
     if shell_filename is None:
-        msg = f"No .sh file found in path '{path}'."
-        raise KshellDataStructureError(msg)
+        if verbose:
+            msg = f"No .sh file found in path '{path}'!"
+            print(msg)
+
+        return res
     
     with open(shell_filename, "r") as infile:
         for line in infile:
