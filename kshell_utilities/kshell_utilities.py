@@ -100,7 +100,6 @@ def _generate_unique_identifier(path: str) -> str:
     
     return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
 
-
 class _Loaders:
     """
     Not strictly necessary to put the loaders in this class, but I did
@@ -135,7 +134,6 @@ class _Loaders:
                     self.minus_one_spin_counts[0] += 1  # Debug.
                     continue
                 
-                # self.Ex.append(float(tmp[6]))
                 parity = 1 if tmp[2] == "+" else -1
                 self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
             except IndexError:
@@ -270,9 +268,6 @@ class _Loaders:
                     self.minus_one_spin_counts[1] += 1  # Debug.
                     continue
                 
-                # reduced_transition_prob_decay_list.append([
-                #     Ex_initial, reduced_transition_prob_decay, E_gamma
-                # ])
                 if parity_final == "+":
                     parity_final = 1
                 elif parity_final == "-":
@@ -281,11 +276,6 @@ class _Loaders:
                     msg = "Could not properly read the final parity!"
                     raise KshellDataStructureError(msg)
 
-                # self.transitions.append([
-                #     2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-                #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
-                #     reduced_transition_prob_excite
-                # ])
                 reduced_transition_prob_decay_list.append([
                     2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
                     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
@@ -370,11 +360,7 @@ class ReadKshellOutput(_Loaders):
         self.model_space = None
         self.proton_partition = None
         self.neutron_partition = None
-        # self.Ex = None
-        # self.BM1 = None
-        # self.BE2 = None
         self.levels = None
-        # self.transitions = None
         self.transitions_BM1 = None
         self.transitions_BE2 = None
         self.truncation = None
@@ -558,18 +544,10 @@ class ReadKshellOutput(_Loaders):
         
         unique_id = _generate_unique_identifier(self.path)
         levels_fname = f"{npy_path}/{base_fname}_levels_{unique_id}.npy"
-        # transitions_fname = f"{npy_path}/{base_fname}_transitions_{unique_id}.npy"
         transitions_BM1_fname = f"{npy_path}/{base_fname}_transitions_BM1_{unique_id}.npy"
         transitions_BE2_fname = f"{npy_path}/{base_fname}_transitions_BE2_{unique_id}.npy"
-        # Ex_fname = f"{npy_path}/{base_fname}_Ex_{unique_id}.npy"
-        # BM1_fname = f"{npy_path}/{base_fname}_BM1_{unique_id}.npy"
-        # BE2_fname = f"{npy_path}/{base_fname}_BE2_{unique_id}.npy"
         debug_fname = f"{npy_path}/{base_fname}_debug_{unique_id}.npy"
 
-        # fnames = [
-        #     levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
-        #     transitions_BM1_fname, transitions_BE2_fname, debug_fname
-        # ]
         fnames = [
             levels_fname, transitions_BE2_fname, transitions_BM1_fname,
             debug_fname
@@ -584,24 +562,9 @@ class ReadKshellOutput(_Loaders):
                 If all files exist, load them. If any of the files do
                 not exist, all will be generated.
                 """
-                # self.Ex = np.load(file=Ex_fname, allow_pickle=True)
-                # self.BM1 = np.load(file=BM1_fname, allow_pickle=True)
-                # self.BE2 = np.load(file=BE2_fname, allow_pickle=True)
                 self.levels = np.load(file=levels_fname, allow_pickle=True)
-                # self.transitions = np.load(file=transitions_fname, allow_pickle=True)
                 self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
                 self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
-
-                # try:
-                #     self.transitions_BE2 = self.transitions[:len(self.BE2)]
-                #     self.transitions_BM1 = self.transitions[len(self.BE2):]
-                # except TypeError:
-                #     """
-                #     TypeError: len() of unsized object because self.BE2 = None.
-                #     """
-                #     self.transitions_BE2 = np.array(None)
-                #     self.transitions_BM1 = np.array(None)
-
                 self.debug = np.load(file=debug_fname, allow_pickle=True)
                 msg = "Summary data loaded from .npy!"
                 msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
@@ -623,21 +586,13 @@ class ReadKshellOutput(_Loaders):
                 tmp = line.split()
                 try:
                     if tmp[0] == "Energy":
-                        # self.Ex = []    # NOTE: Remove this?
-                        # self.levels = [] # [Ei, 2*spin_initial, parity].
                         self._load_energy_levels(infile)
                     
                     elif tmp[0] == "B(E2)":
-                        # self.BE2 = []
-                        # if self.transitions is None:
-                        #     self.transitions = []
                         self.transitions_BE2 = []
                         self._load_transition_probabilities(infile, self.transitions_BE2)
                     
                     elif tmp[0] == "B(M1)":
-                        # self.BM1 = []
-                        # if self.transitions is None:
-                        #     self.transitions = []
                         self.transitions_BM1 = []
                         self._load_transition_probabilities(infile, self.transitions_BM1)
                 
@@ -650,33 +605,15 @@ class ReadKshellOutput(_Loaders):
         self.levels = np.array(self.levels)
         self.transitions_BE2 = np.array(self.transitions_BE2)
         self.transitions_BM1 = np.array(self.transitions_BM1)
-        # self.transitions = np.array(self.transitions)
-        # self.Ex = np.array(self.Ex)
-        # self.BM1 = np.array(self.BM1)
-        # self.BE2 = np.array(self.BE2)
         self.debug = "DEBUG\n"
         self.debug += f"skipped -1 states in levels: {self.minus_one_spin_counts[0]}\n"
         self.debug += f"skipped -1 states in transitions: {self.minus_one_spin_counts[1]}\n"
         self.debug = np.array(self.debug)
 
-        # try:
-        #     self.transitions_BE2 = self.transitions[:len(self.BE2)]
-        #     self.transitions_BM1 = self.transitions[len(self.BE2):]
-        # except TypeError:
-        #     """
-        #     TypeError: len() of unsized object because self.BE2 = None.
-        #     """
-        #     self.transitions_BE2 = np.array(None)
-        #     self.transitions_BM1 = np.array(None)
-
         if self.load_and_save_to_file:
             np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
-            # np.save(file=transitions_fname, arr=self.transitions, allow_pickle=True)
             np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
             np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
-            # np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
-            # np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
-            # np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
             np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
