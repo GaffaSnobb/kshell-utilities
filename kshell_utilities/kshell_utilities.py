@@ -1,4 +1,4 @@
-import os, sys, multiprocessing, hashlib, ast
+import os, sys, multiprocessing, hashlib, ast, time
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
@@ -100,49 +100,47 @@ def _generate_unique_identifier(path: str) -> str:
     
     return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
 
-class _Loaders:
+def _load_energy_levels(infile):
     """
-    Not strictly necessary to put the loaders in this class, but I did
-    it to make the code a bit more tidy.
+    Example
+    -------
+    Energy levels
+
+    N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
+
+    1   5/2 +     1   3/2    -16.565    0.000  log_O19_sdpf-mu_m1p.txt 
+    2   3/2 +     1   3/2    -15.977    0.588  log_O19_sdpf-mu_m1p.txt 
+    3   1/2 +     1   3/2    -15.192    1.374  log_O19_sdpf-mu_m1p.txt 
+    4   9/2 +     1   3/2    -13.650    2.915  log_O19_sdpf-mu_m1p.txt 
+    5   7/2 +     1   3/2    -13.267    3.298  log_O19_sdpf-mu_m1p.txt 
+    6   5/2 +     2   3/2    -13.074    3.491  log_O19_sdpf-mu_m1p.txt
     """
-    def _load_energy_levels(self, infile, dummy=None):
-        """
-        Example
-        -------
-        Energy levels
-
-        N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
-
-        1   5/2 +     1   3/2    -16.565    0.000  log_O19_sdpf-mu_m1p.txt 
-        2   3/2 +     1   3/2    -15.977    0.588  log_O19_sdpf-mu_m1p.txt 
-        3   1/2 +     1   3/2    -15.192    1.374  log_O19_sdpf-mu_m1p.txt 
-        4   9/2 +     1   3/2    -13.650    2.915  log_O19_sdpf-mu_m1p.txt 
-        5   7/2 +     1   3/2    -13.267    3.298  log_O19_sdpf-mu_m1p.txt 
-        6   5/2 +     2   3/2    -13.074    3.491  log_O19_sdpf-mu_m1p.txt
-        """
-        self.levels = []
-        for _ in range(3): infile.readline()
-        for line in infile:
-            try:
-                tmp = line.split()
-                
-                if tmp[1] == "-1":
-                    """
-                    -1 spin states in the KSHELL data file indicates
-                    bad states which should not be included.
-                    """
-                    self.minus_one_spin_counts[0] += 1  # Debug.
-                    continue
-                
-                parity = 1 if tmp[2] == "+" else -1
-                self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
-            except IndexError:
+    levels = []
+    minus_one_spin_counts = 0
+    for _ in range(3): infile.readline()
+    for line in infile:
+        try:
+            tmp = line.split()
+            
+            if tmp[1] == "-1":
                 """
-                End of energies.
+                -1 spin states in the KSHELL data file indicates
+                bad states which should not be included.
                 """
-                break
+                minus_one_spin_counts += 1  # Debug.
+                continue
+            
+            parity = 1 if tmp[2] == "+" else -1
+            levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
+        except IndexError:
+            """
+            End of energies.
+            """
+            break
 
-    def _load_transition_probabilities(self, infile, reduced_transition_prob_decay_list):
+    return levels, minus_one_spin_counts
+
+def _load_transition_probabilities(infile):
         """
         Parameters
         ----------
@@ -152,6 +150,8 @@ class _Loaders:
         reduced_transition_prob_decay_list:
             List for storing B(M1) or B(E2) values.
         """
+        reduced_transition_prob_decay_list = []
+        minus_one_spin_counts = 0
         for _ in range(2): infile.readline()
         for line in infile:
             try:
@@ -265,7 +265,7 @@ class _Loaders:
                     -1 spin states in the KSHELL data file indicates
                     bad states which should not be included.
                     """
-                    self.minus_one_spin_counts[1] += 1  # Debug.
+                    minus_one_spin_counts += 1  # Debug.
                     continue
                 
                 if parity_final == "+":
@@ -296,19 +296,20 @@ class _Loaders:
                 """
                 break
     
-# @staticmethod
-def _load_parallel(args):
+        return reduced_transition_prob_decay_list, minus_one_spin_counts
+    
+def _load_parallel(arg_list):
     """
     For parallel data loads.
+    [self.fname_summary, "Energy", self._load_energy_levels, None]
     """
-    fname, condition, loader, storage = args
+    fname, condition, loader = arg_list
     with open(fname, "r") as infile:
         for line in infile:
             if condition in line:
-                loader(infile, storage)
-                break
+                return loader(infile)
 
-class ReadKshellOutput(_Loaders):
+class ReadKshellOutput:
     """
     Read `KSHELL` data files and store the values as instance
     attributes.
@@ -361,11 +362,11 @@ class ReadKshellOutput(_Loaders):
         self.proton_partition = None
         self.neutron_partition = None
         self.levels = None
-        self.transitions_BM1 = None
-        self.transitions_BE2 = None
+        self.transitions_BM1 = [None]
+        self.transitions_BE2 = [None]
         self.truncation = None
         # Debug.
-        self.minus_one_spin_counts = np.array([0, 0])  # The number of skipped -1 spin states for [levels, transitions].
+        self.minus_one_spin_counts = np.array([0, 0, 0])  # The number of skipped -1 spin states for [levels, BM1, BE2].
 
         if isinstance(self.load_and_save_to_file, str) and (self.load_and_save_to_file != "overwrite"):
             msg = "Allowed values for 'load_and_save_to_file' are: 'True', 'False', 'overwrite'."
@@ -573,34 +574,17 @@ class ReadKshellOutput(_Loaders):
                 return
 
         parallel_args = [
-            [self.fname_summary, "Energy", self._load_energy_levels, None],
-            [self.fname_summary, "B(E2)", self._load_transition_probabilities, self.transitions_BE2],
-            [self.fname_summary, "B(M1)", self._load_transition_probabilities, self.transitions_BM1]
+            [self.fname_summary, "Energy", _load_energy_levels],
+            [self.fname_summary, "B(M1)", _load_transition_probabilities],
+            [self.fname_summary, "B(E2)", _load_transition_probabilities],
         ]
 
-        # pool = multiprocessing.Pool()
-        # pool.map(_load_parallel, parallel_args)
+        pool = multiprocessing.Pool()
+        pool_res = pool.map(_load_parallel, parallel_args)
 
-        with open(self.fname_summary, "r") as infile:
-            for line in infile:
-                tmp = line.split()
-                try:
-                    if tmp[0] == "Energy":
-                        self._load_energy_levels(infile)
-                    
-                    elif tmp[0] == "B(E2)":
-                        self.transitions_BE2 = []
-                        self._load_transition_probabilities(infile, self.transitions_BE2)
-                    
-                    elif tmp[0] == "B(M1)":
-                        self.transitions_BM1 = []
-                        self._load_transition_probabilities(infile, self.transitions_BM1)
-                
-                except IndexError:
-                    """
-                    Skip blank lines.
-                    """
-                    continue
+        self.levels, self.minus_one_spin_counts[0] = pool_res[0]
+        self.transitions_BM1, self.minus_one_spin_counts[1] = pool_res[1]
+        self.transitions_BE2, self.minus_one_spin_counts[2] = pool_res[2]
 
         self.levels = np.array(self.levels)
         self.transitions_BE2 = np.array(self.transitions_BE2)
