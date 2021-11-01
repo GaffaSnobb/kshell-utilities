@@ -11,7 +11,7 @@ def test_spin_parity_list():
     """
     Check that all spin-parity pairs appear in spin_parity_list.
     """
-    n_transitions = len(res.transitions[:, 0])
+    n_transitions = len(res.transitions_BM1[:, 0])
     spins = res.levels[:, 1]
     parities = res.levels[:, 2]
     spin_parity_list = create_spin_parity_list(spins, parities)
@@ -21,8 +21,8 @@ def test_spin_parity_list():
         """
         list.index raises ValueError if x is not in list.
         """
-        spin_initial = int(res.transitions[transition_idx, 3])
-        parity_initial = int(res.transitions[transition_idx, 1])
+        spin_initial = int(res.transitions_BM1[transition_idx, 3])
+        parity_initial = int(res.transitions_BM1[transition_idx, 1])
         index = spin_parity_list.index([spin_initial, parity_initial])
 
         if index not in index_list:
