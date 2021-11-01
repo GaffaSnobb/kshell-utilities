@@ -2,11 +2,6 @@ from itertools import zip_longest
 import numpy as np
 import kshell_utilities.kshell_utilities
 
-res = kshell_utilities.loadtxt(
-    path = "summary_test_text_file.txt",
-    load_and_save_to_file = False
-)[0]
-
 def test_file_read_levels():
     """
     Test that kshell_utilities.loadtxt successfully reads excitation
@@ -18,6 +13,11 @@ def test_file_read_levels():
     AssertionError
         If the read values are not exactly equal to the expected values.
     """
+    res = kshell_utilities.loadtxt(
+        path = "summary_test_text_file.txt",
+        load_and_save_to_file = False
+    )[0]
+
     E_expected = [
         -41.394, -33.378, -114.552, -114.044, -113.972, -113.898, -113.762,
         -113.602, -9.896, -9.052
@@ -46,6 +46,11 @@ def test_int_vs_floor():
     Check that floor yields the same result as casting to int. This does
     not work for negative values.
     """
+    res = kshell_utilities.loadtxt(
+        path = "summary_test_text_file.txt",
+        load_and_save_to_file = False
+    )[0]
+
     res_1 = np.floor(res.transitions_BM1[:, 5])
     res_2 = res.transitions_BM1[:, 5].astype(int)
 
@@ -56,11 +61,14 @@ def test_file_read_transitions():
     """
     Test that all values in res.transitions are as expected.
     """
+    res = kshell_utilities.loadtxt(
+        path = "summary_test_text_file.txt",
+        load_and_save_to_file = False
+    )[0]
 
     # BE2
     # ---
     spin_initial_expected = np.array([5, 4, 4, 3, 9/2, 9/2])*2
-    n_BE2_transitions = 6
     for i in range(len(res.transitions_BE2[:, 0])):
         msg = "BE2: Error in spin_initial."
         msg += f" Expected: {spin_initial_expected[i]}, got {res.transitions_BE2[i, 0]}."
