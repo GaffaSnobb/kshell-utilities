@@ -68,11 +68,18 @@ def _generate_unique_identifier(path: str) -> str:
     """
     shell_file_content = ""
     save_input_content = ""
+    msg = "Not able to generate unique identifier!"
     if os.path.isfile(path):
         """
         If a file is specified, extract the directory from the path.
         """
         directory = path.rsplit("/", 1)[0]
+        if directory == path:
+            """
+            Example: path is 'summary.txt'
+            """
+            directory = "."
+
         for elem in os.listdir(directory):
             """
             Loop over all elements in the directory and find the shell
@@ -85,12 +92,233 @@ def _generate_unique_identifier(path: str) -> str:
                 with open(f"{directory}/{elem}", "r") as infile:
                     save_input_content = infile.read()
     else:
-        print("Not able to generate unique identifier!")
+        print(msg)
+
+    if (shell_file_content == "") and (save_input_content == ""):
+        print(msg)
 
     
     return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
 
-class ReadKshellOutput:
+
+class _Loaders:
+    """
+    Not strictly necessary to put the loaders in this class, but I did
+    it to make the code a bit more tidy.
+    """
+    def _load_energy_levels(self, infile, dummy=None):
+        """
+        Example
+        -------
+        Energy levels
+
+        N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
+
+        1   5/2 +     1   3/2    -16.565    0.000  log_O19_sdpf-mu_m1p.txt 
+        2   3/2 +     1   3/2    -15.977    0.588  log_O19_sdpf-mu_m1p.txt 
+        3   1/2 +     1   3/2    -15.192    1.374  log_O19_sdpf-mu_m1p.txt 
+        4   9/2 +     1   3/2    -13.650    2.915  log_O19_sdpf-mu_m1p.txt 
+        5   7/2 +     1   3/2    -13.267    3.298  log_O19_sdpf-mu_m1p.txt 
+        6   5/2 +     2   3/2    -13.074    3.491  log_O19_sdpf-mu_m1p.txt
+        """
+        self.levels = []
+        for _ in range(3): infile.readline()
+        for line in infile:
+            try:
+                tmp = line.split()
+                
+                if tmp[1] == "-1":
+                    """
+                    -1 spin states in the KSHELL data file indicates
+                    bad states which should not be included.
+                    """
+                    self.minus_one_spin_counts[0] += 1  # Debug.
+                    continue
+                
+                # self.Ex.append(float(tmp[6]))
+                parity = 1 if tmp[2] == "+" else -1
+                self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
+            except IndexError:
+                """
+                End of energies.
+                """
+                break
+
+    def _load_transition_probabilities(self, infile, reduced_transition_prob_decay_list):
+        """
+        Parameters
+        ----------
+        infile:
+            The KSHELL summary file.
+
+        reduced_transition_prob_decay_list:
+            List for storing B(M1) or B(E2) values.
+        """
+        for _ in range(2): infile.readline()
+        for line in infile:
+            try:
+                """
+                Example of possible lines in file:
+                J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
+                3/2+( 1) 0.072 5/2+( 1) 0.000 0.071 0.127( 0.07) 0.084( 0.05)
+                2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
+                3+( 8) 19.503 2+(11) 18.393 1.111 0.000( 0.00) 0.000( 0.00)
+                1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
+                5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
+                0.0+(46)', '47.248', '1.0+(97)', '45.384', '1.864', '23.973(13.39)', '7.991(', '4.46)
+                """
+                tmp = line.split()
+                len_tmp = len(tmp)
+                case_ = None # Used for identifying which if-else case reads wrong.
+                
+                # Location of initial parity is common for all cases.
+                parity_idx = tmp[0].index("(") - 1 # Find index of initial parity.
+                parity_initial = 1 if tmp[0][parity_idx] == "+" else -1
+                parity_initial_symbol = tmp[0][parity_idx]
+                
+                # Location of initial spin is common for all cases.
+                spin_initial = float(Fraction(tmp[0][:parity_idx]))
+                
+                if (tmp[1][-1] != ")") and (tmp[3][-1] != ")") and (len_tmp == 9):
+                    """
+                    Example:
+                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                    2+(11)   18.393  2+(10)    17.791  0.602    0.1(    0.0)    0.1(    0.0)
+                    5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
+                    """
+                    case_ = 0
+                    E_gamma = float(tmp[4])
+                    Ex_initial = float(tmp[1])
+                    reduced_transition_prob_decay = float(tmp[5][:-1])
+                    reduced_transition_prob_excite = float(tmp[7][:-1])
+                    spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
+                    Ex_final = float(tmp[3])
+                    parity_final = tmp[2].split("(")[0][-1]
+
+                elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
+                    """
+                    Example:
+                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                    2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
+                    """
+                    case_ = 1
+                    E_gamma = float(tmp[5])
+                    Ex_initial = float(tmp[1])
+                    reduced_transition_prob_decay = float(tmp[6][:-1])
+                    reduced_transition_prob_excite = float(tmp[8][:-1])
+                    spin_final = float(Fraction(tmp[2][:-2]))
+                    Ex_final = float(tmp[4])
+                    parity_final = tmp[2].split("(")[0][-1]
+                
+                elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
+                    """
+                    Example:
+                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                    3+( 8)   19.503 2+(11)    18.393 1.111 0.000( 0.00) 0.000( 0.00)
+                    1.0+( 1) 5.357  0.0+(103) 0.000  5.357 0.002( 0.00) 0.007( 0.00)
+                    """
+                    case_ = 2
+                    E_gamma = float(tmp[5])
+                    Ex_initial = float(tmp[2])
+                    reduced_transition_prob_decay = float(tmp[6][:-1])
+                    reduced_transition_prob_excite = float(tmp[8][:-1])
+                    spin_final = float(Fraction(tmp[3].split(parity_initial_symbol)[0]))
+                    Ex_final = float(tmp[4])
+                    parity_final = tmp[3].split("(")[0][-1]
+
+                elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
+                    """
+                    Example:
+                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                    1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
+                    """
+                    case_ = 3
+                    E_gamma = float(tmp[6])
+                    Ex_initial = float(tmp[2])
+                    reduced_transition_prob_decay = float(tmp[7][:-1])
+                    reduced_transition_prob_excite = float(tmp[9][:-1])
+                    spin_final = float(Fraction(tmp[3][:-2]))
+                    Ex_final = float(tmp[5])
+                    parity_final = tmp[3].split("(")[0][-1]
+
+                elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
+                    """
+                    Example:
+                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+                    0.0+(46) 47.248  1.0+(97) 45.384  1.864   23.973(13.39)    7.991( 4.46)
+                    """
+                    case_ = 4
+                    E_gamma = float(tmp[4])
+                    Ex_initial = float(tmp[1])
+                    reduced_transition_prob_decay = float(tmp[5].split("(")[0])
+                    reduced_transition_prob_excite = float(tmp[6][:-1])
+                    spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
+                    Ex_final = float(tmp[3])
+                    parity_final = tmp[2].split("(")[0][-1]
+
+                else:
+                    msg = "ERROR: Structure not accounted for!"
+                    msg += f"\n{line=}"
+                    raise KshellDataStructureError(msg)
+
+                if (spin_final == -1) or (spin_initial == -1):
+                    """
+                    -1 spin states in the KSHELL data file indicates
+                    bad states which should not be included.
+                    """
+                    self.minus_one_spin_counts[1] += 1  # Debug.
+                    continue
+                
+                # reduced_transition_prob_decay_list.append([
+                #     Ex_initial, reduced_transition_prob_decay, E_gamma
+                # ])
+                if parity_final == "+":
+                    parity_final = 1
+                elif parity_final == "-":
+                    parity_final = -1
+                else:
+                    msg = "Could not properly read the final parity!"
+                    raise KshellDataStructureError(msg)
+
+                # self.transitions.append([
+                #     2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+                #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
+                #     reduced_transition_prob_excite
+                # ])
+                reduced_transition_prob_decay_list.append([
+                    2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+                    parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
+                    reduced_transition_prob_excite
+                ])
+
+            except ValueError as err:
+                """
+                One of the float conversions failed indicating that
+                the structure of the line is not accounted for.
+                """
+                msg = "\n" + err.__str__() + f"\n{case_=}" + f"\n{line=}"
+                raise KshellDataStructureError(msg)
+
+            except IndexError:
+                """
+                End of probabilities.
+                """
+                break
+    
+# @staticmethod
+def _load_parallel(args):
+    """
+    For parallel data loads.
+    """
+    fname, condition, loader, storage = args
+    with open(fname, "r") as infile:
+        for line in infile:
+            if condition in line:
+                loader(infile, storage)
+                break
+
+class ReadKshellOutput(_Loaders):
     """
     Read `KSHELL` data files and store the values as instance
     attributes.
@@ -142,11 +370,11 @@ class ReadKshellOutput:
         self.model_space = None
         self.proton_partition = None
         self.neutron_partition = None
-        self.Ex = None
-        self.BM1 = None
-        self.BE2 = None
+        # self.Ex = None
+        # self.BM1 = None
+        # self.BE2 = None
         self.levels = None
-        self.transitions = None
+        # self.transitions = None
         self.transitions_BM1 = None
         self.transitions_BE2 = None
         self.truncation = None
@@ -315,9 +543,6 @@ class ReadKshellOutput:
         Read energy level data, transition probabilities and transition
         strengths from `KSHELL` output files.
 
-        TODO: Change all the substring indexing to something more
-        rigorous, like string.split and similar.
-
         Raises
         ------
         KshellDataStructureError
@@ -333,17 +558,21 @@ class ReadKshellOutput:
         
         unique_id = _generate_unique_identifier(self.path)
         levels_fname = f"{npy_path}/{base_fname}_levels_{unique_id}.npy"
-        transitions_fname = f"{npy_path}/{base_fname}_transitions_{unique_id}.npy"
+        # transitions_fname = f"{npy_path}/{base_fname}_transitions_{unique_id}.npy"
         transitions_BM1_fname = f"{npy_path}/{base_fname}_transitions_BM1_{unique_id}.npy"
         transitions_BE2_fname = f"{npy_path}/{base_fname}_transitions_BE2_{unique_id}.npy"
-        Ex_fname = f"{npy_path}/{base_fname}_Ex_{unique_id}.npy"
-        BM1_fname = f"{npy_path}/{base_fname}_BM1_{unique_id}.npy"
-        BE2_fname = f"{npy_path}/{base_fname}_BE2_{unique_id}.npy"
+        # Ex_fname = f"{npy_path}/{base_fname}_Ex_{unique_id}.npy"
+        # BM1_fname = f"{npy_path}/{base_fname}_BM1_{unique_id}.npy"
+        # BE2_fname = f"{npy_path}/{base_fname}_BE2_{unique_id}.npy"
         debug_fname = f"{npy_path}/{base_fname}_debug_{unique_id}.npy"
 
+        # fnames = [
+        #     levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
+        #     transitions_BM1_fname, transitions_BE2_fname, debug_fname
+        # ]
         fnames = [
-            levels_fname, transitions_fname, Ex_fname, BM1_fname, BE2_fname,
-            transitions_BM1_fname, transitions_BE2_fname, debug_fname
+            levels_fname, transitions_BE2_fname, transitions_BM1_fname,
+            debug_fname
         ]
 
         if self.load_and_save_to_file != "overwrite":
@@ -355,13 +584,24 @@ class ReadKshellOutput:
                 If all files exist, load them. If any of the files do
                 not exist, all will be generated.
                 """
-                self.Ex = np.load(file=Ex_fname, allow_pickle=True)
-                self.BM1 = np.load(file=BM1_fname, allow_pickle=True)
-                self.BE2 = np.load(file=BE2_fname, allow_pickle=True)
+                # self.Ex = np.load(file=Ex_fname, allow_pickle=True)
+                # self.BM1 = np.load(file=BM1_fname, allow_pickle=True)
+                # self.BE2 = np.load(file=BE2_fname, allow_pickle=True)
                 self.levels = np.load(file=levels_fname, allow_pickle=True)
-                self.transitions = np.load(file=transitions_fname, allow_pickle=True)
+                # self.transitions = np.load(file=transitions_fname, allow_pickle=True)
                 self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
                 self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
+
+                # try:
+                #     self.transitions_BE2 = self.transitions[:len(self.BE2)]
+                #     self.transitions_BM1 = self.transitions[len(self.BE2):]
+                # except TypeError:
+                #     """
+                #     TypeError: len() of unsized object because self.BE2 = None.
+                #     """
+                #     self.transitions_BE2 = np.array(None)
+                #     self.transitions_BM1 = np.array(None)
+
                 self.debug = np.load(file=debug_fname, allow_pickle=True)
                 msg = "Summary data loaded from .npy!"
                 msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
@@ -369,220 +609,37 @@ class ReadKshellOutput:
                 print(msg)
                 return
 
-        def load_energy_levels(infile):
-            """
-            Example
-            -------
-            Energy levels
+        parallel_args = [
+            [self.fname_summary, "Energy", self._load_energy_levels, None],
+            [self.fname_summary, "B(E2)", self._load_transition_probabilities, self.transitions_BE2],
+            [self.fname_summary, "B(M1)", self._load_transition_probabilities, self.transitions_BM1]
+        ]
 
-            N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
-
-            1   5/2 +     1   3/2    -16.565    0.000  log_O19_sdpf-mu_m1p.txt 
-            2   3/2 +     1   3/2    -15.977    0.588  log_O19_sdpf-mu_m1p.txt 
-            3   1/2 +     1   3/2    -15.192    1.374  log_O19_sdpf-mu_m1p.txt 
-            4   9/2 +     1   3/2    -13.650    2.915  log_O19_sdpf-mu_m1p.txt 
-            5   7/2 +     1   3/2    -13.267    3.298  log_O19_sdpf-mu_m1p.txt 
-            6   5/2 +     2   3/2    -13.074    3.491  log_O19_sdpf-mu_m1p.txt
-            """
-            for _ in range(3): infile.readline()
-            for line in infile:
-                try:
-                    tmp = line.split()
-                    
-                    if tmp[1] == "-1":
-                        """
-                        -1 spin states in the KSHELL data file indicates
-                        bad states which should not be included.
-                        """
-                        self.minus_one_spin_counts[0] += 1  # Debug.
-                        continue
-                    
-                    self.Ex.append(float(tmp[6]))
-                    parity = 1 if tmp[2] == "+" else -1
-                    self.levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
-                except IndexError:
-                    """
-                    End of energies.
-                    """
-                    break
-
-        def load_transition_probabilities(infile, reduced_transition_prob_decay_list):
-            """
-            Parameters
-            ----------
-            infile:
-                The KSHELL summary file.
-
-            reduced_transition_prob_decay_list:
-                List for storing B(M1) or B(E2) values.
-            """
-            for _ in range(2): infile.readline()
-            for line in infile:
-                try:
-                    """
-                    Example of possible lines in file:
-                    J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                    2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
-                    3/2+( 1) 0.072 5/2+( 1) 0.000 0.071 0.127( 0.07) 0.084( 0.05)
-                    2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
-                    3+( 8) 19.503 2+(11) 18.393 1.111 0.000( 0.00) 0.000( 0.00)
-                    1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
-                    5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
-                    0.0+(46)', '47.248', '1.0+(97)', '45.384', '1.864', '23.973(13.39)', '7.991(', '4.46)
-                    """
-                    tmp = line.split()
-                    len_tmp = len(tmp)
-                    case_ = None # Used for identifying which if-else case reads wrong.
-                    
-                    # Location of initial parity is common for all cases.
-                    parity_idx = tmp[0].index("(") - 1 # Find index of initial parity.
-                    parity_initial = 1 if tmp[0][parity_idx] == "+" else -1
-                    parity_initial_symbol = tmp[0][parity_idx]
-                    
-                    # Location of initial spin is common for all cases.
-                    spin_initial = float(Fraction(tmp[0][:parity_idx]))
-                    
-                    if (tmp[1][-1] != ")") and (tmp[3][-1] != ")") and (len_tmp == 9):
-                        """
-                        Example:
-                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        2+(11)   18.393  2+(10)    17.791  0.602    0.1(    0.0)    0.1(    0.0)
-                        5.0+(60) 32.170  4.0+(100) 31.734  0.436    0.198( 0.11)    0.242( 0.14)
-                        """
-                        case_ = 0
-                        E_gamma = float(tmp[4])
-                        Ex_initial = float(tmp[1])
-                        reduced_transition_prob_decay = float(tmp[5][:-1])
-                        reduced_transition_prob_excite = float(tmp[7][:-1])
-                        spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
-                        Ex_final = float(tmp[3])
-                        parity_final = tmp[2].split("(")[0][-1]
-
-                    elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
-                        """
-                        Example:
-                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        2+(10) 17.791 2+( 1) 5.172 12.619 0.006( 0.00) 0.006( 0.00)
-                        """
-                        case_ = 1
-                        E_gamma = float(tmp[5])
-                        Ex_initial = float(tmp[1])
-                        reduced_transition_prob_decay = float(tmp[6][:-1])
-                        reduced_transition_prob_excite = float(tmp[8][:-1])
-                        spin_final = float(Fraction(tmp[2][:-2]))
-                        Ex_final = float(tmp[4])
-                        parity_final = tmp[2].split("(")[0][-1]
-                    
-                    elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
-                        """
-                        Example:
-                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        3+( 8)   19.503 2+(11)    18.393 1.111 0.000( 0.00) 0.000( 0.00)
-                        1.0+( 1) 5.357  0.0+(103) 0.000  5.357 0.002( 0.00) 0.007( 0.00)
-                        """
-                        case_ = 2
-                        E_gamma = float(tmp[5])
-                        Ex_initial = float(tmp[2])
-                        reduced_transition_prob_decay = float(tmp[6][:-1])
-                        reduced_transition_prob_excite = float(tmp[8][:-1])
-                        spin_final = float(Fraction(tmp[3].split(parity_initial_symbol)[0]))
-                        Ex_final = float(tmp[4])
-                        parity_final = tmp[3].split("(")[0][-1]
-
-                    elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
-                        """
-                        Example:
-                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        1+( 7) 19.408 2+( 9) 16.111 3.297 0.005( 0.00) 0.003( 0.00)
-                        """
-                        case_ = 3
-                        E_gamma = float(tmp[6])
-                        Ex_initial = float(tmp[2])
-                        reduced_transition_prob_decay = float(tmp[7][:-1])
-                        reduced_transition_prob_excite = float(tmp[9][:-1])
-                        spin_final = float(Fraction(tmp[3][:-2]))
-                        Ex_final = float(tmp[5])
-                        parity_final = tmp[3].split("(")[0][-1]
-
-                    elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
-                        """
-                        Example:
-                        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
-                        0.0+(46) 47.248  1.0+(97) 45.384  1.864   23.973(13.39)    7.991( 4.46)
-                        """
-                        case_ = 4
-                        E_gamma = float(tmp[4])
-                        Ex_initial = float(tmp[1])
-                        reduced_transition_prob_decay = float(tmp[5].split("(")[0])
-                        reduced_transition_prob_excite = float(tmp[6][:-1])
-                        spin_final = float(Fraction(tmp[2].split(parity_initial_symbol)[0]))
-                        Ex_final = float(tmp[3])
-                        parity_final = tmp[2].split("(")[0][-1]
-
-                    else:
-                        msg = "ERROR: Structure not accounted for!"
-                        msg += f"\n{line=}"
-                        raise KshellDataStructureError(msg)
-
-                    if (spin_final == -1) or (spin_initial == -1):
-                        """
-                        -1 spin states in the KSHELL data file indicates
-                        bad states which should not be included.
-                        """
-                        self.minus_one_spin_counts[1] += 1  # Debug.
-                        continue
-                    
-                    reduced_transition_prob_decay_list.append([
-                        Ex_initial, reduced_transition_prob_decay, E_gamma
-                    ])
-                    if parity_final == "+":
-                        parity_final = 1
-                    elif parity_final == "-":
-                        parity_final = -1
-                    else:
-                        msg = "Could not properly read the final parity!"
-                        raise KshellDataStructureError(msg)
-
-                    self.transitions.append([
-                        2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-                        parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
-                        reduced_transition_prob_excite
-                    ])
-
-                except ValueError as err:
-                    """
-                    One of the float conversions failed indicating that
-                    the structure of the line is not accounted for.
-                    """
-                    msg = "\n" + err.__str__() + f"\n{case_=}" + f"\n{line=}"
-                    raise KshellDataStructureError(msg)
-
-                except IndexError:
-                    """
-                    End of probabilities.
-                    """
-                    break
+        # pool = multiprocessing.Pool()
+        # pool.map(_load_parallel, parallel_args)
 
         with open(self.fname_summary, "r") as infile:
             for line in infile:
                 tmp = line.split()
                 try:
                     if tmp[0] == "Energy":
-                        self.Ex = []    # NOTE: Remove this?
-                        self.levels = [] # [Ei, 2*spin_initial, parity].
-                        load_energy_levels(infile)
+                        # self.Ex = []    # NOTE: Remove this?
+                        # self.levels = [] # [Ei, 2*spin_initial, parity].
+                        self._load_energy_levels(infile)
                     
                     elif tmp[0] == "B(E2)":
-                        self.BE2 = []
-                        if self.transitions is None:
-                            self.transitions = []
-                        load_transition_probabilities(infile, self.BE2)
+                        # self.BE2 = []
+                        # if self.transitions is None:
+                        #     self.transitions = []
+                        self.transitions_BE2 = []
+                        self._load_transition_probabilities(infile, self.transitions_BE2)
                     
                     elif tmp[0] == "B(M1)":
-                        self.BM1 = []
-                        if self.transitions is None:
-                            self.transitions = []
-                        load_transition_probabilities(infile, self.BM1)
+                        # self.BM1 = []
+                        # if self.transitions is None:
+                        #     self.transitions = []
+                        self.transitions_BM1 = []
+                        self._load_transition_probabilities(infile, self.transitions_BM1)
                 
                 except IndexError:
                     """
@@ -591,33 +648,35 @@ class ReadKshellOutput:
                     continue
 
         self.levels = np.array(self.levels)
-        self.transitions = np.array(self.transitions)
-        self.Ex = np.array(self.Ex)
-        self.BM1 = np.array(self.BM1)
-        self.BE2 = np.array(self.BE2)
+        self.transitions_BE2 = np.array(self.transitions_BE2)
+        self.transitions_BM1 = np.array(self.transitions_BM1)
+        # self.transitions = np.array(self.transitions)
+        # self.Ex = np.array(self.Ex)
+        # self.BM1 = np.array(self.BM1)
+        # self.BE2 = np.array(self.BE2)
         self.debug = "DEBUG\n"
         self.debug += f"skipped -1 states in levels: {self.minus_one_spin_counts[0]}\n"
         self.debug += f"skipped -1 states in transitions: {self.minus_one_spin_counts[1]}\n"
         self.debug = np.array(self.debug)
 
-        try:
-            self.transitions_BE2 = self.transitions[:len(self.BE2)]
-            self.transitions_BM1 = self.transitions[len(self.BE2):]
-        except TypeError:
-            """
-            TypeError: len() of unsized object because self.BE2 = None.
-            """
-            self.transitions_BE2 = np.array(None)
-            self.transitions_BM1 = np.array(None)
+        # try:
+        #     self.transitions_BE2 = self.transitions[:len(self.BE2)]
+        #     self.transitions_BM1 = self.transitions[len(self.BE2):]
+        # except TypeError:
+        #     """
+        #     TypeError: len() of unsized object because self.BE2 = None.
+        #     """
+        #     self.transitions_BE2 = np.array(None)
+        #     self.transitions_BM1 = np.array(None)
 
         if self.load_and_save_to_file:
             np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
-            np.save(file=transitions_fname, arr=self.transitions, allow_pickle=True)
+            # np.save(file=transitions_fname, arr=self.transitions, allow_pickle=True)
             np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
             np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
-            np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
-            np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
-            np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
+            # np.save(file=Ex_fname, arr=self.Ex, allow_pickle=True)
+            # np.save(file=BM1_fname, arr=self.BM1, allow_pickle=True)
+            # np.save(file=BE2_fname, arr=self.BE2, allow_pickle=True)
             np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
@@ -1128,4 +1187,3 @@ def get_parameters(path: str, verbose: bool = True) -> dict:
             res[key] = value
 
     return res
-            
