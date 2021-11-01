@@ -72,8 +72,7 @@ def gamma_strength_function_average(
     
     Author: Jørgen Midtbø.
     Modified by: GaffaSnobb.
-
-    TODO: Ex_final or Ex_initial?
+    
     TODO: Figure out the pre-factors.
 
     Parameters
