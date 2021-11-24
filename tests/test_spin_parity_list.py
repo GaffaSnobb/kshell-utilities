@@ -9,7 +9,8 @@ def test_spin_parity_list():
     """
     res = kshell_utilities.loadtxt(
         path = "summary_O19_sdpf-mu.txt",
-        load_and_save_to_file = False
+        load_and_save_to_file = False,
+        old_or_new = "old"
     )[0]
     
     n_transitions = len(res.transitions_BM1[:, 0])

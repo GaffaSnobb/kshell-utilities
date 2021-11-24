@@ -15,7 +15,8 @@ def test_file_read_levels():
     """
     res = kshell_utilities.loadtxt(
         path = "summary_test_text_file.txt",
-        load_and_save_to_file = False
+        load_and_save_to_file = False,
+        old_or_new = "old"
     )[0]
 
     E_expected = [
@@ -48,7 +49,8 @@ def test_int_vs_floor():
     """
     res = kshell_utilities.loadtxt(
         path = "summary_test_text_file.txt",
-        load_and_save_to_file = False
+        load_and_save_to_file = False,
+        old_or_new = "old"
     )[0]
 
     res_1 = np.floor(res.transitions_BM1[:, 5])
@@ -63,7 +65,8 @@ def test_file_read_transitions():
     """
     res = kshell_utilities.loadtxt(
         path = "summary_test_text_file.txt",
-        load_and_save_to_file = False
+        load_and_save_to_file = False,
+        old_or_new = "old"
     )[0]
 
     # BE2
