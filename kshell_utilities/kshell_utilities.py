@@ -1,4 +1,4 @@
-import os, sys, multiprocessing, hashlib, ast, time
+import os, sys, multiprocessing, hashlib, ast
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
@@ -151,7 +151,7 @@ def _load_energy_levels(infile):
 
     return levels, negative_spin_counts
 
-def _load_transition_probabilities_OLD(infile):
+def _load_transition_probabilities_old(infile):
         """
         For summary files with old syntax (pre 2021-11-24).
         Parameters
@@ -400,7 +400,7 @@ class ReadKshellOutput:
         [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
         parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
     """
-    def __init__(self, path: str, load_and_save_to_file: bool):
+    def __init__(self, path: str, load_and_save_to_file: bool, old_or_new: str):
         """
         Parameters
         ----------
@@ -411,10 +411,21 @@ class ReadKshellOutput:
         load_and_save_to_file : bool
             Toggle saving data as `.npy` files on / off. If `overwrite`,
             saved `.npy` files are overwritten.
+
+        old_or_new : str
+            Choose between old and new summary file syntax. All summary
+            files generated pre 2021-11-24 use old style.
+            New:
+            J_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B(E2)->         B(E2)->[wu]     B(E2)<-         B(E2)<-[wu]
+            5    +    1     0.036   6    +    1     0.000     0.036     70.43477980      6.43689168     59.59865983      5.44660066
+            Old:
+            J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+            2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
         """
 
         self.path = path
         self.load_and_save_to_file = load_and_save_to_file
+        self.old_or_new = old_or_new
         # Some attributes might not be altered, depending on the input file.
         self.fname_summary = None
         self.fname_ptn = None
@@ -637,12 +648,20 @@ class ReadKshellOutput:
                 print(msg)
                 return
 
-        parallel_args = [
-            [self.fname_summary, "Energy", _load_energy_levels],
-            [self.fname_summary, "B(M1)", _load_transition_probabilities],
-            [self.fname_summary, "B(E2)", _load_transition_probabilities],
-            [self.fname_summary, "B(E1)", _load_transition_probabilities],
-        ]
+        if self.old_or_new == "new":
+            parallel_args = [
+                [self.fname_summary, "Energy", _load_energy_levels],
+                [self.fname_summary, "B(M1)", _load_transition_probabilities],
+                [self.fname_summary, "B(E2)", _load_transition_probabilities],
+                [self.fname_summary, "B(E1)", _load_transition_probabilities],
+            ]
+        elif self.old_or_new == "old":
+            parallel_args = [
+                [self.fname_summary, "Energy", _load_energy_levels],
+                [self.fname_summary, "B(M1)", _load_transition_probabilities_old],
+                [self.fname_summary, "B(E2)", _load_transition_probabilities_old],
+                [self.fname_summary, "B(E1)", _load_transition_probabilities_old],
+            ]
 
         pool = multiprocessing.Pool()
         pool_res = pool.map(_load_parallel, parallel_args)
@@ -854,15 +873,16 @@ def _process_kshell_output_in_parallel(args):
     """
     Simple wrapper for parallelizing loading of KSHELL files.
     """
-    filepath, load_and_save_to_file = args
+    filepath, load_and_save_to_file, old_or_new = args
     print(filepath)
-    return ReadKshellOutput(filepath, load_and_save_to_file)
+    return ReadKshellOutput(filepath, load_and_save_to_file, old_or_new)
 
 def loadtxt(
     path: str,
     is_directory: bool = False,
     filter_: Union[None, str] = None,
-    load_and_save_to_file: Union[bool, str] = True
+    load_and_save_to_file: Union[bool, str] = True,
+    old_or_new = "new"
     ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
@@ -887,6 +907,16 @@ def loadtxt(
         Toggle saving data as `.npy` files on / off. If 'overwrite',
         saved `.npy` files are overwritten.
 
+    old_or_new : str
+        Choose between old and new summary file syntax. All summary
+        files generated pre 2021-11-24 use old style.
+        New:
+        J_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B(E2)->         B(E2)->[wu]     B(E2)<-         B(E2)<-[wu]
+        5    +    1     0.036   6    +    1     0.000     0.036     70.43477980      6.43689168     59.59865983      5.44660066
+        Old:
+        J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
+        2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
+
     Returns
     -------
     data : list
@@ -895,6 +925,11 @@ def loadtxt(
     """
     all_fnames = None
     data = []
+    if old_or_new not in (old_or_new_allowed := ["old", "new"]):
+        msg = f"'old_or_new' argument must be in {old_or_new_allowed}!"
+        msg += f" Got '{old_or_new}'."
+        raise ValueError(msg)
+
     if (is_directory) and (not os.path.isdir(path)):
         msg = f"{path} is not a directory"
         raise NotADirectoryError(msg)
@@ -953,14 +988,14 @@ def loadtxt(
 
             all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
             sub_fnames = all_fnames[key]
-            arg_list = [(path + i[0], load_and_save_to_file) for i in sub_fnames]
+            arg_list = [(path + i[0], load_and_save_to_file, old_or_new) for i in sub_fnames]
             data += pool.map(_process_kshell_output_in_parallel, arg_list)
 
     else:
         """
         Only a single KSHELL data file.
         """
-        data.append(ReadKshellOutput(path, load_and_save_to_file))
+        data.append(ReadKshellOutput(path, load_and_save_to_file, old_or_new))
 
     if not data:
         msg = "No KSHELL data loaded. Most likely error is that the given"
