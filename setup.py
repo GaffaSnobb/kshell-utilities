@@ -8,7 +8,7 @@ from setuptools import setup
 
 setup(
     name = 'kshell-utilities',
-    version = '1.1.0.0',    
+    version = '1.2.0.0',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
     # long_description = long_description,
     url = 'https://github.com/GaffaSnobb/kshell-utilities',
@@ -18,9 +18,10 @@ setup(
     install_requires = ['numpy', 'matplotlib'],
 
     classifiers = [
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
-        'Operating System :: OS Independent',
+        'Operating System :: MacOS',
+        'Operating System :: Unix',
         'Programming Language :: Python :: 3.8',
         'Topic :: Scientific/Engineering :: Physics',
     ],
