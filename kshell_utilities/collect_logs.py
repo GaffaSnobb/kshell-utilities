@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# ./collect_logs.py log_foo.txt log_bar.txt ...
-#
 import sys, os
 from typing import List, Tuple
 from fractions import Fraction
@@ -9,7 +6,6 @@ from math import pi
 #weisskopf_threshold = 1.0 # threshold to show in W.u.
 weisskopf_threshold = -0.001
 
-# E_data = {}     # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
 n_jnp = {}
 
 E_gs = 0.0
