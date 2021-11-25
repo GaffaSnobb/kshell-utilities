@@ -66,7 +66,7 @@ def weisskopf_unit(multipole_type: str, mass: int) -> Tuple[float, str]:
     
     return B_weisskopf, unit_weisskopf
     
-def read_energy_logfile(filename: str):
+def read_energy_logfile(filename: str, E_data: dict):
     """
     Extract the energy, spin, and parity for each eigenstate and arrange
     the data in a dictionary, E_data, where the keys are the energies
@@ -82,7 +82,6 @@ def read_energy_logfile(filename: str):
     filename : str
         The log filename.
     """
-    E_data = {}
     with open(filename, "r") as infile:
         while True:
             line = infile.readline()
@@ -117,7 +116,6 @@ def read_energy_logfile(filename: str):
                         tt = int(line[45:48])
                         E_data[ energy ] = (filename, spin, parity, n_eig, tt)
                         break
-    return E_data
 
 def spin_to_string(spin: int) -> str:
     """
@@ -257,18 +255,7 @@ def read_transit_logfile_old(filename: str, multipole_type: str):
                 ...
                 """
                 continue
-            
-            # spin_final   = int(line_split[0])
-            # idx_1        = int(line_split[1])
-            # E_final      = float(line_split[2]) - E_gs
-            # spin_initial = int(line_split[3])
-            # idx_2        = int(line_split[4])
-            # E_initial    = float(line_split[5]) - E_gs
-            # dE           = float(line_split[6])
-            # Mred         = float(line_split[7])
-            # B_decay      = float(line_split[8])
-            # B_excite     = float(line_split[9])
-            # Mom          = float(line_split[10])
+
             spin_final = int(line[:2])
             idx_1 = int(line[3:7])
             spin_initial = int(line[17:19])
@@ -311,11 +298,6 @@ def read_transit_logfile_old(filename: str, multipole_type: str):
                 NOTE: What is this option used for? In what case is the
                 excitation energy negative?
                 """
-                # out = stringformat \
-                #     % (spin_to_string(spin_final), parity_final, idx_1, E_final, 
-                #         spin_to_string(spin_initial), parity_initial, idx_2, E_initial, 
-                #         -dE, B_decay, B_weisskopf_decay, B_excite, B_weisskopf_excite)
-
                 out = f"{spin_to_string(spin_final):4s} "
                 out += f"{parity_final:1s} "
                 out += f"{idx_1:4d} "
@@ -509,7 +491,7 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
-def collect_logs(path: str = "."):
+def collect_logs(path: str = ".", old_or_new: str = "new"):
     """
     Collect energy and transition data from all log files in 'path'.
 
@@ -519,11 +501,23 @@ def collect_logs(path: str = "."):
         Path to directory with log files, or parth to single energy log
         file, if you wanna do that for some reason.
 
+    old_or_new : str
+        Choose between old or new log file syntax. Pre or post
+        2021-11-24. Summary file syntax is of new type, regardless.
+
     Raises
     ------
     RuntimeError:
         If no energy log files are found in 'path'.
+
+    ValueError:
+        If 'old_or_new' is of invalid value.
     """
+    allowed_old_or_new = ["new", "old"]
+    if old_or_new.lower() not in allowed_old_or_new:
+        msg = f"old_or_new must be in {allowed_old_or_new}. Got {old_or_new}."
+        raise ValueError(msg)
+
     energy_log_files = []
     transit_log_files = []
     isotopes = []
@@ -550,7 +544,7 @@ def collect_logs(path: str = "."):
 
     if len(energy_log_files) == 0:
         msg = f"No energy log files in path '{path}'."
-        raise RuntimeError(msg)
+        raise FileNotFoundError(msg)
 
     if len(transit_log_files) == 0:
         msg = f"No transit log files in path '{path}'."
@@ -561,7 +555,7 @@ def collect_logs(path: str = "."):
     multipole_types = ["E1", "M1", "E2"]
     
     for log_file in energy_log_files:
-        E_data.update(read_energy_logfile(log_file))
+        read_energy_logfile(log_file, E_data)
 
     energies = E_data.keys()
     if len(energies) == 0:
@@ -626,7 +620,10 @@ def collect_logs(path: str = "."):
                 output_e = {}
                 
                 for filename in transit_log_files:
-                    unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+                    if old_or_new.lower() == "new":
+                        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+                    elif old_or_new.lower() == "old":
+                        unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type)
                     output_e.update(out_e)
                 
                 B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
