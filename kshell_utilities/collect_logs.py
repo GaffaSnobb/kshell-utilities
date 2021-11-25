@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, warnings
 from typing import List, Tuple
 from fractions import Fraction
 from math import pi
@@ -509,7 +509,53 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
-def collect_logs(energy_log_files: List, transit_log_files: List):
+def collect_logs(path: str = "."):
+    """
+    Collect energy and transition data from all log files in 'path'.
+
+    Parameters
+    ----------
+    path : str
+        Path to directory with log files, or parth to single energy log
+        file, if you wanna do that for some reason.
+
+    Raises
+    ------
+    RuntimeError:
+        If no energy log files are found in 'path'.
+    """
+    energy_log_files = []
+    transit_log_files = []
+    isotopes = []
+    for elem in os.listdir(path):
+        if elem.startswith("log_") and elem.endswith(".txt"):
+            if (tmp := elem.split("_")[1].lower()) not in isotopes:
+                isotopes.append(tmp)
+            if not "_tr_" in elem:
+                energy_log_files.append(elem)
+            elif "_tr_" in elem:
+                transit_log_files.append(elem)
+
+    if len(isotopes) > 1:
+        print(f"Log files for different isotopes have been found in {path}")
+        msg = f"Found: {isotopes}. Your choice: "
+        while True:
+            choice = input(msg)
+            if choice in isotopes:
+                break
+        
+        # Remove all log files not of type 'choice'.
+        energy_log_files = [i for i in energy_log_files if choice in i.lower()]
+        transit_log_files = [i for i in transit_log_files if choice in i.lower()]
+
+    if len(energy_log_files) == 0:
+        msg = f"No energy log files in path '{path}'."
+        raise RuntimeError(msg)
+
+    if len(transit_log_files) == 0:
+        msg = f"No transit log files in path '{path}'."
+        warnings.warn(msg, RuntimeWarning)
+
     E_data = {} # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
     spin_parity_occurrences = {}    # Count the occurrences of each (spin, parity) pair.
     multipole_types = ["E1", "M1", "E2"]
@@ -546,11 +592,13 @@ def collect_logs(energy_log_files: List, transit_log_files: List):
     E_gs = energies[0]
 
     counter = 0
+    isotope = energy_log_files[0].split("_")[1]
+    model_space = energy_log_files[0].split("_")[2]
     while True:
         """
         Create unique summary filename.
         """
-        summary_filename = f"summary_{counter:03d}"
+        summary_filename = f"summary_{isotope}_{model_space}_{counter:03d}"
         if os.path.isfile(f"{summary_filename}.txt"):
             counter += 1
         else:
@@ -573,18 +621,19 @@ def collect_logs(energy_log_files: List, transit_log_files: List):
             outfile.write(out)
         outfile.write("\n")
 
-        for multipole_type in multipole_types:
-            output_e = {}
-            
-            for filename in transit_log_files:
-                unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
-                output_e.update(out_e)
-            
-            B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
-            outfile.write(f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}")
-            outfile.write(f"\n{unit_weisskopf} (W.u.)")
-            outfile.write(f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n")
+        if len(transit_log_files) > 0:
+            for multipole_type in multipole_types:
+                output_e = {}
+                
+                for filename in transit_log_files:
+                    unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+                    output_e.update(out_e)
+                
+                B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
+                outfile.write(f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}")
+                outfile.write(f"\n{unit_weisskopf} (W.u.)")
+                outfile.write(f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n")
 
-            for _, out in sorted(output_e.items()):
-                outfile.write(out)
-            outfile.write("\n\n")
+                for _, out in sorted(output_e.items()):
+                    outfile.write(out)
+                outfile.write("\n\n")
