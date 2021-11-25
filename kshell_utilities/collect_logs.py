@@ -597,27 +597,20 @@ def collect_logs(energy_log_files: List, transit_log_files: List):
         outfile.write("\n")
 
         for multipole_type in multipole_types:
-            is_show = False # NOTE: Dont think this is needed.
             output_e = {}
             
             for filename in transit_log_files:
                 unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
-                if unit_weisskopf: is_show = unit_weisskopf
                 output_e.update(out_e)
             
             B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
             outfile.write(f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}")
-            outfile.write(f"\n{is_show} (W.u.)")
+            outfile.write(f"\n{unit_weisskopf} (W.u.)")
             outfile.write(f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n")
-            # output = f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}"
-            # output += f"\n{is_show} (W.u.)"
-            # output += f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n"
 
             for _, out in sorted(output_e.items()):
-                # output += out
                 outfile.write(out)
             outfile.write("\n\n")
-            # if is_show: print(output)
 
 # if __name__ == "__main__":
 #     main(sys.argv[1:])
