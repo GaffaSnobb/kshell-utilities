@@ -424,18 +424,24 @@ def read_transit_logfile(filename: str, multipole_type: str):
                 ...
                 """
                 continue
-            
-            spin_final   = int(line_split[0])
-            idx_1        = int(line_split[1])
-            E_final      = float(line_split[2]) - E_gs
-            spin_initial = int(line_split[3])
-            idx_2        = int(line_split[4])
-            E_initial    = float(line_split[5]) - E_gs
-            dE           = float(line_split[6])
-            Mred         = float(line_split[7])
-            B_decay      = float(line_split[8])
-            B_excite     = float(line_split[9])
-            Mom          = float(line_split[10])
+            try:
+                spin_final   = int(line_split[0])
+                idx_1        = int(line_split[1])
+                E_final      = float(line_split[2]) - E_gs
+                spin_initial = int(line_split[3])
+                idx_2        = int(line_split[4])
+                E_initial    = float(line_split[5]) - E_gs
+                dE           = float(line_split[6])
+                Mred         = float(line_split[7])
+                B_decay      = float(line_split[8])
+                B_excite     = float(line_split[9])
+                Mom          = float(line_split[10])
+            except ValueError as err:
+                msg = f"\n{err.__str__()}"
+                msg += "\nThis might be due to wrong log file syntax."
+                msg += " Try using old_or_new='old' as argument to collect_logs."
+                raise ValueError(msg)
+                
             B_weisskopf_decay  = B_decay/B_weisskopf
             B_weisskopf_excite = B_excite/B_weisskopf
 
