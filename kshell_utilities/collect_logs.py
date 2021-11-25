@@ -513,32 +513,32 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
-def print_transition(multipole_type):
-    is_show = False
-    output_e = {}
+# def print_transition(multipole_type):
+#     is_show = False # NOTE: Dont think this is needed.
+#     output_e = {}
     
-    for filename in sys.argv[1:]:
-        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
-        if unit_weisskopf: is_show = unit_weisskopf
-        output_e.update(out_e)
+#     for filename in sys.argv[1:]:
+#         unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+#         if unit_weisskopf: is_show = unit_weisskopf
+#         output_e.update(out_e)
     
-    B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
-    output = f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}"
-    output += f"\n{is_show} (W.u.)"
-    output += f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n"
+#     B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
+#     output = f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}"
+#     output += f"\n{is_show} (W.u.)"
+#     output += f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n"
 
-    for _, out in sorted(output_e.items()):
-        output += out        
-    if is_show: print(output)
+#     for _, out in sorted(output_e.items()):
+#         output += out        
+#     if is_show: print(output)
 
-def tmp_main(energy_log_files: List, transit_log_files: List):
+def collect_logs(energy_log_files: List, transit_log_files: List):
     E_data = {} # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
     spin_parity_occurrences = {}    # Count the occurrences of each (spin, parity) pair.
+    multipole_types = ["E1", "M1", "E2"]
     
     for log_file in energy_log_files:
         E_data.update(read_energy_logfile(log_file))
 
-    # print("\n Energy levels")
     energies = E_data.keys()
     if len(energies) == 0:
         msg = "No energy data has been read from energy logs!"
@@ -546,6 +546,9 @@ def tmp_main(energy_log_files: List, transit_log_files: List):
 
     energies = sorted(energies)
     for energy in energies:
+        """
+        What does this loop actually do...?
+        """
         filename, spin, parity, n_eig, tt = E_data[energy]
         spin_parity = (spin, parity)
         # spin_parity_occurrences[spin_parity] = spin_parity_occurrences.get(spin_parity, 0) + 1
@@ -561,22 +564,60 @@ def tmp_main(energy_log_files: List, transit_log_files: List):
             spin_parity_occurrences[spin_parity] = 1
         n_jnp[ (spin, parity, n_eig) ] = spin_parity_occurrences[spin_parity]
         E_data[energy] = filename, spin, parity, spin_parity_occurrences[spin_parity], tt
+    
+    global E_gs
+    E_gs = energies[0]
 
-    print(spin_parity_occurrences)
+    counter = 0
+    while True:
+        """
+        Create unique summary filename.
+        """
+        summary_filename = f"summary_{counter:03d}"
+        if os.path.isfile(f"{summary_filename}.txt"):
+            counter += 1
+        else:
+            summary_filename += ".txt"
+            break
+    
+    with open(summary_filename, "w") as outfile:
+        outfile.write("\n Energy levels\n")
+        outfile.write('\n    N   J     prty N_Jp T        E(MeV)    Ex(MeV)  log-file\n\n')
+        for i, energy in enumerate(energies):
+            filename, spin, parity, n_eig, tt = E_data[energy]
+            out = f"{i + 1:5d}   "
+            out += f"{spin_to_string(spin):5s} "
+            out += f"{parity:1s} "
+            out += f"{n_eig:5d}   "
+            out += f"{spin_to_string(tt):3s} "
+            out += f"{energy:10.3f} "
+            out += f"{energy - E_gs:10.3f}   "
+            out += f"{filename}\n"
+            outfile.write(out)
+        outfile.write("\n")
 
-    #     global E_gs
-    #     E_gs = energies[0]
-    #     print('\n    N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file\n')
-    #     for i, e in enumerate(energies):
-    #         filename, spin, parity, n_eig, tt = E_data[e]
-    #         print("%5d %5s %1s %5d %5s %10.3f %8.3f  %s " \
-    #             % (i+1, spin_to_string(spin), parity, n_eig, spin_to_string(tt), e, e-E_gs, filename))
-    #     print()
+        for multipole_type in multipole_types:
+            is_show = False # NOTE: Dont think this is needed.
+            output_e = {}
+            
+            for filename in transit_log_files:
+                unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+                if unit_weisskopf: is_show = unit_weisskopf
+                output_e.update(out_e)
+            
+            B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
+            outfile.write(f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}")
+            outfile.write(f"\n{is_show} (W.u.)")
+            outfile.write(f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n")
+            # output = f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}"
+            # output += f"\n{is_show} (W.u.)"
+            # output += f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n"
 
-    # print_transition('E2')
-    # print_transition('M1')
-    # print_transition('E1')
-    # print_transition('E3')
+            for _, out in sorted(output_e.items()):
+                # output += out
+                outfile.write(out)
+            outfile.write("\n\n")
+            # if is_show: print(output)
 
 # if __name__ == "__main__":
 #     main(sys.argv[1:])
