@@ -513,24 +513,6 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
-# def print_transition(multipole_type):
-#     is_show = False # NOTE: Dont think this is needed.
-#     output_e = {}
-    
-#     for filename in sys.argv[1:]:
-#         unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
-#         if unit_weisskopf: is_show = unit_weisskopf
-#         output_e.update(out_e)
-    
-#     B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
-#     output = f"B({multipole_type})  ( > {weisskopf_threshold:.1f} W.u.)  mass = {mass}    1 W.u. = {B_weisskopf:.1f} {unit_weisskopf}"
-#     output += f"\n{is_show} (W.u.)"
-#     output += f"\nJ_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B({multipole_type})->         B({multipole_type})->[wu]     B({multipole_type})<-         B({multipole_type})<-[wu]\n"
-
-#     for _, out in sorted(output_e.items()):
-#         output += out        
-#     if is_show: print(output)
-
 def collect_logs(energy_log_files: List, transit_log_files: List):
     E_data = {} # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
     spin_parity_occurrences = {}    # Count the occurrences of each (spin, parity) pair.
@@ -551,7 +533,6 @@ def collect_logs(energy_log_files: List, transit_log_files: List):
         """
         filename, spin, parity, n_eig, tt = E_data[energy]
         spin_parity = (spin, parity)
-        # spin_parity_occurrences[spin_parity] = spin_parity_occurrences.get(spin_parity, 0) + 1
         try:
             """
             Count the number of each (spin, parity) occurrence.
@@ -611,6 +592,3 @@ def collect_logs(energy_log_files: List, transit_log_files: List):
             for _, out in sorted(output_e.items()):
                 outfile.write(out)
             outfile.write("\n\n")
-
-# if __name__ == "__main__":
-#     main(sys.argv[1:])
