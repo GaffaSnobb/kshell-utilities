@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # ./collect_logs.py log_foo.txt log_bar.txt ...
 #
-import sys
+import sys, os
 from typing import List, Tuple
 from fractions import Fraction
 from math import pi
@@ -9,7 +9,7 @@ from math import pi
 #weisskopf_threshold = 1.0 # threshold to show in W.u.
 weisskopf_threshold = -0.001
 
-e_data = {}     # e_data[energy] = (log filename, spin, parity, eigenstate number, tt).
+# E_data = {}     # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
 n_jnp = {}
 
 E_gs = 0.0
@@ -73,7 +73,7 @@ def weisskopf_unit(multipole_type: str, mass: int) -> Tuple[float, str]:
 def read_energy_logfile(filename: str):
     """
     Extract the energy, spin, and parity for each eigenstate and arrange
-    the data in a dictionary, e_data, where the keys are the energies
+    the data in a dictionary, E_data, where the keys are the energies
     and the values are tuples of
     (log filename, spin, parity, eigenstate number, tt).
 
@@ -86,7 +86,7 @@ def read_energy_logfile(filename: str):
     filename : str
         The log filename.
     """
-    # infile = open(filename, 'r')
+    E_data = {}
     with open(filename, "r") as infile:
         while True:
             line = infile.readline()
@@ -114,13 +114,14 @@ def read_energy_logfile(filename: str):
                     spin = int(line[45:48])     # 2*spin actually.
                     parity = int(line[57:59])
                     parity = parity_integer_to_string(parity)
-                    while energy in e_data: energy += 0.000001  # NOTE: To separate energies close together? Else keys may be identical!
+                    while energy in E_data: energy += 0.000001  # NOTE: To separate energies close together? Else keys may be identical!
                     while True:
                         line = infile.readline()
                         if line[42:45] != ' T:': continue
                         tt = int(line[45:48])
-                        e_data[ energy ] = (filename, spin, parity, n_eig, tt)
+                        E_data[ energy ] = (filename, spin, parity, n_eig, tt)
                         break
+    return E_data
 
 def spin_to_string(spin: int) -> str:
     """
@@ -530,35 +531,52 @@ def print_transition(multipole_type):
         output += out        
     if is_show: print(output)
 
-def main(filename_list: List):
-    for filename in filename_list:
-        read_energy_logfile(filename)
+def tmp_main(energy_log_files: List, transit_log_files: List):
+    E_data = {} # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
+    spin_parity_occurrences = {}    # Count the occurrences of each (spin, parity) pair.
+    
+    for log_file in energy_log_files:
+        E_data.update(read_energy_logfile(log_file))
 
-    print("\n Energy levels")
-    keys = e_data.keys()
-    if len(keys) > 0:
-        keys = sorted(keys)
-        njp = {}
-        for e in keys:
-            filename, mtot, prty, n_eig, tt = e_data[e]
-            mp = (mtot, prty)
-            njp[mp] = njp.get(mp, 0) + 1
-            n_jnp[ (mtot, prty, n_eig) ] = njp[mp]
-            e_data[e] = filename, mtot, prty, njp[mp], tt
+    # print("\n Energy levels")
+    energies = E_data.keys()
+    if len(energies) == 0:
+        msg = "No energy data has been read from energy logs!"
+        raise RuntimeError(msg)
 
-        global E_gs
-        E_gs = keys[0]
-        print('\n    N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file\n')
-        for i, e in enumerate(keys):
-            filename, mtot, prty, n_eig, tt = e_data[e]
-            print("%5d %5s %1s %5d %5s %10.3f %8.3f  %s " \
-                % (i+1, spin_to_string(mtot), prty, n_eig, spin_to_string(tt), e, e-E_gs, filename))
-        print()
+    energies = sorted(energies)
+    for energy in energies:
+        filename, spin, parity, n_eig, tt = E_data[energy]
+        spin_parity = (spin, parity)
+        # spin_parity_occurrences[spin_parity] = spin_parity_occurrences.get(spin_parity, 0) + 1
+        try:
+            """
+            Count the number of each (spin, parity) occurrence.
+            """
+            spin_parity_occurrences[spin_parity] += 1
+        except KeyError:
+            """
+            Create initial value if key has not yet occurred.
+            """
+            spin_parity_occurrences[spin_parity] = 1
+        n_jnp[ (spin, parity, n_eig) ] = spin_parity_occurrences[spin_parity]
+        E_data[energy] = filename, spin, parity, spin_parity_occurrences[spin_parity], tt
 
-    print_transition('E2')
-    print_transition('M1')
-    print_transition('E1')
+    print(spin_parity_occurrences)
+
+    #     global E_gs
+    #     E_gs = energies[0]
+    #     print('\n    N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file\n')
+    #     for i, e in enumerate(energies):
+    #         filename, spin, parity, n_eig, tt = E_data[e]
+    #         print("%5d %5s %1s %5d %5s %10.3f %8.3f  %s " \
+    #             % (i+1, spin_to_string(spin), parity, n_eig, spin_to_string(tt), e, e-E_gs, filename))
+    #     print()
+
+    # print_transition('E2')
+    # print_transition('M1')
+    # print_transition('E1')
     # print_transition('E3')
 
-if __name__ == "__main__":
-    main(sys.argv[1:])
+# if __name__ == "__main__":
+#     main(sys.argv[1:])
