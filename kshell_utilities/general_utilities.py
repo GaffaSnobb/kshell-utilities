@@ -145,7 +145,8 @@ def gamma_strength_function_average(
 
     prefactors = {   # Factor from the def. of the GSF.
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
-        "E1": 1.047e-6
+        # "E1": 1.047e-6,
+        "E1": 3.4888977e-7
     }
     prefactor = prefactors[multipole_type]
 
