@@ -146,7 +146,10 @@ def spin_to_string(spin: int) -> str:
 
     return res
 
-def read_transit_logfile_old(filename: str, multipole_type: str):
+def read_transit_logfile_old(
+    filename: str,
+    multipole_type: str
+    ):
     """
     Extract transit information from transit logfile. Old syntax style,
     pre 2021-11-24.
@@ -164,6 +167,10 @@ def read_transit_logfile_old(filename: str, multipole_type: str):
     ------
     Exception:
         If mass != mass_save. Unsure why mass_save is here at all.
+
+    ValueError:
+        If the conversion of log file values to int or float cannot be
+        done. This indicates wrong log syntax.
     """
     out_e = {}
     mass_save = 0           # NOTE: Unclear what this is used for.
@@ -255,19 +262,28 @@ def read_transit_logfile_old(filename: str, multipole_type: str):
                 ...
                 """
                 continue
+            
+            try:
+                spin_final = int(line[:2])
+                idx_1 = int(line[3:7])
+                spin_initial = int(line[17:19])
+                idx_2 = int(line[20:24])
+                dE = float(line[34:42]) # Gamma energy.
+                E_final = float(line[8:17]) - E_gs
+                E_initial = float(line[25:34]) - E_gs
+                B_decay = float(line[52:62])
+                B_excite = float(line[62:72])
+            except ValueError as err:
+                msg = f"\n{err.__str__()}"
+                msg += "\nThis might be due to wrong log file syntax."
+                msg += " Try using old_or_new='new' or 'both' as argument"
+                msg += " to collect_logs."
+                msg += f"\n{filename = }"
+                msg += f"\n{line = }"
+                raise ValueError(msg)
 
-            spin_final = int(line[:2])
-            idx_1 = int(line[3:7])
-            spin_initial = int(line[17:19])
-            idx_2 = int(line[20:24])
-            dE = float(line[34:42]) # Gamma energy.
-            E_final = float(line[8:17]) - E_gs
-            E_initial = float(line[25:34]) - E_gs
-            B_decay = float(line[52:62])
-            B_excite = float(line[62:72])
             B_weisskopf_decay  = B_decay/B_weisskopf
             B_weisskopf_excite = B_excite/B_weisskopf
-
             if (spin_final == spin_initial) and (idx_1 == idx_2): continue
             if is_diag and (dE < 0.0): continue
             if (B_weisskopf_decay < weisskopf_threshold): continue
@@ -333,6 +349,10 @@ def read_transit_logfile(filename: str, multipole_type: str):
     ------
     Exception:
         If mass != mass_save. Unsure why mass_save is here at all.
+
+    ValueError:
+        If the conversion of log file values to int or float cannot be
+        done. This indicates wrong log syntax.
     """
     out_e = {}
     mass_save = 0           # NOTE: Unclear what this is used for.
@@ -439,9 +459,12 @@ def read_transit_logfile(filename: str, multipole_type: str):
             except ValueError as err:
                 msg = f"\n{err.__str__()}"
                 msg += "\nThis might be due to wrong log file syntax."
-                msg += " Try using old_or_new='old' as argument to collect_logs."
+                msg += " Try using old_or_new='old' or 'both' as argument to"
+                msg += " collect_logs."
+                msg += f"\n{filename = }"
+                msg += f"\n{line = }"
                 raise ValueError(msg)
-                
+
             B_weisskopf_decay  = B_decay/B_weisskopf
             B_weisskopf_excite = B_excite/B_weisskopf
 
@@ -475,10 +498,6 @@ def read_transit_logfile(filename: str, multipole_type: str):
                 NOTE: What is this option used for? In what case is the
                 excitation energy negative?
                 """
-                # out = stringformat \
-                #     % (spin_to_string(spin_final), parity_final, idx_1, E_final, 
-                #         spin_to_string(spin_initial), parity_initial, idx_2, E_initial, 
-                #         -dE, B_decay, B_weisskopf_decay, B_excite, B_weisskopf_excite)
                 out = f"{spin_to_string(spin_final):4s} "
                 out += f"{parity_final:1s} "
                 out += f"{idx_1:4d} "
@@ -497,7 +516,7 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
-def collect_logs(path: str = ".", old_or_new: str = "new"):
+def collect_logs(path: str=".", old_or_new: str="new"):
     """
     Collect energy and transition data from all log files in 'path'.
 
@@ -510,6 +529,8 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
     old_or_new : str
         Choose between old or new log file syntax. Pre or post
         2021-11-24. Summary file syntax is of new type, regardless.
+        The option "both" is for the rare case of log files of mixed
+        syntax in the same directory.
 
     Raises
     ------
@@ -519,8 +540,9 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
     ValueError:
         If 'old_or_new' is of invalid value.
     """
-    allowed_old_or_new = ["new", "old"]
-    if old_or_new.lower() not in allowed_old_or_new:
+    allowed_old_or_new = ["new", "old", "both"]
+    old_or_new = old_or_new.lower()
+    if old_or_new not in allowed_old_or_new:
         msg = f"old_or_new must be in {allowed_old_or_new}. Got {old_or_new}."
         raise ValueError(msg)
 
@@ -532,9 +554,9 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
             if (tmp := elem.split("_")[1].lower()) not in isotopes:
                 isotopes.append(tmp)
             if not "_tr_" in elem:
-                energy_log_files.append(elem)
+                energy_log_files.append(f"{path}/{elem}")
             elif "_tr_" in elem:
-                transit_log_files.append(elem)
+                transit_log_files.append(f"{path}/{elem}")
 
     if len(isotopes) > 1:
         print(f"Log files for different isotopes have been found in {path}")
@@ -545,8 +567,8 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
                 break
         
         # Remove all log files not of type 'choice'.
-        energy_log_files = [i for i in energy_log_files if choice in i.lower()]
-        transit_log_files = [i for i in transit_log_files if choice in i.lower()]
+        energy_log_files = [i for i in energy_log_files if choice in i.split("/")[-1].lower()]
+        transit_log_files = [i for i in transit_log_files if choice in i.split("/")[-1].lower()]
 
     if len(energy_log_files) == 0:
         msg = f"No energy log files in path '{path}'."
@@ -592,20 +614,21 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
     E_gs = energies[0]
 
     counter = 0
-    isotope = energy_log_files[0].split("_")[1]
-    model_space = energy_log_files[0].split("_")[2]
+    filename_without_path = energy_log_files[0].split("/")[-1]
+    isotope = filename_without_path.split("_")[1]
+    model_space = filename_without_path.split("_")[2]
     while True:
         """
         Create unique summary filename.
         """
         summary_filename = f"summary_{isotope}_{model_space}_{counter:03d}"
-        if os.path.isfile(f"{summary_filename}.txt"):
+        if os.path.isfile(f"{path}/{summary_filename}.txt"):
             counter += 1
         else:
             summary_filename += ".txt"
             break
     
-    with open(summary_filename, "w") as outfile:
+    with open(f"{path}/{summary_filename}", "w") as outfile:
         outfile.write("\n Energy levels\n")
         outfile.write('\n    N   J     prty N_Jp T        E(MeV)    Ex(MeV)  log-file\n\n')
         for i, energy in enumerate(energies):
@@ -626,10 +649,20 @@ def collect_logs(path: str = ".", old_or_new: str = "new"):
                 output_e = {}
                 
                 for filename in transit_log_files:
-                    if old_or_new.lower() == "new":
-                        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
-                    elif old_or_new.lower() == "old":
-                        unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type)
+                    if old_or_new == "new":
+                        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type, old_or_new)
+                    elif old_or_new == "old":
+                        unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type, old_or_new)
+                    elif old_or_new == "both":
+                        try:
+                            unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type, old_or_new)
+                        except ValueError:
+                            """
+                            If a ValueError is raised inside
+                            read_transit_logfile_old, it is due to the
+                            log file being new syntax styled.
+                            """
+                            unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type, old_or_new)
                     output_e.update(out_e)
                 
                 B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
