@@ -17,4 +17,5 @@ from .general_utilities import *
 from .kshell_exceptions import *
 from .count_dim import *
 from .parameters import *
+from .collect_logs import collect_logs
 # from .low_energy_enhancement import * # Not ready for ver. 1.0
