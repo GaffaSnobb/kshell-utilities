@@ -810,7 +810,8 @@ class ReadKshellOutput:
         """
         transitions_dict = {
             "M1": self.transitions_BM1,
-            "E2": self.transitions_BE2
+            "E2": self.transitions_BE2,
+            "E1": self.transitions_BE1
         }
         bins, gsf = gamma_strength_function_average(
             levels = self.levels,
