@@ -746,8 +746,9 @@ class ReadKshellOutput:
         )
 
     def level_density_plot(self,
-            bin_size: Union[int, float],
-            plot: bool = True
+            bin_size: Union[int, float] = 0.2,
+            plot: bool = True,
+            save_plot: bool = False
         ):
         """
         Wrapper method to include level density plotting as
@@ -762,6 +763,9 @@ class ReadKshellOutput:
         plot : bool
             Toogle plotting on / off.
 
+        save_plot : bool    
+            Toogle saving of plot (as .png with dpi=300) on / off.
+
         Returns
         -------
         bins : np.ndarray
@@ -773,17 +777,19 @@ class ReadKshellOutput:
         bins, density = level_density(
             energy_levels = self.levels[:, 0],
             bin_size = bin_size,
-            plot = plot
+            plot = plot,
+            save_plot = save_plot
         )
 
         return bins, density
 
     def gamma_strength_function_average_plot(self,
-        bin_width: Union[float, int],
-        Ex_min: Union[float, int],
-        Ex_max: Union[float, int],
+        bin_width: Union[float, int] = 0.2,
+        Ex_min: Union[float, int] = 5,
+        Ex_max: Union[float, int] = 50,
         multipole_type: str = "M1",
-        plot: bool = True
+        plot: bool = True,
+        save_plot: bool = False
         ):
         """
         Wrapper method to include gamma ray strength function
@@ -793,20 +799,30 @@ class ReadKshellOutput:
         ----------
         bin_width : Union[float, int]
             The width of the energy bins. A bin width of 0.2 contains 20
-            states of uniform spacing of 0.01.
+            states of uniform spacing of 0.01. Usually in MeV.
 
         Ex_min : Union[float, int]
-            Lower limit for initial level excitation energy, usually in MeV.
+            Lower limit for initial level excitation energy, usually in
+            MeV. Defaults to (somewhat arbitrary) 5 MeV. This value
+            shoud be set to the beginning of the (quasi?) continuum.
 
         Ex_max : Union[float, int]
-            Upper limit for initial level excitation energy, usually in MeV.
+            Upper limit for initial level excitation energy, usually in
+            MeV. Defaults to 50 MeV, which is probably way higher than
+            what any shell model calculation might be able to reproduce,
+            but 50 MeV is chosen as ≈ infinity which makes the GSF
+            calculations adjust from 50 to the largest value that the
+            dataset allows.
 
         multipole_type : str
             Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
-            Currently only M1 is implemented.
+            Currently only M1 and E1 are implemented.
 
         plot : bool
             Toogle plotting on / off.
+
+        save_plot : bool    
+            Toogle saving of plot (as .png with dpi=300) on / off.
         """
         transitions_dict = {
             "M1": self.transitions_BM1,
@@ -820,22 +836,32 @@ class ReadKshellOutput:
             Ex_min = Ex_min,
             Ex_max = Ex_max,
             multipole_type = multipole_type,
-            plot = plot
+            plot = plot,
+            save_plot = save_plot
         )
 
         return bins, gsf
 
     def gsf(self,
-        bin_width: Union[float, int],
-        Ex_min: Union[float, int],
-        Ex_max: Union[float, int],
+        bin_width: Union[float, int] = 0.2,
+        Ex_min: Union[float, int] = 5,
+        Ex_max: Union[float, int] = 50,
         multipole_type: str = "M1",
-        plot: bool = True
+        plot: bool = True,
+        save_plot: bool = False
         ):
         """
-        Alias for gamma_strength_function_average_plot.
+        Alias for gamma_strength_function_average_plot. See that
+        docstring for details.
         """
-        return self.gamma_strength_function_average_plot(bin_width, Ex_min, Ex_max, multipole_type, plot)
+        return self.gamma_strength_function_average_plot(
+            bin_width = bin_width,
+            Ex_min = Ex_min,
+            Ex_max = Ex_max,
+            multipole_type = multipole_type,
+            plot = plot,
+            save_plot = save_plot
+        )
 
     @property
     def help(self):
