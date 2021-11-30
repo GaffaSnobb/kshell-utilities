@@ -62,9 +62,10 @@ def gamma_strength_function_average(
     bin_width: Union[float, int],
     Ex_min: Union[float, int],
     Ex_max: Union[float, int],
-    multipole_type: str = "M1",
+    multipole_type: str,
     initial_or_final: str = "initial",
-    plot: bool = False
+    plot: bool = False,
+    save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the gamma strength function averaged over spins and
@@ -102,7 +103,7 @@ def gamma_strength_function_average(
 
     multipole_type : str
         Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
-        Currently only M1 is implemented.
+        Currently only M1 and E1 is implemented.
 
     initial_or_final : str
         Choose whether to use the energy of the initial or final state
@@ -112,6 +113,9 @@ def gamma_strength_function_average(
 
     plot : bool
         Toogle plotting on / off.
+
+    save_plot : bool
+        Toogle saving of plot (as .png with dpi=300) on / off.
 
     Variables
     ---------
@@ -340,10 +344,17 @@ def gamma_strength_function_average(
     bins = bins[:len(gSF_ExJpiavg)]
 
     if plot:
+        unit_exponent = 2*int(multipole_type[-1]) + 1
         fig, ax = plt.subplots()
-        ax.plot(bins, gSF_ExJpiavg)
-        ax.set_xlabel("bins")
-        ax.set_ylabel("gsf")
+        ax.plot(bins, gSF_ExJpiavg, label=multipole_type.upper(), color="black")
+        ax.legend()
+        ax.grid()
+        ax.set_xlabel(r"E$_{\gamma}$ [MeV]")
+        ax.set_ylabel(f"$\gamma$SF [MeV$^-$$^{unit_exponent}$]")
+        if save_plot:
+            fname = f"gsf_{multipole_type}.png"
+            print(f"GSF saved as '{fname}'")
+            fig.savefig(fname=fname, dpi=300)
         plt.show()
 
     return bins, gSF_ExJpiavg
@@ -439,6 +450,7 @@ def level_density(
     energy_levels: Union[np.ndarray, list],
     bin_size: Union[int, float],
     plot: bool = False,
+    save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculate the level density for a given bin size.
@@ -453,6 +465,9 @@ def level_density(
 
     plot : bool
         For toggling plotting on / off.
+
+    save_plot : bool    
+        Toogle saving of plot (as .png with dpi=300) on / off.
 
     Returns
     -------
@@ -488,14 +503,16 @@ def level_density(
     bins = bins[1:]
 
     if plot:
-        _, ax = plt.subplots()
-
-        ax.step(bins, density)
-
-        if plot:
-            ax.set_ylabel("Density")
-            ax.set_xlabel("Bins")
-            ax.legend([f"{bin_size=}"])
-            plt.show()
+        fig, ax = plt.subplots()
+        ax.step(bins, density, color="black")
+        ax.set_ylabel(r"Density [bin$^{-t1}$]")
+        ax.set_xlabel("Bins [MeV]")
+        ax.legend([f"{bin_size=} MeV"])
+        ax.grid()
+        if save_plot:
+            fname = "nld.png"
+            print(f"NLD saved as '{fname}'")
+            fig.savefig(fname=fname, dpi=300)
+        plt.show()
 
     return bins, density
