@@ -180,9 +180,9 @@ def gamma_strength_function_average(
         """
         Adjust energies relative to the ground state energy if they have
         not been adjusted already. The ground state energy is usually
-        ~ -100 MeV so checking absolute value above 10 MeV is probably
-        safe. Cant check for equality to zero since the initial state
-        will never be zero.
+        minus a few tens of MeV and above, so checking absolute value
+        above 10 MeV is probably safe. Cant check for equality to zero
+        since the initial state will never be zero.
         """
         Ex_initial_or_final -= E_ground_state
 
