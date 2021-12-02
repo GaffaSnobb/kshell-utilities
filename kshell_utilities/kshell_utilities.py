@@ -113,6 +113,8 @@ def _generate_unique_identifier(path: str) -> str:
 
 def _load_energy_levels(infile):
     """
+    Load excitation energy, spin and parity into a list of structure:
+    levels = [[energy, spin, parity], ...].
     Example
     -------
     Energy levels
@@ -377,28 +379,24 @@ class ReadKshellOutput:
 
     Attributes
     ----------
-    Ex : np.ndarray
-        Array of excitation energies zeroed at the ground state energy.
-
-    BM1 : np.ndarray
-        Array of [[E, B_decay_prob, E_gamma], ...].
-        Reduced transition probabilities for M1.
-
-    BE2 : np.ndarray
-        Array of [[E, B_decay_prob, E_gamma], ...].
-        Reduced transition probabilities for E2.
-
     levels : np.ndarray
         Array containing energy, spin, and parity for each excited
         state. [[E, 2*spin, parity], ...].
 
-    transitions : np.ndarray
-        OLD:
-        Mx8 array containing [2*spin_final, parity_initial, Ex_final,
-        2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)].
+    transitions_BE1 : np.ndarray
+        Transition data for BE1 transitions. Structure:
         NEW:
         [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
         parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+        OLD:
+        Mx8 array containing [2*spin_final, parity_initial, Ex_final,
+        2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)].
+
+    transitions_BM1 : np.ndarray
+        Transition data for BM1 transitions. Same structure as BE1.
+
+    transitions_BE2 : np.ndarray
+        Transition data for BE2 transitions. Same structure as BE1.
     """
     def __init__(self, path: str, load_and_save_to_file: bool, old_or_new: str):
         """
