@@ -25,19 +25,24 @@ ne20 = ksutil.loadtxt("summary_Ne20_usda.txt")[0]
 ```
 `ne20` is an instance containing several useful attributes. To see the available attributes:
 ``` python
-> print(ne20.help)
-['BE2',
-'BM1',
-'Ex',
+> print(ne20.help)    
+['debug',
+'fname_ptn',
+'fname_summary',
+'gamma_strength_function_average_plot',
+'gsf',
 'help',
-'level_plot',
 'level_density_plot',
+'level_plot',
 'levels',
 'model_space',
+'negative_spin_counts',
 'neutron_partition',
 'nucleus',
+'parameters',
+'path',
 'proton_partition',
-'transitions',
+'transitions_BE1',
 'transitions_BE2',
 'transitions_BM1',
 'truncation']
@@ -155,21 +160,57 @@ ne20.level_plot(
 
 The gamma strengh function (averaged over spins and parities) can easily be calculated by:
 ``` python
+ne20.gsf(
+    bin_width = 0.2,
+    Ex_max = 5,
+    Ex_min = 20,
+    multipole_type = "M1",
+    plot = True,
+    save_plot = False
+)
+```
+or
+``` python
+ne20.gamma_strength_function_average_plot(
+    bin_width = 0.2,
+    Ex_max = 5,
+    Ex_min = 20,
+    multipole_type = "M1",
+    plot = True,
+    save_plot = False
+)
+```
+or
+``` python
+import matplotlib.pyplot as plt
+
+bins, gsf = ne20.gamma_strength_function_average_plot(
+    bin_width = 0.2,
+    Ex_max = 5,
+    Ex_min = 20,
+    multipole_type = "M1",
+    plot = False,
+    save_plot = False
+)
+plt.plot(bins, gsf)
+plt.show()
+```
+or
+``` python
 import matplotlib.pyplot as plt
 
 bins, gsf = ksutil.gamma_strength_function_average(
-    levels = ne20.levels,
-    transitions = ne20.transitions_BM1,
-    bin_width = 1,
-    Ex_min = 0,
-    Ex_max = 14,
-    multipole_type = "M1"
+  levels = ne20.levels,
+  transitions = ne20.transitions_BM1,
+  bin_width = 0.2,
+  Ex_min = 5,
+  Ex_max = 20,
+  multipole_type = "M1"
 )
 plt.plot(bins, gsf)
 plt.show()
 ```
 where `bin_width`, `Ex_max` and `Ex_min` are in the same unit as the input energy levels, which from `KSHELL` is in MeV. `bin_width` is the width of the bins when the level density is calculated. `Ex_min` and `Ex_max` are the lower and upper limits for the excitation energy of the initial state of the transitions.
-
 <details>
 <summary>Click to see gamma strength function plot</summary>
 <p>
