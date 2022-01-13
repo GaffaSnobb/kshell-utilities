@@ -356,6 +356,7 @@ def read_transit_logfile(filename: str, multipole_type: str):
     """
     out_e = {}
     mass_save = 0           # NOTE: Unclear what this is used for.
+    unit_weisskopf = None   # Stays None if the logfile is invalid.
     with open(filename, "r") as infile:
         for line in infile:
             """
@@ -757,6 +758,14 @@ def collect_logs(path: str=".", old_or_new: str="new"):
                             log file being new syntax styled.
                             """
                             unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
+                    
+                    if unit_weisskopf is None:
+                        """
+                        Incomplete and invalid logfile.
+                        """
+                        print(f"Incomplete logfile '{filename}'. Skipping...")
+                        continue
+                    
                     output_e.update(out_e)
                 
                 B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
