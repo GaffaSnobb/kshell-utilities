@@ -516,6 +516,100 @@ def read_transit_logfile(filename: str, multipole_type: str):
 
     return unit_weisskopf, out_e, mass_save
 
+def check_multipolarities(path: str="."):
+    """
+    Check whether E1, M1, and E2 values are present in transit logfiles.
+    Currently only checks that the correct headers are there, not the
+    actual values.
+
+    Parameters
+    ----------
+    path : str
+        Path to directory with transit logfiles.
+    """
+    print("logfile                                 E1        M1        E2        Is it correct?")
+    print("------------------------------------------------------------------------------------")
+    # print("log_V50_sdpf-mu_tr_j12n_j16n.txt     True   False  True")
+    for elem in os.listdir(path):
+        E1 = False
+        should_it_have_E1 = False
+        M1 = False
+        should_it_have_M1 = False
+        E2 = False
+        should_it_have_E2 = False
+
+        if elem.startswith("log_") and elem.endswith(".txt") and ("_tr_" in elem):
+            tmp = elem[:-4]
+            tmp = tmp.split("_")
+            orbital_1_parity = tmp[-2][-1]
+            orbital_2_parity = tmp[-1][-1]
+            orbital_1_spin = int(tmp[-2][1:-1])/2
+            orbital_2_spin = int(tmp[-1][1:-1])/2
+            # spin_diff = abs(orbital_1_spin - orbital_2_spin)
+            spin_range = list(range(
+                int(abs(orbital_1_spin - orbital_2_spin)),
+                int(orbital_1_spin + orbital_2_spin + 1),
+                1
+            ))
+
+            if orbital_1_parity == orbital_2_parity:
+                if (1 in spin_range) and (2 not in spin_range):
+                    should_it_have_E1 = False
+                    should_it_have_M1 = True
+                    should_it_have_E2 = False
+                elif (1 in spin_range) and (2 in spin_range):
+                    should_it_have_E1 = False
+                    should_it_have_M1 = True
+                    should_it_have_E2 = True
+                elif (1 not in spin_range) and (2 in spin_range):
+                    should_it_have_E1 = False
+                    should_it_have_M1 = False
+                    should_it_have_E2 = True
+                else:
+                    msg = "No conditions met! (parity change)"
+                    raise RuntimeError(msg)
+
+            elif orbital_1_parity != orbital_2_parity:
+                if (1 in spin_range) and (2 not in spin_range):
+                    should_it_have_E1 = True
+                    should_it_have_M1 = False
+                    should_it_have_E2 = False
+                elif (1 in spin_range) and (2 in spin_range):
+                    should_it_have_E1 = True
+                    should_it_have_M1 = False
+                    should_it_have_E2 = False
+                elif (1 not in spin_range) and (2 in spin_range):
+                    """
+                    This condition should never be met since KSHELL
+                    will never calculate these transitions.
+                    """
+                    should_it_have_E1 = False
+                    should_it_have_M1 = False
+                    should_it_have_E2 = False
+                    msg = "This condition should not ever be met!"
+                    raise RuntimeError(msg)
+                else:
+                    msg = "No conditions met! (no parity change)"
+                    raise RuntimeError(msg)
+            else:
+                msg = "No conditions met! (could not decide parity change)"
+                raise RuntimeError(msg)
+
+            with open(f"{path}/{elem}", "r") as infile:
+                for line in infile:
+                    if "E1 transition" in line:
+                        E1 = True
+                    elif "M1 transition" in line:
+                        M1 = True
+                    elif "E2 transition" in line:
+                        E2 = True
+                
+                if (E1 == should_it_have_E1) and (M1 == should_it_have_M1) and (E2 == should_it_have_E2):
+                    correct = True
+                else:
+                    correct = False
+                print(f"{elem:40s}{str(E1):10s}{str(M1):10s}{str(E2):10s}{correct}")
+
 def collect_logs(path: str=".", old_or_new: str="new"):
     """
     Collect energy and transition data from all log files in 'path'.
@@ -650,19 +744,19 @@ def collect_logs(path: str=".", old_or_new: str="new"):
                 
                 for filename in transit_log_files:
                     if old_or_new == "new":
-                        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type, old_or_new)
+                        unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
                     elif old_or_new == "old":
-                        unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type, old_or_new)
+                        unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type)
                     elif old_or_new == "both":
                         try:
-                            unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type, old_or_new)
+                            unit_weisskopf, out_e, mass = read_transit_logfile_old(filename, multipole_type)
                         except ValueError:
                             """
                             If a ValueError is raised inside
                             read_transit_logfile_old, it is due to the
                             log file being new syntax styled.
                             """
-                            unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type, old_or_new)
+                            unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
                     output_e.update(out_e)
                 
                 B_weisskopf, unit_weisskopf = weisskopf_unit(multipole_type, mass)
