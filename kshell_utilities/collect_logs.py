@@ -645,14 +645,18 @@ def collect_logs(path: str=".", old_or_new: str="new"):
     transit_log_files = []
     isotopes = []
     for elem in os.listdir(path):
-        if elem.startswith("log_") and elem.endswith(".txt"):
-            if (tmp := elem.split("_")[1].lower()) not in isotopes:
-                isotopes.append(tmp)
+        # if elem.startswith("log_") and elem.endswith(".txt"):
+        if ("log_" in elem) and elem.endswith(".txt"):
+            tmp = elem.split("_")
+            isotope_index = tmp.index("log") + 1    # Isotope name is always after 'log'.
+            # if (tmp := elem.split("_")[1].lower()) not in isotopes:
+            if tmp[isotope_index] not in isotopes:
+                isotopes.append(tmp[isotope_index])
             if not "_tr_" in elem:
                 energy_log_files.append(f"{path}/{elem}")
             elif "_tr_" in elem:
                 transit_log_files.append(f"{path}/{elem}")
-
+    
     if len(isotopes) > 1:
         print(f"Log files for different isotopes have been found in {path}")
         msg = f"Found: {isotopes}. Your choice: "
@@ -670,14 +674,18 @@ def collect_logs(path: str=".", old_or_new: str="new"):
         raise FileNotFoundError(msg)
 
     if len(transit_log_files) == 0:
-        msg = f"No transit log files in path '{path}'."
+        msg = f"No transit log files in path '{path}', only energy log files."
         warnings.warn(msg, RuntimeWarning)
 
     E_data = {} # E_data[energy] = (log filename, spin, parity, eigenstate number, tt).
     spin_parity_occurrences = {}    # Count the occurrences of each (spin, parity) pair.
     multipole_types = ["E1", "M1", "E2"]
     
-    for log_file in energy_log_files:
+    print("Loading energy log files...")
+    for i, log_file in enumerate(energy_log_files):
+        progress_message = f"Reading file {i + 1:3d} of {len(energy_log_files)},"
+        progress_message += f" '{log_file.split('/')[-1]}'"
+        print(progress_message)
         read_energy_logfile(log_file, E_data)
 
     energies = E_data.keys()
@@ -740,10 +748,15 @@ def collect_logs(path: str=".", old_or_new: str="new"):
         outfile.write("\n")
 
         if len(transit_log_files) > 0:
+            print("\nLoading transit log files...")
             for multipole_type in multipole_types:
                 output_e = {}
                 
-                for filename in transit_log_files:
+                for i, filename in enumerate(transit_log_files):
+                    progress_message = f"Reading file {i + 1:3d} of {len(transit_log_files)},"
+                    progress_message += f" multipole: {multipole_type},"
+                    progress_message += f" '{filename.split('/')[-1]}'"
+                    print(progress_message)
                     if old_or_new == "new":
                         unit_weisskopf, out_e, mass = read_transit_logfile(filename, multipole_type)
                     elif old_or_new == "old":
