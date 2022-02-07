@@ -1,4 +1,4 @@
-import sys, time
+import sys, time, warnings
 from typing import Union, Tuple
 from fractions import Fraction
 import numpy as np
@@ -63,7 +63,11 @@ def gamma_strength_function_average(
     Ex_min: Union[float, int],
     Ex_max: Union[float, int],
     multipole_type: str,
+    prefactor_E1: Union[None, float] = None,
+    prefactor_M1: Union[None, float] = None,
+    prefactor_E2: Union[None, float] = None,
     initial_or_final: str = "initial",
+    partial_or_total: str = "partial",
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -105,11 +109,35 @@ def gamma_strength_function_average(
         Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
         Currently only M1 and E1 is implemented.
 
+    prefactor_E1 : Union[None, float]
+        E1 pre-factor from the definition of the GSF. Defaults to a
+        standard value if None.
+
+    prefactor_M1 : Union[None, float]
+        M1 pre-factor from the definition of the GSF. Defaults to a
+        standard value if None.
+
+    prefactor_E2 : Union[None, float]
+        E2 pre-factor from the definition of the GSF. Defaults to a
+        standard value if None.
+
     initial_or_final : str
         Choose whether to use the energy of the initial or final state
         for the transition calculations. NOTE: This will be removed in
         a future release since the correct alternative is to use the
         initial energy.
+
+    partial_or_total : str
+        Choose whether to use the partial level density
+        rho(E_i, J_i, pi_) or the total level density rho(E_i) for
+        calculating the gamma strength function. Note that the partial
+        level density, the default value, is probably the correct
+        alternative. Using the total level density will introduce an
+        arbitrary scaling depending on how many (J, pi) combinations
+        were included in the calculations.
+
+        This argument is included for easy comparison between the two
+        densities. See the appendix of PhysRevC.98.064321 for details.
 
     plot : bool
         Toogle plotting on / off.
@@ -152,6 +180,24 @@ def gamma_strength_function_average(
         # "E1": 1.047e-6,
         "E1": 3.4888977e-7
     }
+    if prefactor_E1 is not None:
+        """
+        Override the E1 prefactor.
+        """
+        prefactors["E1"] = prefactor_E1
+    
+    if prefactor_M1 is not None:
+        """
+        Override the M1 prefactor.
+        """
+        prefactors["M1"] = prefactor_M1
+    
+    if prefactor_E2 is not None:
+        """
+        Override the E2 prefactor.
+        """
+        prefactors["E2"] = prefactor_E2
+    
     prefactor = prefactors[multipole_type]
 
     # Extract data to a more readable form:
@@ -165,12 +211,13 @@ def gamma_strength_function_average(
         spin_initial_or_final_idx = 0
         parity_initial_or_final_idx = 1
     elif initial_or_final == "final":
-        """
-        NOTE: This option will be removed in a future release.
-        """
         Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
         spin_initial_or_final_idx = 3
         parity_initial_or_final_idx = 4
+        msg = "Using final states for the energy limits is not correct"
+        msg += " and should only be used for comparison with the correct"
+        msg += " option which is using initial states for the energy limits."
+        warnings.warn(msg, RuntimeWarning)
     else:
         msg = "'initial_or_final' must be either 'initial' or 'final'."
         msg += f" Got {initial_or_final}"
@@ -314,6 +361,27 @@ def gamma_strength_function_average(
         
         rho_ExJpi[Ex_idx, spin_parity_idx] += 1
 
+    if partial_or_total == "total":
+        """
+        Use the total level density, rho(E_i), instead of the partial
+        level density, rho(E_i, J_i, pi_i). Sum over all (J_i, pi_i)
+        pairs and then copy these summed values to all columns in
+        rho_ExJpi.
+        """
+        tmp_sum = rho_ExJpi.sum(axis=1)
+
+        for i in range(rho_ExJpi.shape[1]):
+            """
+            All columns in rho_ExJpi will be identical. This is for
+            compatibility with the following for loop.
+            """
+            rho_ExJpi[:, i] = tmp_sum
+
+        msg = "Using the total level density is probably not correct and"
+        msg += " should only be used when comparing with the correct"
+        msg += " alternative which is using the partial level density."
+        warnings.warn(msg, RuntimeWarning)
+
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
 
     for spin_parity_idx in range(n_unique_spin_parity_pairs):
@@ -338,7 +406,7 @@ def gamma_strength_function_average(
         numerator = gSF_currentExrange.sum(axis = (0, 2)),
         denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))  # NOTE: Here is where I left off! Why != 0?
     )
-
+    
     bins = np.linspace(0, Ex_max, n_bins + 1)
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]

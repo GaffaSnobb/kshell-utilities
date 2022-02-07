@@ -786,6 +786,11 @@ class ReadKshellOutput:
         Ex_min: Union[float, int] = 5,
         Ex_max: Union[float, int] = 50,
         multipole_type: str = "M1",
+        prefactor_E1: Union[None, float] = None,
+        prefactor_M1: Union[None, float] = None,
+        prefactor_E2: Union[None, float] = None,
+        initial_or_final: str = "initial",
+        partial_or_total: str = "partial",
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -795,32 +800,8 @@ class ReadKshellOutput:
 
         Parameters
         ----------
-        bin_width : Union[float, int]
-            The width of the energy bins. A bin width of 0.2 contains 20
-            states of uniform spacing of 0.01. Usually in MeV.
-
-        Ex_min : Union[float, int]
-            Lower limit for initial level excitation energy, usually in
-            MeV. Defaults to (somewhat arbitrary) 5 MeV. This value
-            shoud be set to the beginning of the (quasi?) continuum.
-
-        Ex_max : Union[float, int]
-            Upper limit for initial level excitation energy, usually in
-            MeV. Defaults to 50 MeV, which is probably way higher than
-            what any shell model calculation might be able to reproduce,
-            but 50 MeV is chosen as ≈ infinity which makes the GSF
-            calculations adjust from 50 to the largest value that the
-            dataset allows.
-
-        multipole_type : str
-            Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
-            Currently only M1 and E1 are implemented.
-
-        plot : bool
-            Toogle plotting on / off.
-
-        save_plot : bool    
-            Toogle saving of plot (as .png with dpi=300) on / off.
+        See gamma_strength_function_average in general_utilities.py
+        for parameter descriptions.
         """
         transitions_dict = {
             "M1": self.transitions_BM1,
@@ -834,6 +815,11 @@ class ReadKshellOutput:
             Ex_min = Ex_min,
             Ex_max = Ex_max,
             multipole_type = multipole_type,
+            prefactor_E1 = prefactor_E1,
+            prefactor_M1 = prefactor_M1,
+            prefactor_E2 = prefactor_E2,
+            initial_or_final = initial_or_final,
+            partial_or_total = partial_or_total,
             plot = plot,
             save_plot = save_plot
         )
@@ -845,6 +831,11 @@ class ReadKshellOutput:
         Ex_min: Union[float, int] = 5,
         Ex_max: Union[float, int] = 50,
         multipole_type: str = "M1",
+        prefactor_E1: Union[None, float] = None,
+        prefactor_M1: Union[None, float] = None,
+        prefactor_E2: Union[None, float] = None,
+        initial_or_final: str = "initial",
+        partial_or_total: str = "partial",
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -857,6 +848,11 @@ class ReadKshellOutput:
             Ex_min = Ex_min,
             Ex_max = Ex_max,
             multipole_type = multipole_type,
+            prefactor_E1 = prefactor_E1,
+            prefactor_M1 = prefactor_M1,
+            prefactor_E2 = prefactor_E2,
+            initial_or_final = initial_or_final,
+            partial_or_total = partial_or_total,
             plot = plot,
             save_plot = save_plot
         )
