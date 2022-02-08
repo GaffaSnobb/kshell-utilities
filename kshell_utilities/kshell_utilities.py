@@ -791,6 +791,7 @@ class ReadKshellOutput:
         prefactor_E2: Union[None, float] = None,
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
+        include_only_nonzero_in_average: bool = True,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -820,6 +821,7 @@ class ReadKshellOutput:
             prefactor_E2 = prefactor_E2,
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
+            include_only_nonzero_in_average = include_only_nonzero_in_average,
             plot = plot,
             save_plot = save_plot
         )
@@ -836,6 +838,7 @@ class ReadKshellOutput:
         prefactor_E2: Union[None, float] = None,
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
+        include_only_nonzero_in_average: bool = True,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -853,6 +856,7 @@ class ReadKshellOutput:
             prefactor_E2 = prefactor_E2,
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
+            include_only_nonzero_in_average = include_only_nonzero_in_average,
             plot = plot,
             save_plot = save_plot
         )

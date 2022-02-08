@@ -68,6 +68,7 @@ def gamma_strength_function_average(
     prefactor_E2: Union[None, float] = None,
     initial_or_final: str = "initial",
     partial_or_total: str = "partial",
+    include_only_nonzero_in_average: bool = True,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -129,7 +130,7 @@ def gamma_strength_function_average(
 
     partial_or_total : str
         Choose whether to use the partial level density
-        rho(E_i, J_i, pi_) or the total level density rho(E_i) for
+        rho(E_i, J_i, pi_i) or the total level density rho(E_i) for
         calculating the gamma strength function. Note that the partial
         level density, the default value, is probably the correct
         alternative. Using the total level density will introduce an
@@ -138,6 +139,12 @@ def gamma_strength_function_average(
 
         This argument is included for easy comparison between the two
         densities. See the appendix of PhysRevC.98.064321 for details.
+
+    include_only_nonzero_in_average : bool
+        If True (default) only non-zero values are included in the final
+        averaging of the gamma strength function. The correct
+        alternative is to use only the non-zero values, so setting this
+        parameter to False should be done with care.
 
     plot : bool
         Toogle plotting on / off.
@@ -397,16 +404,29 @@ def gamma_strength_function_average(
                     denominator = B_pixel_count[Ex_idx, :, spin_parity_idx]
                 )
 
-    # Return the average gSF(Eg) over all (Ex,J,parity_initial)
+    if include_only_nonzero_in_average:
+        """
+        Update 20171009 (Midtbø): Took proper care to only average over
+        the non-zero f(Eg,Ex,J,parity_initial) pixels.
 
-    # return gSF[Ex_min_idx:Ex_max_idx+1,:,:].mean(axis=(0,2))
-    # Update 20171009: Took proper care to only average over the non-zero f(Eg,Ex,J,parity_initial) pixels:
-    gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]   # NOTE: Probably not necessary to set an upper limit here due to the input adjustment of Ex_max.
-    gSF_ExJpiavg = div0(
-        numerator = gSF_currentExrange.sum(axis = (0, 2)),
-        denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))  # NOTE: Here is where I left off! Why != 0?
-    )
-    
+        NOTE: Probably not necessary to set an upper limit on gSF
+        due to the input adjustment of Ex_max.
+        """
+        gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
+        gSF_ExJpiavg = div0(
+            numerator = gSF_currentExrange.sum(axis = (0, 2)),
+            denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))
+        )
+    else:
+        """
+        NOTE: Probably not necessary to set an upper limit on gSF
+        due to the input adjustment of Ex_max.
+        """
+        gSF_ExJpiavg = gSF[Ex_min_idx:Ex_max_idx + 1, :, :].mean(axis=(0, 2))
+        msg = "Including non-zero values when averaging the gamma strength"
+        msg += " function is not correct and should be used with care!"
+        warnings.warn(msg, RuntimeWarning)
+
     bins = np.linspace(0, Ex_max, n_bins + 1)
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
