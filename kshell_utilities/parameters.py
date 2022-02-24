@@ -1,5 +1,12 @@
 GS_FREE_PROTON = 5.585
 GS_FREE_NEUTRON = -3.826
+flags = {"debug": False}
+
+def debug_mode(switch):
+    if isinstance(switch, bool):
+        flags["debug"] = switch
+    else:
+        print(f"Invalid debug switch '{switch}'")
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
