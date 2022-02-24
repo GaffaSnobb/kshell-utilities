@@ -1,10 +1,10 @@
-import os, sys, multiprocessing, hashlib, ast
+import os, sys, multiprocessing, hashlib, ast, time
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
 from .kshell_exceptions import KshellDataStructureError
 from .general_utilities import level_plot, level_density, gamma_strength_function_average
-from .parameters import atomic_numbers
+from .parameters import atomic_numbers, flags
 
 def parity_string_to_integer(parity: str):
     if parity == "+":
@@ -613,6 +613,14 @@ class ReadKshellOutput:
             os.mkdir(npy_path)
         except FileExistsError:
             pass
+
+        with open(f"{npy_path}/README.txt", "w") as outfile:
+            msg = "This directory contains binary numpy data of KSHELL summary data."
+            msg += " The purpose is to speed up subsequent runs which use the same summary data."
+            msg += " It is safe to delete this entire directory if you have the original summary text file, "
+            msg += "though at the cost of having to read the summary text file over again which may take some time."
+            msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
+            outfile.write(msg)
         
         unique_id = _generate_unique_identifier(self.path)
         levels_fname = f"{npy_path}/{base_fname}_levels_{unique_id}.npy"
@@ -948,6 +956,7 @@ def loadtxt(
         List of instances with data from `KSHELL` data file as
         attributes.
     """
+    loadtxt_time = time.perf_counter()  # Debug.
     all_fnames = None
     data = []
     if old_or_new not in (old_or_new_allowed := ["old", "new"]):
@@ -1026,6 +1035,10 @@ def loadtxt(
         msg = "No KSHELL data loaded. Most likely error is that the given"
         msg += f" directory has no KSHELL data files. {path=}"
         raise RuntimeError(msg)
+
+    loadtxt_time = time.perf_counter() - loadtxt_time
+    if flags["debug"]:
+        print(f"{loadtxt_time = } s")
 
     return data
 
