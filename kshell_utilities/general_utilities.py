@@ -3,6 +3,7 @@ from typing import Union, Tuple
 from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
+from .parameters import flags
 
 def create_spin_parity_list(
     spins: np.ndarray,
@@ -174,6 +175,7 @@ def gamma_strength_function_average(
     gSF_ExJpiavg : np.ndarray
         The gamma strength function.
     """
+    total_gsf_time = time.perf_counter()
     if (Ex_min < 0) or (Ex_max < 0):
         msg = "Ex_min and Ex_max cannot be negative!"
         raise ValueError(msg)
@@ -282,7 +284,8 @@ def gamma_strength_function_average(
     B_pixel_count = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))   # The number of transitions.
     rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))  # (Ex, Jpi) matrix to store level density
     gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))    
-
+    transit_gsf_time = time.perf_counter()
+    
     for transition_idx in range(n_transitions):
         """
         Iterate over all transitions in the transitions matrix and add
@@ -350,6 +353,9 @@ def gamma_strength_function_average(
             msg += f"B(.., f<-i): {transitions[transition_idx, 8]}\n"
             raise Exception(msg) from err
 
+    transit_gsf_time = time.perf_counter() - transit_gsf_time
+    level_density_gsf_time = time.perf_counter()
+    
     for levels_idx in range(n_levels):
         """
         Calculate the level density for each (Ex, spin_parity) pixel.
@@ -367,6 +373,8 @@ def gamma_strength_function_average(
             spin_parity_list.index([spins[levels_idx], parities[levels_idx]])
         
         rho_ExJpi[Ex_idx, spin_parity_idx] += 1
+
+    level_density_gsf_time = time.perf_counter() - level_density_gsf_time
 
     if partial_or_total == "total":
         """
@@ -390,7 +398,7 @@ def gamma_strength_function_average(
         warnings.warn(msg, RuntimeWarning)
 
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
-
+    gsf_time = time.perf_counter()
     for spin_parity_idx in range(n_unique_spin_parity_pairs):
         """
         Calculate gamma strength functions for each [Ex, E_gamma,
@@ -403,6 +411,9 @@ def gamma_strength_function_average(
                     numerator = B_pixel_sum[Ex_idx, :, spin_parity_idx],
                     denominator = B_pixel_count[Ex_idx, :, spin_parity_idx]
                 )
+
+    gsf_time = time.perf_counter() - gsf_time
+    avg_gsf_time = time.perf_counter()
 
     if include_only_nonzero_in_average:
         """
@@ -426,10 +437,22 @@ def gamma_strength_function_average(
         msg = "Including non-zero values when averaging the gamma strength"
         msg += " function is not correct and should be used with care!"
         warnings.warn(msg, RuntimeWarning)
+    
+    avg_gsf_time = time.perf_counter() - avg_gsf_time
 
     bins = np.linspace(0, Ex_max, n_bins + 1)
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
+
+    total_gsf_time = time.perf_counter() - total_gsf_time
+    if flags["debug"]:
+        print("--------------------------------")
+        print(f"{transit_gsf_time = } s")
+        print(f"{level_density_gsf_time = } s")
+        print(f"{gsf_time = } s")
+        print(f"{avg_gsf_time = } s")
+        print(f"{total_gsf_time = } s")
+        print("--------------------------------")
 
     if plot:
         unit_exponent = 2*int(multipole_type[-1]) + 1
