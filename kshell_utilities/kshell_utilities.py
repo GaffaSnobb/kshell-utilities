@@ -1,7 +1,9 @@
+from fileinput import filename
 import os, sys, multiprocessing, hashlib, ast, time
 from fractions import Fraction
-from typing import Union, Callable
+from typing import Union, Callable, List
 import numpy as np
+import matplotlib.pyplot as plt
 from .kshell_exceptions import KshellDataStructureError
 from .general_utilities import level_plot, level_density, gamma_strength_function_average
 from .parameters import atomic_numbers, flags
@@ -1066,7 +1068,6 @@ def _get_timing_data(path: str):
            tmp        0.002       101     0.00002   0.0001
     ```
     """
-
     if "log" not in path:
         msg = f"Unknown log file name! Got '{path}'"
         raise KshellDataStructureError(msg)
@@ -1153,7 +1154,24 @@ def _get_memory_usage(path: str) -> Union[float, None]:
     
     return total
 
-def _get_data_general(path: str, func: Callable):
+def _sortkey(filename):
+    """
+    Key for sorting filenames based on angular momentum and parity.
+    Example filename: 'log_Sc44_GCLSTsdpfsdgix5pn_j0n.txt'
+    (angular momentom  = 0). 
+    """
+    tmp = filename.split("_")[-1]
+    tmp = tmp.split(".")[0]
+    # parity = tmp[-1]
+    spin = int(tmp[1:-1])
+    return spin
+    # return f"{spin:03d}{parity}"    # Examples: 000p, 000n, 016p, 016n
+
+def _get_data_general(
+    path: str,
+    func: Callable,
+    plot: bool
+    ):
     """
     General input handling for timing data and memory data.
 
@@ -1165,27 +1183,124 @@ def _get_data_general(path: str, func: Callable):
     func : Callable
         _get_timing_data or _get_memory_usage.
     """
+    total_negative = []
+    total_positive = []
+    filenames_negative = []
+    filenames_positive = []
     if os.path.isfile(path):
         return func(path)
     
     elif os.path.isdir(path):
-        total = 0
         for elem in os.listdir(path):
+            """
+            Select only log files in path.
+            """
             tmp = elem.split("_")
             try:
-                # if elem.startswith("log_") and elem.endswith(".txt"):
                 if ((tmp[0] == "log") or (tmp[1] == "log")) and elem.endswith(".txt"):
-                    total += func(f"{path}/{elem}")
+                    tmp = tmp[-1].split(".")
+                    parity = tmp[0][-1]
+                    if parity == "n":
+                        filenames_negative.append(elem)
+                    elif parity == "p":
+                        filenames_positive.append(elem)
             except IndexError:
                 continue
         
-        return total
+        filenames_negative.sort(key=_sortkey)
+        filenames_positive.sort(key=_sortkey)
+
+        for elem in filenames_negative:
+            total_negative.append(func(f"{path}/{elem}"))
+        for elem in filenames_positive:
+            total_positive.append(func(f"{path}/{elem}"))
+        
+        if plot:
+            xticks_negative = ["sum"] + [str(Fraction(_sortkey(i)/2)) for i in filenames_negative]
+            xticks_positive = ["sum"] + [str(Fraction(_sortkey(i)/2)) for i in filenames_positive]
+            sum_total_negative = sum(total_negative)
+            sum_total_positive = sum(total_positive)
+            
+            fig0, ax0 = plt.subplots(ncols=1, nrows=2)
+            fig1, ax1 = plt.subplots(ncols=1, nrows=2)
+
+            bars = ax0[0].bar(
+                xticks_negative,
+                [sum_total_negative/60/60] + [i/60/60 for i in total_negative],
+                color = "black",
+            )
+            ax0[0].set_title("negative")
+            for rect in bars:
+                height = rect.get_height()
+                ax0[0].text(
+                    x = rect.get_x() + rect.get_width() / 2.0,
+                    y = height,
+                    s = f'{height:.3f}',
+                    ha = 'center',
+                    va = 'bottom'
+                )
+            
+            bars = ax1[0].bar(
+                xticks_negative,
+                [sum_total_negative/sum_total_negative] + [i/sum_total_negative for i in total_negative],
+                color = "black",
+            )
+            ax1[0].set_title("negative")
+            for rect in bars:
+                height = rect.get_height()
+                ax1[0].text(
+                    x = rect.get_x() + rect.get_width() / 2.0,
+                    y = height,
+                    s = f'{height:.3f}',
+                    ha = 'center',
+                    va = 'bottom'
+                )
+            
+            bars = ax0[1].bar(
+                xticks_positive,
+                [sum_total_positive/60/60] + [i/60/60 for i in total_positive],
+                color = "black",
+            )
+            ax0[1].set_title("positive")
+            for rect in bars:
+                height = rect.get_height()
+                ax0[1].text(
+                    x = rect.get_x() + rect.get_width() / 2.0,
+                    y = height,
+                    s = f'{height:.3f}',
+                    ha = 'center',
+                    va = 'bottom'
+                )
+
+            bars = ax1[1].bar(
+                xticks_positive,
+                [sum_total_positive/sum_total_positive] + [i/sum_total_positive for i in total_positive],
+                color = "black",
+            )
+            ax1[1].set_title("positive")
+            for rect in bars:
+                height = rect.get_height()
+                ax1[1].text(
+                    x = rect.get_x() + rect.get_width() / 2.0,
+                    y = height,
+                    s = f'{height:.3f}',
+                    ha = 'center',
+                    va = 'bottom'
+                )
+
+            fig0.text(x=0.02, y=0.5, s="Time [h]", rotation="vertical")
+            fig0.text(x=0.5, y=0.02, s="Angular momentum")
+            fig1.text(x=0.02, y=0.5, s="Norm. time", rotation="vertical")
+            fig1.text(x=0.5, y=0.02, s="Angular momentum")
+            plt.show()
+
+        return sum(total_negative) + sum(total_positive)
 
     else:
         msg = f"'{path}' is neither a file nor a directory!"
         raise FileNotFoundError(msg)
 
-def get_timing_data(path: str) -> float:
+def get_timing_data(path: str, plot: bool = False) -> float:
     """
     Wrapper for _get_timing_data. Input a single log filename and get
     the timing data. Input a path to a directory several log files and
@@ -1201,7 +1316,7 @@ def get_timing_data(path: str) -> float:
     : float
         The summed times for all input log files.
     """
-    return _get_data_general(path, _get_timing_data)
+    return _get_data_general(path, _get_timing_data, plot)
 
 def get_memory_usage(path: str) -> float:
     """
@@ -1219,7 +1334,7 @@ def get_memory_usage(path: str) -> float:
     : float
         The summed memory usage for all input log files.
     """
-    return _get_data_general(path, _get_memory_usage)
+    return _get_data_general(path, _get_memory_usage, False)
 
 def get_parameters(path: str, verbose: bool = True) -> dict:
     """
