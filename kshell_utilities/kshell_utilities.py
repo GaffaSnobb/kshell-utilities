@@ -1078,7 +1078,7 @@ def _get_timing_data(path: str):
     res = res.split("\n")
     total = None
     
-    if "tr" not in path:
+    if "_tr_" not in path:
         """
         KSHELL log.
         """
@@ -1091,7 +1091,7 @@ def _get_timing_data(path: str):
             except IndexError:
                 continue
         
-    elif "tr" in path:
+    elif "_tr_" in path:
         """
         Transit log.
         """
@@ -1171,14 +1171,19 @@ def _get_data_general(path: str, func: Callable):
     elif os.path.isdir(path):
         total = 0
         for elem in os.listdir(path):
-            if elem.startswith("log_") and elem.endswith(".txt"):
-                total += func(f"{path}/{elem}")
+            tmp = elem.split("_")
+            try:
+                # if elem.startswith("log_") and elem.endswith(".txt"):
+                if ((tmp[0] == "log") or (tmp[1] == "log")) and elem.endswith(".txt"):
+                    total += func(f"{path}/{elem}")
+            except IndexError:
+                continue
         
         return total
 
     else:
         msg = f"'{path}' is neither a file nor a directory!"
-        raise NotADirectoryError(msg)
+        raise FileNotFoundError(msg)
 
 def get_timing_data(path: str) -> float:
     """
