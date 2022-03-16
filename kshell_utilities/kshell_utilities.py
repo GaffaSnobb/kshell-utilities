@@ -31,6 +31,9 @@ def generate_states(
     function and paste it into `kshell_ui.py` when it prompts for
     states.
 
+    DEPRECATED: RANGE FUNCTIONALITY WAS ADDED IN kshell_ui.py MAKING
+    THIS FUNCTION OBSOLETE. WILL BE REMOVED.
+
     Parameters
     ----------
     start : int
@@ -100,17 +103,16 @@ def _generate_unique_identifier(path: str) -> str:
             """
             if elem.endswith(".sh"):
                 with open(f"{directory}/{elem}", "r") as infile:
-                    shell_file_content = infile.read()
+                    shell_file_content += infile.read()
             elif elem.endswith(".input"):
                 with open(f"{directory}/{elem}", "r") as infile:
-                    save_input_content = infile.read()
+                    save_input_content += infile.read()
     else:
         print(msg)
 
     if (shell_file_content == "") and (save_input_content == ""):
         print(msg)
 
-    
     return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
 
 def _load_energy_levels(infile):
@@ -975,6 +977,9 @@ def loadtxt(
         raise FileNotFoundError(msg)
 
     elif (is_directory) and (os.path.isdir(path)):
+        msg = "The 'is_directory' option is not properly tested and is"
+        msg += " deprecated at the moment. Might return in the future."
+        raise DeprecationWarning(msg)
         all_fnames = {}
 
         for element in sorted(os.listdir(path)):
