@@ -74,6 +74,11 @@ def edit_executables():
         """
         Loop over all .sh files in directory.
         """
+        edit_ans = input(f"Edit {elem}? (y/n) (default y): ").lower()
+        if edit_ans == "n":
+            print(f"Skipping {elem}")
+            continue
+
         print(f"\nLoading {elem}")
         time_parameter = ""
         nodes_parameter = ""
