@@ -1,4 +1,3 @@
-from fileinput import filename
 import os, sys, multiprocessing, hashlib, ast, time
 from fractions import Fraction
 from typing import Union, Callable, List
@@ -1169,8 +1168,8 @@ def _sortkey(filename):
     tmp = tmp.split(".")[0]
     # parity = tmp[-1]
     spin = int(tmp[1:-1])
-    return spin
     # return f"{spin:03d}{parity}"    # Examples: 000p, 000n, 016p, 016n
+    return spin
 
 def _get_data_general(
     path: str,
