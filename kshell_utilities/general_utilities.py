@@ -70,6 +70,7 @@ def gamma_strength_function_average(
     initial_or_final: str = "initial",
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
+    include_n_states: Union[None, int] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -93,9 +94,14 @@ def gamma_strength_function_average(
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
 
-        NEW:
+        OLD NEW:
         [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
         parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+
+        NEW:
+        [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+        2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+        B(.., i->f), B(.., f<-i)]
 
     bin_width : Union[float, int]
         The width of the energy bins. A bin width of 0.2 contains 20
@@ -147,6 +153,11 @@ def gamma_strength_function_average(
         alternative is to use only the non-zero values, so setting this
         parameter to False should be done with care.
 
+    include_n_states : Union[None, int]
+        The number of states per spin to include. Example:
+        include_n_states = 100 will include only the 100 lowest laying
+        states for each spin.
+
     plot : bool
         Toogle plotting on / off.
 
@@ -176,6 +187,10 @@ def gamma_strength_function_average(
         The gamma strength function.
     """
     total_gsf_time = time.perf_counter()
+
+    if include_n_states is None:
+        include_n_states = np.inf   # Include all states.
+
     if (Ex_min < 0) or (Ex_max < 0):
         msg = "Ex_min and Ex_max cannot be negative!"
         raise ValueError(msg)
@@ -213,16 +228,28 @@ def gamma_strength_function_average(
     n_transitions = len(transitions[:, 0])
     n_levels = len(levels[:, 0])
     E_ground_state = levels[0, 0] # Read out the absolute ground state energy so we can get relative energies later.
-    Ex, spins, parities = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2]
+    
+    try:
+        Ex, spins, parities, level_idx = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2], levels[:, 3]
+    except IndexError as err:
+        msg = f"{err.__str__()}\n"
+        msg += "Error probably due to old tmp files. Use loadtxt parameter"
+        msg += " load_and_save_to_file = 'overwrite' to re-read data from the"
+        msg += " summary file and generate new tmp files."
+        raise Exception(msg) from err
     
     if initial_or_final == "initial":
-        Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+        # Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
+        Ex_initial_or_final = np.copy(transitions[:, 3])   # To avoid altering the raw data.
         spin_initial_or_final_idx = 0
         parity_initial_or_final_idx = 1
     elif initial_or_final == "final":
-        Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
-        spin_initial_or_final_idx = 3
-        parity_initial_or_final_idx = 4
+        # Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
+        Ex_initial_or_final = np.copy(transitions[:, 7])   # To avoid altering the raw data.
+        # spin_initial_or_final_idx = 3
+        # parity_initial_or_final_idx = 4
+        spin_initial_or_final_idx = 4
+        parity_initial_or_final_idx = 5
         msg = "Using final states for the energy limits is not correct"
         msg += " and should only be used for comparison with the correct"
         msg += " option which is using initial states for the energy limits."
@@ -298,8 +325,19 @@ def gamma_strength_function_average(
             """
             continue
 
+        idx_initial = transitions[transition_idx, 2]
+        idx_final = transitions[transition_idx, 6]
+
+        if (idx_initial > include_n_states) or (idx_final > include_n_states):
+            """
+            Include only 'include_n_states' number of levels. Defaults
+            to np.inf (include all).
+            """
+            continue
+
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
-        E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
+        # E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
+        E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
 
         """
@@ -307,11 +345,15 @@ def gamma_strength_function_average(
             OLD:
             Mx8 array containing [2*spin_final, parity_initial, Ex_final,
             2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
-            NEW:
+            OLD NEW:
             [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
             parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+            NEW:
+            [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+            2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+            B(.., i->f), B(.., f<-i)]
         """
-        spin_initial = int(transitions[transition_idx, spin_initial_or_final_idx])
+        spin_initial = int(transitions[transition_idx, spin_initial_or_final_idx])  # Superfluous int casts?
         parity_initial = int(transitions[transition_idx, parity_initial_or_final_idx])
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
@@ -321,8 +363,10 @@ def gamma_strength_function_average(
             respectively. NOTE: Hope to remove this try-except by
             implementing suitable input checks to this function.
             """
+            # B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
+            #     transitions[transition_idx, 7]
             B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
-                transitions[transition_idx, 7]
+                transitions[transition_idx, 9]
             B_pixel_count[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += 1
         except IndexError as err:
             """
@@ -342,15 +386,24 @@ def gamma_strength_function_average(
             msg += f"{B_pixel_sum.shape=}\n"
             msg += f"{transitions.shape=}\n"
             msg += f"{Ex_max=}\n"
-            msg += f"2*spin_final: {transitions[transition_idx, 3]}\n"
+            # msg += f"2*spin_final: {transitions[transition_idx, 3]}\n"
+            # msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
+            # msg += f"Ex_final: {transitions[transition_idx, 5]}\n"
+            # msg += f"2*spin_initial: {transitions[transition_idx, 0]}\n"
+            # msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
+            # msg += f"Ex_initial: {transitions[transition_idx, 2]}\n"
+            # msg += f"E_gamma: {transitions[transition_idx, 6]}\n"
+            # msg += f"B(.., i->f): {transitions[transition_idx, 7]}\n"
+            # msg += f"B(.., f<-i): {transitions[transition_idx, 8]}\n"
+            msg += f"2*spin_final: {transitions[transition_idx, 4]}\n"
             msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            msg += f"Ex_final: {transitions[transition_idx, 5]}\n"
+            msg += f"Ex_final: {transitions[transition_idx, 7]}\n"
             msg += f"2*spin_initial: {transitions[transition_idx, 0]}\n"
             msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            msg += f"Ex_initial: {transitions[transition_idx, 2]}\n"
-            msg += f"E_gamma: {transitions[transition_idx, 6]}\n"
-            msg += f"B(.., i->f): {transitions[transition_idx, 7]}\n"
-            msg += f"B(.., f<-i): {transitions[transition_idx, 8]}\n"
+            msg += f"Ex_initial: {transitions[transition_idx, 3]}\n"
+            msg += f"E_gamma: {transitions[transition_idx, 8]}\n"
+            msg += f"B(.., i->f): {transitions[transition_idx, 9]}\n"
+            msg += f"B(.., f<-i): {transitions[transition_idx, 10]}\n"
             raise Exception(msg) from err
 
     transit_gsf_time = time.perf_counter() - transit_gsf_time

@@ -103,7 +103,8 @@ def _generate_unique_identifier(path: str) -> str:
             if elem.endswith(".sh"):
                 with open(f"{directory}/{elem}", "r") as infile:
                     shell_file_content += infile.read()
-            elif elem.endswith(".input"):
+            # elif elem.endswith(".input"):
+            elif "save_input_ui.txt" in elem:
                 with open(f"{directory}/{elem}", "r") as infile:
                     save_input_content += infile.read()
     else:
@@ -147,7 +148,10 @@ def _load_energy_levels(infile):
                 continue
             
             parity = 1 if tmp[2] == "+" else -1
-            levels.append([float(tmp[5]), 2*float(Fraction(tmp[1])), parity])
+            energy = float(tmp[5])
+            spin = 2*float(Fraction(tmp[1]))
+            idx = int(tmp[3])
+            levels.append([energy, spin, parity, idx])
         except IndexError:
             """
             End of energies.
@@ -208,6 +212,8 @@ def _load_transition_probabilities_old(infile):
                     parity_final_symbol = tmp[2].split("(")[0][-1]
                     spin_final = float(Fraction(tmp[2].split(parity_final_symbol)[0]))
                     Ex_final = float(tmp[3])
+                    idx_initial = int(tmp[0].split("(")[1].split(")")[0])
+                    idx_final = int(tmp[2].split("(")[1].split(")")[0])
 
                 elif (tmp[1][-1] != ")") and (tmp[3][-1] == ")") and (len_tmp == 10):
                     """
@@ -224,6 +230,8 @@ def _load_transition_probabilities_old(infile):
                     # spin_final = float(Fraction(tmp[2][:-2]))
                     spin_final = float(Fraction(tmp[2].split(parity_final_symbol)[0]))
                     Ex_final = float(tmp[4])
+                    idx_initial = int(tmp[0].split("(")[1].split(")")[0])
+                    idx_final = int(tmp[3][0])
                 
                 elif (tmp[1][-1] == ")") and (tmp[4][-1] != ")") and (len_tmp == 10):
                     """
@@ -241,6 +249,8 @@ def _load_transition_probabilities_old(infile):
                     parity_final_symbol = tmp[3].split("(")[0][-1]
                     spin_final = float(Fraction(tmp[3].split(parity_final_symbol)[0]))
                     Ex_final = float(tmp[4])
+                    idx_initial = int(tmp[1][0])
+                    idx_final = int(tmp[3].split("(")[1].split(")")[0])
 
                 elif (tmp[1][-1] == ")") and (tmp[4][-1] == ")") and (len_tmp == 11):
                     """
@@ -257,6 +267,8 @@ def _load_transition_probabilities_old(infile):
                     # spin_final = float(Fraction(tmp[3][:-2]))
                     spin_final = float(Fraction(tmp[3].split(parity_final_symbol)[0]))
                     Ex_final = float(tmp[5])
+                    idx_initial = int(tmp[1][0])
+                    idx_final = int(tmp[4][0])
 
                 elif (tmp[5][-1] == ")") and (tmp[2][-1] == ")") and (len_tmp == 8):
                     """
@@ -272,6 +284,8 @@ def _load_transition_probabilities_old(infile):
                     parity_final_symbol = tmp[2].split("(")[0][-1]
                     spin_final = float(Fraction(tmp[2].split(parity_final_symbol)[0]))
                     Ex_final = float(tmp[3])
+                    idx_initial = int(tmp[0].split("(")[1].split(")")[0])
+                    idx_final = int(tmp[2].split("(")[1].split(")")[0])
 
                 else:
                     msg = "ERROR: Structure not accounted for!"
@@ -294,10 +308,15 @@ def _load_transition_probabilities_old(infile):
                     negative_spin_counts += 1  # Debug.
                     continue
 
+                # reduced_transition_prob_decay_list.append([
+                #     2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+                #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
+                #     reduced_transition_prob_excite
+                # ])
                 reduced_transition_prob_decay_list.append([
-                    2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-                    parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
-                    reduced_transition_prob_excite
+                    2*spin_initial, parity_initial, idx_initial, Ex_initial,
+                    2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+                    reduced_transition_prob_decay, reduced_transition_prob_excite
                 ])
 
             except ValueError as err:
@@ -338,10 +357,12 @@ def _load_transition_probabilities(infile):
             
             spin_initial = float(Fraction(line_split[0]))
             parity_initial = parity_string_to_integer(line_split[1])
+            idx_initial = int(line_split[2])
             Ex_initial = float(line_split[3])
 
             spin_final = float(Fraction(line_split[4]))
             parity_final = parity_string_to_integer(line_split[5])
+            idx_final = int(line_split[2])
             Ex_final = float(line_split[7])
 
             E_gamma = float(line_split[8])
@@ -356,10 +377,15 @@ def _load_transition_probabilities(infile):
                 negative_spin_counts += 1  # Debug.
                 continue
 
+            # reduced_transition_prob_decay_list.append([
+            #     2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
+            #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
+            #     reduced_transition_prob_excite
+            # ])
             reduced_transition_prob_decay_list.append([
-                2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-                parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
-                reduced_transition_prob_excite
+                2*spin_initial, parity_initial, idx_initial, Ex_initial,
+                2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+                reduced_transition_prob_decay, reduced_transition_prob_excite
             ])
     
         return reduced_transition_prob_decay_list, negative_spin_counts
@@ -384,11 +410,15 @@ class ReadKshellOutput:
     ----------
     levels : np.ndarray
         Array containing energy, spin, and parity for each excited
-        state. [[E, 2*spin, parity], ...].
+        state. [[E, 2*spin, parity, idx], ...].
 
     transitions_BE1 : np.ndarray
         Transition data for BE1 transitions. Structure:
         NEW:
+        [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+        2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+        B(.., i->f), B(.., f<-i)]
+        OLD NEW:
         [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
         parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
         OLD:
@@ -803,6 +833,7 @@ class ReadKshellOutput:
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
+        include_n_states: Union[None, int] = None,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -833,6 +864,7 @@ class ReadKshellOutput:
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
+            include_n_states = include_n_states,
             plot = plot,
             save_plot = save_plot
         )
@@ -850,6 +882,7 @@ class ReadKshellOutput:
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
+        include_n_states: Union[None, int] = None,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -868,6 +901,7 @@ class ReadKshellOutput:
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
+            include_n_states = include_n_states,
             plot = plot,
             save_plot = save_plot
         )
@@ -1162,7 +1196,7 @@ def _sortkey(filename):
     """
     Key for sorting filenames based on angular momentum and parity.
     Example filename: 'log_Sc44_GCLSTsdpfsdgix5pn_j0n.txt'
-    (angular momentom  = 0). 
+    (angular momentum  = 0). 
     """
     tmp = filename.split("_")[-1]
     tmp = tmp.split(".")[0]
