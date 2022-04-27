@@ -611,8 +611,9 @@ def level_plot(
         plt.show()
 
 def level_density(
-    energy_levels: Union[np.ndarray, list],
-    bin_size: Union[int, float],
+    levels: np.ndarray,
+    bin_width: Union[int, float],
+    include_n_states: Union[None, int] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -621,11 +622,17 @@ def level_density(
 
     Parameters
     ----------
-    energy_levels : Union[np.ndarray, list]
-        1D array of energy levels.
+    levels : Union[np.ndarray, list]
+        Nx4 array of [[E, 2*spin, parity, idx], ...] or 1D array / list
+        of only energies.
 
-    bin_size : Union[int, float]
+    bin_width : Union[int, float]
         Energy interval of which to calculate the density.
+
+    include_n_states : Union[None, int]
+        The number of states per spin to include. Example:
+        include_n_states = 100 will include only the 100 lowest laying
+        states for each spin.
 
     plot : bool
         For toggling plotting on / off.
@@ -641,13 +648,19 @@ def level_density(
     density : np.ndarray
         The level density.
     """
-    if isinstance(energy_levels, list):
-        energy_levels = np.array(energy_levels)
+    try:
+        energy_levels = np.copy(levels[:, 0])
+        indices = levels[:, 3]  # Counter for the number of levels per spin.
+    except IndexError:
+        """
+        1D array / list of only energies are given.
+        """
+        energy_levels = np.array(levels)
+    else:
+        if include_n_states is not None:
+            energy_levels = energy_levels[indices <= include_n_states]
+            # include_n_states = np.inf   # Include all states.
 
-    if len(energy_levels.shape) != 1:
-        msg = "'energy_levels' input to 'level_density' must be a 1D array or"
-        msg += " list containing the energies for the different levels."
-        raise ValueError(msg)
 
     if energy_levels[0] != 0:
         """
@@ -656,22 +669,22 @@ def level_density(
         """
         energy_levels = energy_levels - energy_levels[0]
 
-    bins = np.arange(0, energy_levels[-1] + bin_size, bin_size)
+    bins = np.arange(0, energy_levels[-1] + bin_width, bin_width)
     n_bins = len(bins)
     counts = np.zeros(n_bins)
 
     for i in range(n_bins - 1):
         counts[i] = np.sum(bins[i] <= energy_levels[energy_levels < bins[i + 1]])
     
-    density = (counts/bin_size)[:-1]
+    density = (counts/bin_width)[:-1]
     bins = bins[1:]
 
     if plot:
         fig, ax = plt.subplots()
         ax.step(bins, density, color="black")
-        ax.set_ylabel(r"Density [bin$^{-t1}$]")
-        ax.set_xlabel("Bins [MeV]")
-        ax.legend([f"{bin_size=} MeV"])
+        ax.set_ylabel(r"Density [MeV$^{-1}$]")
+        ax.set_xlabel("E [MeV]")
+        ax.legend([f"{bin_width=} MeV"])
         ax.grid()
         if save_plot:
             fname = "nld.png"
