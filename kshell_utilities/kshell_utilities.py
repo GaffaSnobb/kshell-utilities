@@ -395,11 +395,19 @@ def _load_parallel(arg_list):
     For parallel data loads.
     [self.fname_summary, "Energy", self._load_energy_levels, None]
     """
-    fname, condition, loader = arg_list
+    fname, condition, loader, thread_idx = arg_list
+    print(f"Thread {thread_idx} loading {condition} values...")
+    load_time = time.perf_counter()
+    
     with open(fname, "r") as infile:
         for line in infile:
             if condition in line:
-                return loader(infile)
+                ans = loader(infile)
+    
+    load_time = time.perf_counter() - load_time
+    print(f"Thread {thread_idx} finished loading {condition} values in {load_time:.2f} s")
+
+    return ans
 
 class ReadKshellOutput:
     """
@@ -410,7 +418,10 @@ class ReadKshellOutput:
     ----------
     levels : np.ndarray
         Array containing energy, spin, and parity for each excited
-        state. [[E, 2*spin, parity, idx], ...].
+        state. [[E, 2*spin, parity, idx], ...]. idx counts how many
+        times a state of that given spin and parity has occurred. The
+        first 0+ state will have an idx of 1, the second 0+ will have an
+        idx of 2, etc.
 
     transitions_BE1 : np.ndarray
         Transition data for BE1 transitions. Structure:
@@ -689,17 +700,17 @@ class ReadKshellOutput:
 
         if self.old_or_new == "new":
             parallel_args = [
-                [self.fname_summary, "Energy", _load_energy_levels],
-                [self.fname_summary, "B(M1)", _load_transition_probabilities],
-                [self.fname_summary, "B(E2)", _load_transition_probabilities],
-                [self.fname_summary, "B(E1)", _load_transition_probabilities],
+                [self.fname_summary, "Energy", _load_energy_levels, 0],
+                [self.fname_summary, "B(M1)", _load_transition_probabilities, 1],
+                [self.fname_summary, "B(E2)", _load_transition_probabilities, 2],
+                [self.fname_summary, "B(E1)", _load_transition_probabilities, 3],
             ]
         elif self.old_or_new == "old":
             parallel_args = [
-                [self.fname_summary, "Energy", _load_energy_levels],
-                [self.fname_summary, "B(M1)", _load_transition_probabilities_old],
-                [self.fname_summary, "B(E2)", _load_transition_probabilities_old],
-                [self.fname_summary, "B(E1)", _load_transition_probabilities_old],
+                [self.fname_summary, "Energy", _load_energy_levels, 0],
+                [self.fname_summary, "B(M1)", _load_transition_probabilities_old, 1],
+                [self.fname_summary, "B(E2)", _load_transition_probabilities_old, 2],
+                [self.fname_summary, "B(E1)", _load_transition_probabilities_old, 3],
             ]
 
         pool = multiprocessing.Pool()
@@ -785,7 +796,8 @@ class ReadKshellOutput:
         )
 
     def level_density_plot(self,
-            bin_size: Union[int, float] = 0.2,
+            bin_width: Union[int, float] = 0.2,
+            include_n_states: Union[None, int] = None,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -796,31 +808,34 @@ class ReadKshellOutput:
 
         Parameters
         ----------
-        bin_size : Union[int, float]
-            Energy interval of which to calculate the density.
-
-        plot : bool
-            Toogle plotting on / off.
-
-        save_plot : bool    
-            Toogle saving of plot (as .png with dpi=300) on / off.
-
-        Returns
-        -------
-        bins : np.ndarray
-            The corresponding bins (x value for plotting).
-
-        density : np.ndarray
-            The level density.
+        See level_density in general_utilities.py for parameter
+        information.
         """
         bins, density = level_density(
-            energy_levels = self.levels[:, 0],
-            bin_size = bin_size,
+            levels = self.levels,
+            bin_width = bin_width,
+            include_n_states = include_n_states,
             plot = plot,
             save_plot = save_plot
         )
 
         return bins, density
+
+    def nld(self,
+        bin_width: Union[int, float] = 0.2,
+        include_n_states: Union[None, int] = None,
+        plot: bool = True,
+        save_plot: bool = False
+        ):
+        """
+        Wrapper method to level_density_plot.
+        """
+        return self.level_density_plot(
+            bin_width = bin_width,
+            include_n_states = include_n_states,
+            plot = plot,
+            save_plot = save_plot
+        )
 
     def gamma_strength_function_average_plot(self,
         bin_width: Union[float, int] = 0.2,
