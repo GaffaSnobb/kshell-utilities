@@ -71,6 +71,7 @@ def gamma_strength_function_average(
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
     include_n_states: Union[None, int] = None,
+    # filter_spins: Union[None, list] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -87,9 +88,14 @@ def gamma_strength_function_average(
     ----------
     levels : np.ndarray
         Array containing energy, spin, and parity for each excited
-        state. [[E, 2*spin, parity], ...].
+        state. [[E, 2*spin, parity, idx], ...]. idx counts how many
+        times a state of that given spin and parity has occurred. The
+        first 0+ state will have an idx of 1, the second 0+ will have an
+        idx of 2, etc.
 
     transitions : np.ndarray
+        Array containing transition data for the specified
+        multipolarity.
         OLD:
         Mx8 array containing [2*spin_final, parity_initial, Ex_final,
         2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
@@ -131,7 +137,7 @@ def gamma_strength_function_average(
 
     initial_or_final : str
         Choose whether to use the energy of the initial or final state
-        for the transition calculations. NOTE: This will be removed in
+        for the transition calculations. NOTE: This may be removed in
         a future release since the correct alternative is to use the
         initial energy.
 
@@ -157,6 +163,10 @@ def gamma_strength_function_average(
         The number of states per spin to include. Example:
         include_n_states = 100 will include only the 100 lowest laying
         states for each spin.
+
+    filter_spins : Union[None, list]
+        Which spins to include in the GSF. If None, all spins are
+        included.
 
     plot : bool
         Toogle plotting on / off.
@@ -230,7 +240,7 @@ def gamma_strength_function_average(
     E_ground_state = levels[0, 0] # Read out the absolute ground state energy so we can get relative energies later.
     
     try:
-        Ex, spins, parities, level_idx = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2], levels[:, 3]
+        Ex, spins, parities, level_counter = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2], levels[:, 3]
     except IndexError as err:
         msg = f"{err.__str__()}\n"
         msg += "Error probably due to old tmp files. Use loadtxt parameter"
@@ -239,15 +249,11 @@ def gamma_strength_function_average(
         raise Exception(msg) from err
     
     if initial_or_final == "initial":
-        # Ex_initial_or_final = np.copy(transitions[:, 2])   # To avoid altering the raw data.
         Ex_initial_or_final = np.copy(transitions[:, 3])   # To avoid altering the raw data.
         spin_initial_or_final_idx = 0
         parity_initial_or_final_idx = 1
     elif initial_or_final == "final":
-        # Ex_initial_or_final = np.copy(transitions[:, 5])   # To avoid altering the raw data.
         Ex_initial_or_final = np.copy(transitions[:, 7])   # To avoid altering the raw data.
-        # spin_initial_or_final_idx = 3
-        # parity_initial_or_final_idx = 4
         spin_initial_or_final_idx = 4
         parity_initial_or_final_idx = 5
         msg = "Using final states for the energy limits is not correct"
@@ -335,8 +341,10 @@ def gamma_strength_function_average(
             """
             continue
 
+        # if bla not in filter_spins:
+        #     continue
+
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
-        # E_gamma_idx = int(transitions[transition_idx, 6]/bin_width)
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
 
@@ -363,8 +371,6 @@ def gamma_strength_function_average(
             respectively. NOTE: Hope to remove this try-except by
             implementing suitable input checks to this function.
             """
-            # B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
-            #     transitions[transition_idx, 7]
             B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
                 transitions[transition_idx, 9]
             B_pixel_count[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += 1
@@ -386,15 +392,6 @@ def gamma_strength_function_average(
             msg += f"{B_pixel_sum.shape=}\n"
             msg += f"{transitions.shape=}\n"
             msg += f"{Ex_max=}\n"
-            # msg += f"2*spin_final: {transitions[transition_idx, 3]}\n"
-            # msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            # msg += f"Ex_final: {transitions[transition_idx, 5]}\n"
-            # msg += f"2*spin_initial: {transitions[transition_idx, 0]}\n"
-            # msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            # msg += f"Ex_initial: {transitions[transition_idx, 2]}\n"
-            # msg += f"E_gamma: {transitions[transition_idx, 6]}\n"
-            # msg += f"B(.., i->f): {transitions[transition_idx, 7]}\n"
-            # msg += f"B(.., f<-i): {transitions[transition_idx, 8]}\n"
             msg += f"2*spin_final: {transitions[transition_idx, 4]}\n"
             msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
             msg += f"Ex_final: {transitions[transition_idx, 7]}\n"
@@ -417,6 +414,13 @@ def gamma_strength_function_average(
             """
             Skip if level is outside range. Only upper limit since
             decays to states below the lower limit are allowed.
+            """
+            continue
+        
+        if level_counter[levels_idx] > include_n_states:
+            """
+            Include only 'include_n_states' number of levels. Defaults
+            to np.inf (include all).
             """
             continue
 
@@ -445,7 +449,7 @@ def gamma_strength_function_average(
             """
             rho_ExJpi[:, i] = tmp_sum
 
-        msg = "Using the total level density is probably not correct and"
+        msg = "Using the total level density is not correct and"
         msg += " should only be used when comparing with the correct"
         msg += " alternative which is using the partial level density."
         warnings.warn(msg, RuntimeWarning)
