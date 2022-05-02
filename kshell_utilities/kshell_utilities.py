@@ -849,6 +849,8 @@ class ReadKshellOutput:
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
         include_n_states: Union[None, int] = None,
+        filter_spins: Union[None, list] = None,
+        filter_parities: str = "both",
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -880,6 +882,8 @@ class ReadKshellOutput:
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
             include_n_states = include_n_states,
+            filter_spins = filter_spins,
+            filter_parities = filter_parities,
             plot = plot,
             save_plot = save_plot
         )
@@ -898,6 +902,8 @@ class ReadKshellOutput:
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
         include_n_states: Union[None, int] = None,
+        filter_spins: Union[None, list] = None,
+        filter_parities: str = "both",
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -917,6 +923,8 @@ class ReadKshellOutput:
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
             include_n_states = include_n_states,
+            filter_spins = filter_spins,
+            filter_parities = filter_parities,
             plot = plot,
             save_plot = save_plot
         )

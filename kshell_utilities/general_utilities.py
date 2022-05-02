@@ -71,7 +71,8 @@ def gamma_strength_function_average(
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
     include_n_states: Union[None, int] = None,
-    # filter_spins: Union[None, list] = None,
+    filter_spins: Union[None, list] = None,
+    filter_parities: str = "both",
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -166,7 +167,11 @@ def gamma_strength_function_average(
 
     filter_spins : Union[None, list]
         Which spins to include in the GSF. If None, all spins are
-        included.
+        included. TODO: Make int valid input too.
+
+    filter_parities : str
+        Which parities to include in the GSF. 'both', '+', '-' are
+        allowed.
 
     plot : bool
         Toogle plotting on / off.
@@ -197,6 +202,17 @@ def gamma_strength_function_average(
         The gamma strength function.
     """
     total_gsf_time = time.perf_counter()
+
+    allowed_filter_parities = ["+", "-", "both"]
+    if filter_parities not in allowed_filter_parities:
+        msg = f"filter_parities must be {allowed_filter_parities}"
+        raise TypeError(msg)
+    if filter_parities == "both":
+        filter_parities = [-1, +1]
+    elif filter_parities == "-":
+        filter_parities = [-1]
+    elif filter_parities == "+":
+        filter_parities = [+1]
 
     if include_n_states is None:
         include_n_states = np.inf   # Include all states.
@@ -341,8 +357,26 @@ def gamma_strength_function_average(
             """
             continue
 
-        # if bla not in filter_spins:
-        #     continue
+        spin_initial = transitions[transition_idx, 0]/2
+        spin_final = transitions[transition_idx, 4]/2
+
+        if filter_spins is not None:
+            if (spin_initial not in filter_spins) or (spin_final not in filter_spins):
+                """
+                Skip transitions to or from levels of total angular momentum
+                not in the filter list.
+                """
+                continue
+
+        parity_initial = transitions[transition_idx, 1]
+        parity_final = transitions[transition_idx, 5]
+
+        if (parity_initial not in filter_parities) or (parity_final not in filter_parities):
+            """
+            Skip initial or final parities which are not in the filter
+            list.
+            """
+            continue
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
@@ -361,9 +395,9 @@ def gamma_strength_function_average(
             2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
             B(.., i->f), B(.., f<-i)]
         """
-        spin_initial = int(transitions[transition_idx, spin_initial_or_final_idx])  # Superfluous int casts?
-        parity_initial = int(transitions[transition_idx, parity_initial_or_final_idx])
-        spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
+        spin_initial_or_final = int(transitions[transition_idx, spin_initial_or_final_idx])  # Superfluous int casts?
+        parity_initial_or_final = int(transitions[transition_idx, parity_initial_or_final_idx])
+        spin_parity_idx = spin_parity_list.index([spin_initial_or_final, parity_initial_or_final])
 
         try:
             """
@@ -423,6 +457,14 @@ def gamma_strength_function_average(
             to np.inf (include all).
             """
             continue
+
+        if filter_spins is not None:
+            if levels[levels_idx, 1]/2 not in filter_spins:
+                """
+                Skip levels of total angular momentum not in the filter
+                list.
+                """
+                continue
 
         Ex_idx = int(Ex[levels_idx]/bin_width)
 
