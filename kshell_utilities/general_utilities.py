@@ -739,3 +739,268 @@ def level_density(
         plt.show()
 
     return bins, density
+
+def nuclear_shell_model():
+    """
+    Generate a diagram of the nuclear shell model shell structure.
+    """
+    plt.rcParams.update({
+        "backend": "pgf",
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["roman"],
+        "legend.fontsize": 14,
+        "xtick.labelsize": 15,
+        "ytick.labelsize": 15,
+        "axes.labelsize": 14,
+        "axes.titlesize": 15,
+    })
+    fig, ax = plt.subplots(figsize=(6.4, 8))
+    ax.axis(False)
+    fontsize = 15
+    x_offset = 0.6
+    x_text_offset = x_offset - 0.5
+
+    first_layer_labels = [
+        r"$1s$", r"$1p$", r"$1d$", r"$2s$", r"$1f$", r"$2p$", r"$1g$",
+        r"$2d$", r"$3s$"
+    ]
+    first_layer_y = [1, 2.4, 4.2, 4.45, 6.3, 6.8, 9, 10.0, 10.5]
+    second_layer_labels = [
+        r"$1s_{1/2}$", r"$1p_{3/2}$", r"$1p_{1/2}$", r"$1d_{5/2}$",
+        r"$2s_{1/2}$", r"$1d_{3/2}$", r"$1f_{7/2}$", r"$2p_{3/2}$",
+        r"$1f_{5/2}$", r"$2p_{1/2}$", r"$1g_{9/2}$", r"$2d_{5/2}$",
+        r"$1g_{7/2}$", r"$3s_{1/2}$", r"$2d_{3/2}$"
+    ]
+    second_layer_y = [
+        first_layer_y[0], first_layer_y[1] - 0.15, first_layer_y[1] + 0.15,
+        first_layer_y[2] - 0.3, first_layer_y[3], first_layer_y[2] + 0.51,
+        first_layer_y[4] - 0.6, first_layer_y[5] - 0.10, first_layer_y[4] + 0.7,
+        first_layer_y[5] + 0.5, first_layer_y[6] - 1.0, first_layer_y[7] - 0.4,
+        first_layer_y[6] + 0.9, first_layer_y[7] + 0.8, first_layer_y[8]
+    ]
+    dash_layer = [
+        [2 + x_offset, first_layer_y[0], 2.5 + x_offset, second_layer_y[0]],
+        [2 + x_offset, first_layer_y[1], 2.5 + x_offset, second_layer_y[1]],
+        [2 + x_offset, first_layer_y[1], 2.5 + x_offset, second_layer_y[2]],
+        [2 + x_offset, first_layer_y[2], 2.5 + x_offset, second_layer_y[3]],
+        [2 + x_offset, first_layer_y[2], 2.5 + x_offset, second_layer_y[5]],
+        [2 + x_offset, first_layer_y[3], 2.5 + x_offset, second_layer_y[4]],
+        [2 + x_offset, first_layer_y[4], 2.5 + x_offset, second_layer_y[6]],
+        [2 + x_offset, first_layer_y[4], 2.5 + x_offset, second_layer_y[8]],
+        [2 + x_offset, first_layer_y[5], 2.5 + x_offset, second_layer_y[7]],
+        [2 + x_offset, first_layer_y[5], 2.5 + x_offset, second_layer_y[9]],
+        [2 + x_offset, first_layer_y[6], 2.5 + x_offset, second_layer_y[10]],
+        [2 + x_offset, first_layer_y[7], 2.5 + x_offset, second_layer_y[11]],
+        [2 + x_offset, first_layer_y[6], 2.5 + x_offset, second_layer_y[12]],
+        [2 + x_offset, first_layer_y[7], 2.5 + x_offset, second_layer_y[13]],
+        [2 + x_offset, first_layer_y[8], 2.5 + x_offset, second_layer_y[14]],
+    ]
+    core_layer_labels = [
+        r"$^{16}$O", r"$^{40}$Ca", r"$^{56}$Ni"
+    ]
+    core_layer_y = [
+        second_layer_y[2] + 0.5, second_layer_y[5] + 0.5, second_layer_y[6] + 0.5
+    ]
+
+    occupations = [
+        2, 4, 2, 6, 2, 4, 8, 4, 6, 2, 10, 6, 8, 2, 4
+    ]
+    occupations_y = second_layer_y
+    cum_occupations = [
+        2, 8, 20, 28, 50
+    ]
+    cum_occupations_y = [
+        second_layer_y[0], second_layer_y[2], second_layer_y[5],
+        second_layer_y[6], second_layer_y[10]
+    ]
+    ax.hlines(  # To force the width of the figure.
+        y = 1,
+        xmin = 3.5 + x_offset,
+        xmax = 4.5 + x_offset,
+        color = "white"
+    )
+    ax.hlines(  # To force the width of the figure.
+        y = 1,
+        xmin = 1,
+        xmax = 2,
+        color = "white"
+    )
+    for y, label in zip(first_layer_y, first_layer_labels):
+        ax.hlines(
+            y = y,
+            xmin = 1 + x_offset,
+            xmax = 2 + x_offset,
+            color = "black",
+        )
+        fig.text(
+            x = 0.12 + x_text_offset,
+            y = y/13.95 + 0.067,
+            s = label,
+            fontsize = fontsize
+        )
+
+    for y, label in zip(second_layer_y, second_layer_labels):
+        ax.hlines(
+            y = y,
+            xmin = 2.5 + x_offset,
+            xmax = 3.5 + x_offset,
+            color = "black",
+        )
+        fig.text(
+            x = 0.6 + x_text_offset,
+            y = y/14.2 + 0.067,
+            s = label,
+            fontsize = fontsize
+        )
+
+    for x1, y1, x2, y2 in dash_layer:
+        ax.plot([x1, x2], [y1, y2], linestyle="dashed", color="black")
+
+    for occupation, y in zip(occupations, occupations_y):
+        fig.text(
+            x = 0.69 + x_text_offset,
+            y = y/14.2 + 0.067,
+            s = occupation,
+            fontsize = fontsize - 1
+        )
+
+    for occupation, y in zip(cum_occupations, cum_occupations_y):
+        fig.text(
+            x = 0.73 + x_text_offset,
+            y = y/14.2 + 0.067,
+            s = occupation,
+            fontsize = fontsize - 1
+        )
+
+    for y, label in zip(core_layer_y, core_layer_labels):
+        fig.text(
+            x = 0.77 + x_text_offset,
+            y = y/14 + 0.067,
+            s = label,
+            fontsize = fontsize - 1
+        )
+        fig.text(
+            x = 0.73 + x_text_offset,
+            y = y/14 + 0.064,
+            s = "---------",
+            fontsize = fontsize - 1
+        )
+
+    # USD
+    x1 = 1.35
+    x2 = 1.25
+    y1 = 4.9
+    y2 = 3.83
+    ax.vlines(
+        x = x2,
+        ymin = y2,
+        ymax = y1,
+        color = "darkorange",
+    )
+    fig.text(
+        x = 0.15,
+        y = 0.37,
+        s = "USD",
+        fontsize = 12,
+        rotation = "vertical",
+        color = "darkorange"
+    )
+    # GXPF
+    y3 = 7.5
+    y4 = 5.6
+    ax.vlines(
+        x = x2,
+        ymin = y4,
+        ymax = y3,
+        color = "firebrick",
+    )
+    fig.text(
+        x = 0.15,
+        y = 0.52,
+        s = "GXPF",
+        fontsize = 12,
+        rotation = "vertical",
+        color = "firebrick"
+    )
+    # SDPF-MU
+    x4 = x2 - 0.04
+    ax.vlines(
+        x = x4,
+        ymin = y2,
+        ymax = y3,
+        color = "royalblue",
+    )
+    fig.text(
+        x = 0.14,
+        y = 0.42,
+        s = "SDPF-MU",
+        fontsize = 12,
+        rotation = "vertical",
+        color = "royalblue"
+    )
+    #JUN45
+    y7 = 6.5
+    y8 = 8.2
+    x6 = x4 - 0.04
+    ax.vlines(
+        x = x6,
+        ymin = y8,
+        ymax = y7,
+        color = "green",
+    )
+    fig.text(
+        x = 0.14,
+        y = 0.59,
+        s = "JUN45",
+        fontsize = 12,
+        rotation = "vertical",
+        color = "green"
+    )
+    # SDPF-SDG
+    ax.vlines(
+        x = x6 - 0.04,
+        ymin = y2,
+        ymax = 11,
+        color = "mediumorchid",
+    )
+    fig.text(
+        x = 0.15,
+        y = 0.66,
+        s = "SDPF-SDG",
+        fontsize = 12,
+        rotation = "vertical",
+        color = "mediumorchid"
+    )
+    # Spectroscopic notation
+    fig.text(
+        x = 0.45,
+        y = 0.93,
+        s = r"$s \;\; p \;\; d \;\; f \;\; g \;\; h$",
+        fontsize = fontsize - 1,
+        color = "black",
+    )
+    fig.text(
+        x = 0.45,
+        y = 0.92,
+        s = "------------------",
+        fontsize = fontsize - 1,
+        color = "black",
+    )
+    fig.text(
+        x = 0.415,
+        y = 0.90,
+        s = r"$l: 0 \;\; 1 \;\; 2 \;\; 3 \;\; 4 \;\; 5$",
+        fontsize = fontsize - 1,
+        color = "black",
+    )
+    fig.text(
+        x = 0.405,
+        y = 0.88,
+        s = r"$\pi:+  -  +  - \, + \, -$",
+        fontsize = fontsize - 1,
+        color = "black",
+    )
+
+    fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
+    plt.show()
