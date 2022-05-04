@@ -1,0 +1,26 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: kshell-utilities
+message: 'If you use this software, please cite it as below.'
+type: software
+authors:
+  - given-names: Jon
+    family-names: Dahl
+    email: jonkd@uio.no
+    affiliation: University of Oslo
+  - given-names: Jørgen
+    family-names: Midtbø
+  - given-names: Noritaka
+    family-names: Shimizu
+repository-code: 'https://github.com/GaffaSnobb/kshell-utilities'
+abstract: >-
+  Handy utilities for processing nuclear shell model
+  data from KSHELL
+keywords:
+  - Nuclear physics
+  - Energy physics
+  - Nuclear shell model
+  - KSHELL
+license: MIT
