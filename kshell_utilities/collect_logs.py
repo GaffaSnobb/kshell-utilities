@@ -1,3 +1,7 @@
+"""
+Author: Noritaka Shimizu (?)
+Modified by: Jon Dahl
+"""
 import sys, os, warnings
 from typing import List, Tuple
 from fractions import Fraction
