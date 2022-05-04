@@ -1,5 +1,5 @@
 import sys, time, warnings
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
@@ -73,9 +73,10 @@ def gamma_strength_function_average(
     include_n_states: Union[None, int] = None,
     filter_spins: Union[None, list] = None,
     filter_parities: str = "both",
+    porter_thomas: bool = False,
     plot: bool = False,
     save_plot: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
     Calculate the gamma strength function averaged over spins and
     parities.
@@ -84,6 +85,8 @@ def gamma_strength_function_average(
     Modified by: GaffaSnobb.
     
     TODO: Figure out the pre-factors.
+    TODO: Use numpy.logical_or to filter levels and transitions to avoid
+    using many if statements in the loops.
 
     Parameters
     ----------
@@ -173,6 +176,19 @@ def gamma_strength_function_average(
         Which parities to include in the GSF. 'both', '+', '-' are
         allowed.
 
+    porter_thomas : bool
+        Count the number of transitions, as a function of gamma energy,
+        involved in the GSF calculation and return this number as a
+        third return value. For calculating Porter-Thomas fluctuations
+        in the GSF by
+
+            r(E_gamma) = sqrt(2/n(E_gamma))
+
+        where n is the number of transitions for each gamma energy, used
+        to calculate the GSF. The value n is called pt_counter in the
+        code. See for example DOI: 10.1103/PhysRevC.98.054303 for
+        details.
+
     plot : bool
         Toogle plotting on / off.
 
@@ -254,7 +270,7 @@ def gamma_strength_function_average(
     n_transitions = len(transitions[:, 0])
     n_levels = len(levels[:, 0])
     E_ground_state = levels[0, 0] # Read out the absolute ground state energy so we can get relative energies later.
-    
+
     try:
         Ex, spins, parities, level_counter = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2], levels[:, 3]
     except IndexError as err:
@@ -333,6 +349,7 @@ def gamma_strength_function_average(
     B_pixel_count = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))   # The number of transitions.
     rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))  # (Ex, Jpi) matrix to store level density
     gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))    
+    pt_counter = np.zeros(n_bins)  # Porter-Thomas counter.
     transit_gsf_time = time.perf_counter()
     
     for transition_idx in range(n_transitions):
@@ -381,6 +398,7 @@ def gamma_strength_function_average(
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
+        pt_counter[E_gamma_idx] += 1
 
         """
         transitions : np.ndarray
@@ -403,7 +421,9 @@ def gamma_strength_function_average(
             """
             Add B(..) value and increment transition count,
             respectively. NOTE: Hope to remove this try-except by
-            implementing suitable input checks to this function.
+            implementing suitable input checks to this function. Note to
+            the note: Will prob. not be removed to keep the ability to
+            compare initial and final.
             """
             B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
                 transitions[transition_idx, 9]
@@ -567,7 +587,10 @@ def gamma_strength_function_average(
             fig.savefig(fname=fname, dpi=300)
         plt.show()
 
-    return bins, gSF_ExJpiavg
+    if porter_thomas:
+        return bins, gSF_ExJpiavg, pt_counter
+    else:
+        return bins, gSF_ExJpiavg
 
 def level_plot(
     levels: np.ndarray,

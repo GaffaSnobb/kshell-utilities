@@ -851,6 +851,7 @@ class ReadKshellOutput:
         include_n_states: Union[None, int] = None,
         filter_spins: Union[None, list] = None,
         filter_parities: str = "both",
+        porter_thomas: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -868,7 +869,7 @@ class ReadKshellOutput:
             "E2": self.transitions_BE2,
             "E1": self.transitions_BE1
         }
-        bins, gsf = gamma_strength_function_average(
+        return gamma_strength_function_average(
             levels = self.levels,
             transitions = transitions_dict[multipole_type],
             bin_width = bin_width,
@@ -884,11 +885,10 @@ class ReadKshellOutput:
             include_n_states = include_n_states,
             filter_spins = filter_spins,
             filter_parities = filter_parities,
+            porter_thomas = porter_thomas,
             plot = plot,
             save_plot = save_plot
         )
-
-        return bins, gsf
 
     def gsf(self,
         bin_width: Union[float, int] = 0.2,
@@ -904,6 +904,7 @@ class ReadKshellOutput:
         include_n_states: Union[None, int] = None,
         filter_spins: Union[None, list] = None,
         filter_parities: str = "both",
+        porter_thomas: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -925,6 +926,7 @@ class ReadKshellOutput:
             include_n_states = include_n_states,
             filter_spins = filter_spins,
             filter_parities = filter_parities,
+            porter_thomas = porter_thomas,
             plot = plot,
             save_plot = save_plot
         )
