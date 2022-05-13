@@ -771,7 +771,7 @@ class ReadKshellOutput:
             np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
-        max_spin_states: int = 1000,
+        include_n_states: int = 1000,
         filter_spins: Union[None, list] = None
         ):
         """
@@ -781,7 +781,7 @@ class ReadKshellOutput:
 
         Parameters
         ----------
-        max_spin_states : int
+        include_n_states : int
             The maximum amount of states to plot for each spin. Default
             set to a large number to indicate ≈ no limit.
 
@@ -791,7 +791,7 @@ class ReadKshellOutput:
         """
         level_plot(
             levels = self.levels,
-            max_spin_states = max_spin_states,
+            include_n_states = include_n_states,
             filter_spins = filter_spins
         )
 

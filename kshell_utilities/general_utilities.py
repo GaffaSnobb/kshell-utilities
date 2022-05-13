@@ -594,7 +594,7 @@ def gamma_strength_function_average(
 
 def level_plot(
     levels: np.ndarray,
-    max_spin_states: int = 1_000,
+    include_n_states: int = 1_000,
     filter_spins: Union[None, list] = None,
     ax: Union[None, plt.Axes] = None
     ):
@@ -608,7 +608,7 @@ def level_plot(
         NxM array of [[energy, spin, parity], ...]. This is the instance
         attribute 'levels' of ReadKshellOutput.
     
-    max_spin_states : int
+    include_n_states : int
         The maximum amount of states to plot for each spin. Default set
         to a large number to indicate ≈ no limit.
 
@@ -657,9 +657,9 @@ def level_plot(
         except KeyError:
             counts[spins[i]] = 1
         
-        if counts[spins[i]] > max_spin_states:
+        if counts[spins[i]] > include_n_states:
             """
-            Include only the first 'max_spin_states' amount of states
+            Include only the first 'include_n_states' amount of states
             for any of the spins.
             """
             continue
