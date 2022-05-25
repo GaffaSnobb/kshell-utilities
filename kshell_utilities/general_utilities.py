@@ -78,8 +78,8 @@ def gamma_strength_function_average(
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
-    Calculate the gamma strength function averaged over spins and
-    parities.
+    Calculate the gamma strength function averaged over total angular
+    momenta, parities, and initial excitation energies.
     
     Author: Jørgen Midtbø.
     Modified by: GaffaSnobb.
@@ -398,7 +398,7 @@ def gamma_strength_function_average(
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
-        pt_counter[E_gamma_idx] += 1
+        pt_counter[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
 
         """
         transitions : np.ndarray
@@ -730,7 +730,6 @@ def level_density(
             energy_levels = energy_levels[indices <= include_n_states]
             # include_n_states = np.inf   # Include all states.
 
-
     if energy_levels[0] != 0:
         """
         Calculate energies relative to the ground state if not already
@@ -762,6 +761,79 @@ def level_density(
         plt.show()
 
     return bins, density
+
+def porter_thomas(
+    transitions: np.ndarray,
+    Ei: Union[int, float, list],
+    BXL_bin_width: Union[int, float],
+    Ei_bin_width: Union[int, float] = 0.1,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Calculate the distribution of B(XL)/mean(B(XL)) values.
+
+    Parameters
+    ----------
+    transitions : np.ndarray
+        Array containing transition data for the specified
+        multipolarity.
+
+        [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+        2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+        B(XL, i->f), B(XL, f<-i)]
+
+    Ei : int, float, list
+        The initial excitation energy of the transitions where the
+        distribution will be calculated. If Ei is only a number, then a
+        bin of size 'Ei_bin_width' around Ei will be used. If Ei is a
+        list, tuple, or array with both a lower and an upper limit, then
+        all excitation energies in that interval will be used.
+
+    BXL_bin_width : int, float
+        The bin size of the BXL values for the distribution (not the Ei
+        bin size!).
+
+    Ei_bin_width : int, float
+        The size of the initial energy bin if 'Ei' is only one number.
+        Will not be used if 'Ei' is both a lower and an upper limit.
+
+    Returns
+    -------
+    BXL_bins : np.ndarray
+        The BXL bins (x values).
+
+    BXL_counts : np.ndarray
+        The number of counts in each BXL_bins bin (y values).
+    """
+    if isinstance(Ei, (list, tuple, np.ndarray)):
+        """
+        If Ei defines a lower and an upper limit.
+        """
+        BXL = np.logical_and(
+            transitions[:, 3] >= Ei[0],
+            transitions[:, 3] < Ei[-1]
+        )
+        BXL = transitions[BXL]
+    else:
+        BXL = transitions[np.abs(transitions[:, 3] - Ei) < Ei_bin_width] # Consider only levels around Ei.
+    
+    BXL = np.copy(BXL[:, 9]) # The 9th col. is the reduced decay transition probabilities.
+    BXL.sort()
+    BXL_ratio = BXL/np.mean(BXL)
+    
+    BXL_bins = np.arange(0, BXL_ratio[-1] + BXL_bin_width, BXL_bin_width)
+    n_BXL_bins = len(BXL_bins)
+    BXL_counts = np.zeros(n_BXL_bins)
+    
+    for i in range(n_BXL_bins - 1):
+        """
+        Calculate the number of transitions with BXL values between
+        BXL_bins[i] and BXL_bins[i + 1].
+        """
+        BXL_counts[i] = np.sum(BXL_bins[i] <= BXL_ratio[BXL_ratio < BXL_bins[i + 1]])
+    
+    return BXL_bins, BXL_counts
+    
+
 
 def nuclear_shell_model():
     """
