@@ -804,6 +804,7 @@ def porter_thomas(
     BXL_counts : np.ndarray
         The number of counts in each BXL_bins bin (y values).
     """
+    pt_prepare_data_time = time.perf_counter()
     if isinstance(Ei, (list, tuple, np.ndarray)):
         """
         If Ei defines a lower and an upper limit.
@@ -823,7 +824,9 @@ def porter_thomas(
     BXL_bins = np.arange(0, BXL_ratio[-1] + BXL_bin_width, BXL_bin_width)
     n_BXL_bins = len(BXL_bins)
     BXL_counts = np.zeros(n_BXL_bins)
+    pt_prepare_data_time = time.perf_counter() - pt_prepare_data_time
     
+    pt_count_time = time.perf_counter()
     for i in range(n_BXL_bins - 1):
         """
         Calculate the number of transitions with BXL values between
@@ -831,9 +834,15 @@ def porter_thomas(
         """
         BXL_counts[i] = np.sum(BXL_bins[i] <= BXL_ratio[BXL_ratio < BXL_bins[i + 1]])
     
-    return BXL_bins, BXL_counts
-    
+    pt_count_time = time.perf_counter() - pt_count_time
 
+    if flags["debug"]:
+        print("--------------------------------")
+        print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
+        print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
+        print("--------------------------------")
+
+    return BXL_bins, BXL_counts
 
 def nuclear_shell_model():
     """
