@@ -390,6 +390,38 @@ class ReadKshellOutput:
         self.debug += f"skipped -1 states in BE2: {self.negative_spin_counts[3]}\n"
         self.debug = np.array(self.debug)
 
+        if self.old_or_new == "jem":
+            """
+            'jem style' summary syntax lists all initial and final
+            excitation energies in transitions as absolute values.
+            Subtract the ground state energy to get the relative
+            energies to match the newer KSHELL summary file syntax.
+            """
+            try:
+                self.transitions_BM1[:, 3] -= self.levels[0, 0]
+                self.transitions_BM1[:, 7] -= self.levels[0, 0]
+            except IndexError:
+                """
+                No BM1 transitions.
+                """
+                pass
+            try:
+                self.transitions_BE1[:, 3] -= self.levels[0, 0]
+                self.transitions_BE1[:, 7] -= self.levels[0, 0]
+            except IndexError:
+                """
+                No BE1 transitions.
+                """
+                pass
+            try:
+                self.transitions_BE2[:, 3] -= self.levels[0, 0]
+                self.transitions_BE2[:, 7] -= self.levels[0, 0]
+            except IndexError:
+                """
+                No BE2 transitions.
+                """
+                pass
+
         if self.load_and_save_to_file:
             np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
             np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
@@ -574,8 +606,8 @@ class ReadKshellOutput:
             "M1": self.transitions_BM1,
             "E2": self.transitions_BE2,
         }
-        self.BXL_bins, self.BXL_counts = porter_thomas(transitions_dict[multipole_type], **kwargs)
-        return self.BXL_bins, self.BXL_counts
+        
+        return porter_thomas(transitions_dict[multipole_type], **kwargs)
 
     @property
     def help(self):
@@ -664,7 +696,6 @@ def loadtxt(
         List of instances with data from `KSHELL` data file as
         attributes.
     """
-    print("LOADTXT BEGINNING")
     loadtxt_time = time.perf_counter()  # Debug.
     all_fnames = None
     data = []
@@ -741,7 +772,6 @@ def loadtxt(
         """
         Only a single KSHELL data file.
         """
-        print("SINGLE SUMMARY LOAD")
         data.append(ReadKshellOutput(path, load_and_save_to_file, old_or_new))
 
     if not data:
