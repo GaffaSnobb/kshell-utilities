@@ -1,5 +1,6 @@
 import time
 from fractions import Fraction
+from typing import TextIO
 import numpy as np
 from .kshell_exceptions import KshellDataStructureError
 
@@ -14,10 +15,25 @@ def _parity_string_to_integer(parity: str):
 
     return res
 
-def _load_energy_levels(infile):
+def _load_energy_levels(infile: TextIO) -> tuple[list, int]:
     """
     Load excitation energy, spin and parity into a list of structure:
     levels = [[energy, spin, parity], ...].
+    
+    Parameters
+    ----------
+    infile : TextIO
+        The KSHELL summary file at the starting position of the level
+        data.
+
+    Returns
+    -------
+    levels : list
+        List of level data.
+        
+    negative_spin_counts : int
+        The number of negative spin levels encountered.
+
     Example
     -------
     Energy levels
@@ -59,16 +75,26 @@ def _load_energy_levels(infile):
 
     return levels, negative_spin_counts
 
-def _load_transition_probabilities_old(infile):
+def _load_transition_probabilities_old(infile: TextIO) -> tuple[list, int]:
         """
         For summary files with old syntax (pre 2021-11-24).
+
         Parameters
         ----------
-        infile:
-            The KSHELL summary file.
+        infile : TextIO
+            The KSHELL summary file at the starting position of either of
+            the transition probability sections.
+
+        Returns
+        -------
+        transitions : list
+            List of transition data.
+            
+        negative_spin_counts : int
+            The number of negative spin levels encountered.
         """
-        reduced_transition_prob_decay_list = []
         negative_spin_counts = 0
+        transitions = []
         for _ in range(2): infile.readline()
         for line in infile:
             try:
@@ -212,7 +238,7 @@ def _load_transition_probabilities_old(infile):
                 #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
                 #     reduced_transition_prob_excite
                 # ])
-                reduced_transition_prob_decay_list.append([
+                transitions.append([
                     2*spin_initial, parity_initial, idx_initial, Ex_initial,
                     2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
                     reduced_transition_prob_decay, reduced_transition_prob_excite
@@ -232,23 +258,36 @@ def _load_transition_probabilities_old(infile):
                 """
                 break
     
-        return reduced_transition_prob_decay_list, negative_spin_counts
+        return transitions, negative_spin_counts
     
-def _load_transition_probabilities(infile):
+def _load_transition_probabilities(infile: TextIO) -> tuple[list, int]:
         """
-        Example structure:
+        For summary files with new syntax (post 2021-11-24).
+
+        Parameters
+        ----------
+        infile : TextIO
+            The KSHELL summary file at the starting position of either of
+            the transition probability sections.
+
+        Returns
+        -------
+        transitions : list
+            List of transition data.
+
+        negative_spin_counts : int
+            The number of negative spin levels encountered.
+
+        Example
+        -------
         B(E2)  ( > -0.0 W.u.)  mass = 50    1 W.u. = 10.9 e^2 fm^4
         e^2 fm^4 (W.u.)
         J_i  pi_i idx_i Ex_i    J_f  pi_f idx_f Ex_f      dE         B(E2)->         B(E2)->[wu]     B(E2)<-         B(E2)<-[wu]
         5    +    1     0.036   6    +    1     0.000     0.036     70.43477980      6.43689168     59.59865983      5.44660066
         4    +    1     0.074   6    +    1     0.000     0.074     47.20641983      4.31409897     32.68136758      2.98668391
-        Parameters
-        ----------
-        infile:
-            The KSHELL summary file.
         """
-        reduced_transition_prob_decay_list = []
         negative_spin_counts = 0
+        transitions = []
         for _ in range(2): infile.readline()
         for line in infile:
             line_split = line.split()
@@ -281,17 +320,17 @@ def _load_transition_probabilities(infile):
             #     parity_final, Ex_final, E_gamma, reduced_transition_prob_decay,
             #     reduced_transition_prob_excite
             # ])
-            reduced_transition_prob_decay_list.append([
+            transitions.append([
                 2*spin_initial, parity_initial, idx_initial, Ex_initial,
                 2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
                 reduced_transition_prob_decay, reduced_transition_prob_excite
             ])
     
-        return reduced_transition_prob_decay_list, negative_spin_counts
+        return transitions, negative_spin_counts
 
-def _load_parallel(arg_list):
+def _generic_loader(arg_list):
     """
-    For parallel data loads.
+    Constructed for parallel loading, but can be used in serial as well.
     [self.fname_summary, "Energy", self._load_energy_levels, None]
     """
     fname, condition, loader, thread_idx = arg_list
@@ -302,6 +341,10 @@ def _load_parallel(arg_list):
         for line in infile:
             if condition in line:
                 ans = loader(infile)
+                break
+        else:
+            print(f"No {condition} transitions found in {fname}")
+            ans = [None], 0
     
     load_time = time.perf_counter() - load_time
     print(f"Thread {thread_idx} finished loading {condition} values in {load_time:.2f} s")
@@ -319,6 +362,7 @@ def _load_transition_probabilities_jem(infile, multipole_type="M1"):
     way infile is treated is changed to match the other loaders.
     """
     transitions = []
+    print("JEM LOADER")
     # with open(infile, 'r') as f:
     #     lines = f.readlines()
     #     i_start = -1
