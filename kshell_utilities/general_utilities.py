@@ -3,6 +3,8 @@ from typing import Union, Tuple, Optional
 from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import chi2
+from scipy.optimize import curve_fit
 from .parameters import flags
 
 def create_spin_parity_list(
@@ -767,9 +769,11 @@ def porter_thomas(
     Ei: Union[int, float, list],
     BXL_bin_width: Union[int, float],
     Ei_bin_width: Union[int, float] = 0.1,
-) -> tuple[np.ndarray, np.ndarray]:
+    return_chi2: bool = False,
+) -> tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
-    Calculate the distribution of B(XL)/mean(B(XL)) values.
+    Calculate the distribution of B(XL)/mean(B(XL)) values scaled to
+    a chi-squared distribution of 1 degree of freedom.
 
     Parameters
     ----------
@@ -796,6 +800,10 @@ def porter_thomas(
         The size of the initial energy bin if 'Ei' is only one number.
         Will not be used if 'Ei' is both a lower and an upper limit.
 
+    return_chi2 : bool
+        If True, the chi-squared distribution y values will be returned
+        as a third return value.
+
     Returns
     -------
     BXL_bins : np.ndarray
@@ -803,6 +811,9 @@ def porter_thomas(
 
     BXL_counts : np.ndarray
         The number of counts in each BXL_bins bin (y values).
+
+    rv.pdf(BXL_bins) : np.ndarray
+        The chi-squared distribution y values.
     """
     pt_prepare_data_time = time.perf_counter()
     if isinstance(Ei, (list, tuple, np.ndarray)):
@@ -836,13 +847,33 @@ def porter_thomas(
     
     pt_count_time = time.perf_counter() - pt_count_time
 
+    pt_post_process_time = time.perf_counter()
+    rv = chi2(1)
+    BXL_counts = BXL_counts[1:]
+    BXL_bins = BXL_bins[1:]
+    BXL_counts /= np.trapz(BXL_counts)  # Normalize counts.
+    # popt, _ = curve_fit(
+    #     f = lambda x, scale: scale*rv.pdf(x),
+    #     xdata = BXL_bins,
+    #     ydata = BXL_counts,
+    #     p0 = [rv.pdf(BXL_bins)[1]/BXL_counts[1]],
+    #     method = "lm",
+    # )
+    # BXL_counts *= popt[0]   # Scale counts to match chi2.
+    BXL_counts *= np.mean(rv.pdf(BXL_bins)[1:20]/BXL_counts[1:20])
+    pt_post_process_time = time.perf_counter() - pt_post_process_time
+
     if flags["debug"]:
         print("--------------------------------")
         print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
         print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
+        print(f"Porter-Thomas: Post process time: {pt_post_process_time:.3f} s")
         print("--------------------------------")
 
-    return BXL_bins, BXL_counts
+    if return_chi2:
+        return BXL_bins, BXL_counts, rv.pdf(BXL_bins)
+    else:
+        return BXL_bins, BXL_counts
 
 def nuclear_shell_model():
     """
