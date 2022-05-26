@@ -1,6 +1,6 @@
 GS_FREE_PROTON = 5.585
 GS_FREE_NEUTRON = -3.826
-flags = {"debug": False}
+flags = {"debug": False, "parallel": True}
 
 def debug_mode(switch):
     if isinstance(switch, bool):
@@ -32,4 +32,13 @@ atomic_numbers_reversed = {
     8: 'oxygen', 9: 'fluorine', 10: 'neon', 11: 'sodium', 12: 'magnesium',
     13: 'aluminium', 14: 'silicon', 15: 'phosphorus', 16: 'sulfur',
     17: 'chlorine', 18: 'argon'
+}
+
+recommended_quenching_factors = {
+    "GCLSTsdpfsdgix5pn.snt": f"0.75*GS_FREE = {round(0.75*GS_FREE_PROTON, 3), round(0.75*GS_FREE_NEUTRON, 3)}",
+    "gs8.snt": f"0.75*GS_FREE = {round(0.75*GS_FREE_PROTON, 3), round(0.75*GS_FREE_NEUTRON, 3)}",
+    "jun45.snt": f"0.7*GS_FREE = {round(0.7*GS_FREE_PROTON, 3), round(0.7*GS_FREE_NEUTRON, 3)}",
+    "gxpf1a.snt": f"0.9*GS_FREE = {round(0.9*GS_FREE_PROTON, 3), round(0.9*GS_FREE_NEUTRON, 3)}",
+    "gxpf1.snt": f"0.9*GS_FREE = {round(0.9*GS_FREE_PROTON, 3), round(0.9*GS_FREE_NEUTRON, 3)}",
+    "sdpf-mu.snt": f"0.9*GS_FREE = {round(0.9*GS_FREE_PROTON, 3), round(0.9*GS_FREE_NEUTRON, 3)}"
 }
