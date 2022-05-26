@@ -98,7 +98,6 @@ def edit_and_queue_executables():
                 elif "#SBATCH --job-name=" in line:
                     job_name_parameter += line
 
-
         if (not content) or ((not time_parameter) and (not nodes_parameter) and (not job_name_parameter)):
             print(f"Could not extract info from {elem}. Skipping ...")
             continue
