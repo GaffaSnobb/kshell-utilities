@@ -11,7 +11,6 @@ def debug_mode(switch):
 def latex_plot():
     import matplotlib.pyplot as plt
     plt.rcParams.update({
-        "backend": "pgf",
         "text.usetex": True,
         "font.family": "serif",
         "font.serif": ["roman"],
