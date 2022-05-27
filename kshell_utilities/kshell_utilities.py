@@ -679,7 +679,7 @@ class ReadKshellOutput:
                 Ei_bin_width = Ei_bin_width,
                 return_chi2 = True
             )
-            idx = np.argmin(np.abs(bins - 10))
+            idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
             bins = bins[:idx]
             counts = counts[:idx]
             chi2 = chi2[:idx]
@@ -701,9 +701,9 @@ class ReadKshellOutput:
 
         for i, color in enumerate(colors):
             bins, counts, chi2 = self.porter_thomas(
-                multipole_type = "M1",
+                multipole_type = multipole_type,
                 Ei = [Ei_range[i], Ei_range[i+1]],
-                BXL_bin_width = 0.1,
+                BXL_bin_width = BXL_bin_width,
                 return_chi2 = True
             )
             
