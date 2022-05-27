@@ -23,7 +23,7 @@ def test_spin_parity_list():
         """
         list.index raises ValueError if x is not in list.
         """
-        spin_initial = int(res.transitions_BM1[transition_idx, 3])
+        spin_initial = int(res.transitions_BM1[transition_idx, 0])
         parity_initial = int(res.transitions_BM1[transition_idx, 1])
         index = spin_parity_list.index([spin_initial, parity_initial])
 
