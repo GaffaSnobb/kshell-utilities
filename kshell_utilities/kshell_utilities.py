@@ -609,6 +609,133 @@ class ReadKshellOutput:
         
         return porter_thomas(transitions_dict[multipole_type], **kwargs)
 
+    def porter_thomas_plot(self,
+        Ei_range_min: float = 5,
+        Ei_range_max: float = 9,
+        Ei_values: Union[list, None] = None,
+        Ei_bin_width: float = 0.2,
+        BXL_bin_width: float = 0.1,
+        multipole_type: str = "M1",
+        ):
+        """
+        Porter-Thomas analysis of the reduced transition probabilities.
+        Produces a figure very similar to fig. 3.3 in JEM PhD thesis:
+        http://urn.nb.no/URN:NBN:no-79895.
+
+        Parameters
+        ----------
+        Ei_range_min : float
+            Minimum value of the initial energy range. Three equally
+            spaced intervals will be chosen from this range. Be sure to
+            choose this value to be above the discrete region. MeV.
+        
+        Ei_range_max : float
+            Maximum value of the initial energy range. Three equally
+            spaced intervals will be chosen from this range. The neutron
+            separation energy is a good choice. MeV.
+
+        Ei_values : Union[list, None]
+            List of initial energies to be used. If None, the
+            initial energies will be chosen from the Ei_range_min
+            and Ei_range_max. Values in a bin around Ei_values of size
+            Ei_bin_width will be used. Max 3 values allowed. MeV.
+
+        Ei_bin_width : float
+            Width of the initial energy bins. MeV.
+
+        BXL_bin_width : float
+            Width of the BXL bins when the BXL/mean(BXL) values are
+            counted. Unitless.
+
+        multipole_type : str
+            Choose the multipolarity of the transitions. 'E1', 'M1',
+            'E2'.
+        """
+
+        if Ei_values is None:
+            """
+            Defaults to a range defined by Ei_range_min and Ei_range_max.
+            """
+            Ei_values = np.linspace(Ei_range_min, Ei_range_max, 3)
+        
+        if len(Ei_values) > 3:
+            raise ValueError("Ei_values must be a list of length <= 3.")
+
+        colors = ["blue", "royalblue", "lightsteelblue"]
+        Ei_range = np.linspace(Ei_range_min, Ei_range_max, 4)
+        
+        fig, axd = plt.subplot_mosaic(
+            [['upper'], ['middle'], ['lower']],
+            gridspec_kw = dict(height_ratios=[1, 1, 0.7]),
+            figsize = (6.4, 8),
+            constrained_layout = True,
+            sharex = True
+        )
+        for Ei, color in zip(Ei_values, colors):
+            bins, counts, chi2 = self.porter_thomas(
+                multipole_type = multipole_type,
+                Ei = Ei,
+                BXL_bin_width = BXL_bin_width,
+                Ei_bin_width = Ei_bin_width,
+                return_chi2 = True
+            )
+            idx = np.argmin(np.abs(bins - 10))
+            bins = bins[:idx]
+            counts = counts[:idx]
+            chi2 = chi2[:idx]
+            axd["upper"].step(
+                bins,
+                counts,
+                label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
+                color = color
+            )
+    
+        axd["upper"].plot(
+            bins,
+            chi2,
+            color = "tab:green",
+            label = r"$\chi_{\nu = 1}^2$"
+        )
+        axd["upper"].legend(loc="upper right")
+        axd["upper"].set_ylabel(r"Normalised counts")
+
+        for i, color in enumerate(colors):
+            bins, counts, chi2 = self.porter_thomas(
+                multipole_type = "M1",
+                Ei = [Ei_range[i], Ei_range[i+1]],
+                BXL_bin_width = 0.1,
+                return_chi2 = True
+            )
+            
+            idx = np.argmin(np.abs(bins - 10))
+            bins = bins[:idx]
+            counts = counts[:idx]
+            chi2 = chi2[:idx]
+            
+            axd["middle"].step(
+                bins,
+                counts,
+                color = color,
+                label = r"$E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV"
+            )
+            axd["lower"].step(
+                bins,
+                counts/chi2,
+                color = color,
+                label = r"($E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV)" + r"$/\chi_{\nu = 1}^2$",
+            )
+
+        axd["middle"].plot(bins, chi2, color="tab:green", label=r"$\chi_{\nu = 1}^2$")
+        axd["middle"].legend(loc="upper right")
+        axd["middle"].set_ylabel(r"Normalised counts")
+
+        axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+        axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
+        axd["lower"].legend(loc="upper left")
+        axd["lower"].set_ylabel(r"Relative error")
+        fig.savefig(fname=f"porter_thomas_{self.nucleus}_M1.png", dpi=300)
+        plt.show()
+
     @property
     def help(self):
         """
