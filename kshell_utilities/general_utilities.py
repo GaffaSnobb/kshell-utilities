@@ -219,6 +219,11 @@ def gamma_strength_function_average(
     gSF_ExJpiavg : np.ndarray
         The gamma strength function.
     """
+    skip_counter = {    # Debug.
+        "energy_range": 0,
+        "n_states": 0,
+        "parity": 0
+    }
     total_gsf_time = time.perf_counter()
 
     allowed_filter_parities = ["+", "-", "both"]
@@ -364,6 +369,7 @@ def gamma_strength_function_average(
             """
             Check if transition is within min max limits, skip if not.
             """
+            skip_counter["energy_range"] += 1   # Debug.
             continue
 
         idx_initial = transitions[transition_idx, 2]
@@ -374,17 +380,24 @@ def gamma_strength_function_average(
             Include only 'include_n_states' number of levels. Defaults
             to np.inf (include all).
             """
+            skip_counter["n_states"] += 1   # Debug.
             continue
 
         spin_initial = transitions[transition_idx, 0]/2
         spin_final = transitions[transition_idx, 4]/2
 
         if filter_spins is not None:
-            if (spin_initial not in filter_spins) or (spin_final not in filter_spins):
+            # if (spin_initial not in filter_spins) or (spin_final not in filter_spins):
+            if spin_initial not in filter_spins:
                 """
                 Skip transitions to or from levels of total angular momentum
                 not in the filter list.
                 """
+                try:
+                    skip_counter[f"ji_{spin_initial}"] += 1
+                except KeyError:
+                    skip_counter[f"ji_{spin_initial}"] = 1
+
                 continue
 
         parity_initial = transitions[transition_idx, 1]
@@ -395,6 +408,7 @@ def gamma_strength_function_average(
             Skip initial or final parities which are not in the filter
             list.
             """
+            skip_counter["parity"] += 1
             continue
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
@@ -567,12 +581,18 @@ def gamma_strength_function_average(
 
     total_gsf_time = time.perf_counter() - total_gsf_time
     if flags["debug"]:
+        total_skips = sum(skip_counter.values())
+        n_transitions_included = n_transitions - total_skips
         print("--------------------------------")
         print(f"{transit_gsf_time = } s")
         print(f"{level_density_gsf_time = } s")
         print(f"{gsf_time = } s")
         print(f"{avg_gsf_time = } s")
         print(f"{total_gsf_time = } s")
+        print(f"{skip_counter = }")
+        print(f"{total_skips = }")
+        print(f"{n_transitions = }")
+        print(f"{n_transitions_included = }")
         print("--------------------------------")
 
     if plot:
