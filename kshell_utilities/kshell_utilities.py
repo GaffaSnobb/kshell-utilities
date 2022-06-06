@@ -430,7 +430,7 @@ class ReadKshellOutput:
             np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
-        include_n_states: int = 1000,
+        include_n_levels: int = 1000,
         filter_spins: Union[None, list] = None
         ):
         """
@@ -440,7 +440,7 @@ class ReadKshellOutput:
 
         Parameters
         ----------
-        include_n_states : int
+        include_n_levels : int
             The maximum amount of states to plot for each spin. Default
             set to a large number to indicate ≈ no limit.
 
@@ -450,13 +450,13 @@ class ReadKshellOutput:
         """
         level_plot(
             levels = self.levels,
-            include_n_states = include_n_states,
+            include_n_levels = include_n_levels,
             filter_spins = filter_spins
         )
 
     def level_density_plot(self,
             bin_width: Union[int, float] = 0.2,
-            include_n_states: Union[None, int] = None,
+            include_n_levels: Union[None, int] = None,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -473,7 +473,7 @@ class ReadKshellOutput:
         bins, density = level_density(
             levels = self.levels,
             bin_width = bin_width,
-            include_n_states = include_n_states,
+            include_n_levels = include_n_levels,
             plot = plot,
             save_plot = save_plot
         )
@@ -482,7 +482,7 @@ class ReadKshellOutput:
 
     def nld(self,
         bin_width: Union[int, float] = 0.2,
-        include_n_states: Union[None, int] = None,
+        include_n_levels: Union[None, int] = None,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -491,7 +491,7 @@ class ReadKshellOutput:
         """
         return self.level_density_plot(
             bin_width = bin_width,
-            include_n_states = include_n_states,
+            include_n_levels = include_n_levels,
             plot = plot,
             save_plot = save_plot
         )
@@ -507,10 +507,10 @@ class ReadKshellOutput:
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
-        include_n_states: Union[None, int] = None,
+        include_n_levels: Union[None, int] = None,
         filter_spins: Union[None, list] = None,
         filter_parities: str = "both",
-        porter_thomas: bool = False,
+        return_n_transitions: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -541,10 +541,10 @@ class ReadKshellOutput:
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
-            include_n_states = include_n_states,
+            include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parities = filter_parities,
-            porter_thomas = porter_thomas,
+            return_n_transitions = return_n_transitions,
             plot = plot,
             save_plot = save_plot
         )
@@ -560,10 +560,10 @@ class ReadKshellOutput:
         initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
-        include_n_states: Union[None, int] = None,
+        include_n_levels: Union[None, int] = None,
         filter_spins: Union[None, list] = None,
         filter_parities: str = "both",
-        porter_thomas: bool = False,
+        return_n_transitions: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -582,10 +582,10 @@ class ReadKshellOutput:
             initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
-            include_n_states = include_n_states,
+            include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parities = filter_parities,
-            porter_thomas = porter_thomas,
+            return_n_transitions = return_n_transitions,
             plot = plot,
             save_plot = save_plot
         )

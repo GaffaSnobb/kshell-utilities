@@ -72,10 +72,10 @@ def gamma_strength_function_average(
     initial_or_final: str = "initial",
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
-    include_n_states: Union[None, int] = None,
+    include_n_levels: Union[None, int] = None,
     filter_spins: Union[None, list] = None,
     filter_parities: str = "both",
-    porter_thomas: bool = False,
+    return_n_transitions: bool = False,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
@@ -165,9 +165,9 @@ def gamma_strength_function_average(
         alternative is to use only the non-zero values, so setting this
         parameter to False should be done with care.
 
-    include_n_states : Union[None, int]
+    include_n_levels : Union[None, int]
         The number of states per spin to include. Example:
-        include_n_states = 100 will include only the 100 lowest laying
+        include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
 
     filter_spins : Union[None, list]
@@ -178,7 +178,7 @@ def gamma_strength_function_average(
         Which parities to include in the GSF. 'both', '+', '-' are
         allowed.
 
-    porter_thomas : bool
+    return_n_transitions : bool
         Count the number of transitions, as a function of gamma energy,
         involved in the GSF calculation and return this number as a
         third return value. For calculating Porter-Thomas fluctuations
@@ -187,8 +187,8 @@ def gamma_strength_function_average(
             r(E_gamma) = sqrt(2/n(E_gamma))
 
         where n is the number of transitions for each gamma energy, used
-        to calculate the GSF. The value n is called pt_counter in the
-        code. See for example DOI: 10.1103/PhysRevC.98.054303 for
+        to calculate the GSF. The value n is called n_transitions_array
+        in the code. See for example DOI: 10.1103/PhysRevC.98.054303 for
         details.
 
     plot : bool
@@ -220,9 +220,12 @@ def gamma_strength_function_average(
         The gamma strength function.
     """
     skip_counter = {    # Debug.
-        "energy_range": 0,
-        "n_states": 0,
-        "parity": 0
+        "Transit: Energy range": 0,
+        "Transit: Number of levels": 0,
+        "Transit: Parity": 0,
+        "Level density: Energy range": 0,
+        "Level density: Number of levels": 0,
+        "Level density: Parity": 0
     }
     total_gsf_time = time.perf_counter()
 
@@ -237,8 +240,8 @@ def gamma_strength_function_average(
     elif filter_parities == "+":
         filter_parities = [+1]
 
-    if include_n_states is None:
-        include_n_states = np.inf   # Include all states.
+    if include_n_levels is None:
+        include_n_levels = np.inf   # Include all states.
 
     if (Ex_min < 0) or (Ex_max < 0):
         msg = "Ex_min and Ex_max cannot be negative!"
@@ -356,7 +359,7 @@ def gamma_strength_function_average(
     B_pixel_count = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))   # The number of transitions.
     rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))  # (Ex, Jpi) matrix to store level density
     gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))    
-    pt_counter = np.zeros(n_bins)  # Porter-Thomas counter.
+    n_transitions_array = np.zeros(n_bins, dtype=int)  # Count the number of transitions per gamma energy bin.
     transit_gsf_time = time.perf_counter()
     
     for transition_idx in range(n_transitions):
@@ -369,18 +372,18 @@ def gamma_strength_function_average(
             """
             Check if transition is within min max limits, skip if not.
             """
-            skip_counter["energy_range"] += 1   # Debug.
+            skip_counter["Transit: Energy range"] += 1   # Debug.
             continue
 
         idx_initial = transitions[transition_idx, 2]
         idx_final = transitions[transition_idx, 6]
 
-        if (idx_initial > include_n_states) or (idx_final > include_n_states):
+        if (idx_initial > include_n_levels) or (idx_final > include_n_levels):
             """
-            Include only 'include_n_states' number of levels. Defaults
+            Include only 'include_n_levels' number of levels. Defaults
             to np.inf (include all).
             """
-            skip_counter["n_states"] += 1   # Debug.
+            skip_counter["Transit: Number of levels"] += 1   # Debug.
             continue
 
         spin_initial = transitions[transition_idx, 0]/2
@@ -394,9 +397,9 @@ def gamma_strength_function_average(
                 not in the filter list.
                 """
                 try:
-                    skip_counter[f"ji_{spin_initial}"] += 1
+                    skip_counter[f"Transit: j init: {spin_initial}"] += 1
                 except KeyError:
-                    skip_counter[f"ji_{spin_initial}"] = 1
+                    skip_counter[f"Transit: j init: {spin_initial}"] = 1
 
                 continue
 
@@ -406,15 +409,15 @@ def gamma_strength_function_average(
         if (parity_initial not in filter_parities) or (parity_final not in filter_parities):
             """
             Skip initial or final parities which are not in the filter
-            list.
+            list. NOTE: Might be wrong to filter on the final parity.
             """
-            skip_counter["parity"] += 1
+            skip_counter["Transit: Parity"] += 1
             continue
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
-        pt_counter[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
+        n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
 
         """
         transitions : np.ndarray
@@ -483,23 +486,29 @@ def gamma_strength_function_average(
         if Ex[levels_idx] >= Ex_max:
             """
             Skip if level is outside range. Only upper limit since
-            decays to states below the lower limit are allowed.
+            decays to levels below the lower limit are allowed.
             """
+            skip_counter["Level density: Energy range"] += 1
             continue
         
-        if level_counter[levels_idx] > include_n_states:
+        if level_counter[levels_idx] > include_n_levels:
             """
-            Include only 'include_n_states' number of levels. Defaults
+            Include only 'include_n_levels' number of levels. Defaults
             to np.inf (include all).
             """
+            skip_counter["Level density: Number of levels"] += 1
             continue
 
         if filter_spins is not None:
-            if levels[levels_idx, 1]/2 not in filter_spins:
+            if (spin_tmp := levels[levels_idx, 1]/2) not in filter_spins:
                 """
                 Skip levels of total angular momentum not in the filter
                 list.
                 """
+                try:
+                    skip_counter[f"Level density: j: {spin_tmp}"] += 1
+                except KeyError:
+                    skip_counter[f"Level density: j: {spin_tmp}"] = 1
                 continue
 
         Ex_idx = int(Ex[levels_idx]/bin_width)
@@ -581,18 +590,28 @@ def gamma_strength_function_average(
 
     total_gsf_time = time.perf_counter() - total_gsf_time
     if flags["debug"]:
-        total_skips = sum(skip_counter.values())
-        n_transitions_included = n_transitions - total_skips
+        transit_total_skips = \
+            sum([skip_counter[key] for key in skip_counter if key.startswith("Transit")])
+        level_density_total_skips = \
+            sum([skip_counter[key] for key in skip_counter if key.startswith("Level density")])
+        n_transitions_included = n_transitions - transit_total_skips
+        n_levels_included = n_levels - level_density_total_skips
         print("--------------------------------")
         print(f"{transit_gsf_time = } s")
         print(f"{level_density_gsf_time = } s")
         print(f"{gsf_time = } s")
         print(f"{avg_gsf_time = } s")
         print(f"{total_gsf_time = } s")
-        print(f"{skip_counter = }")
-        print(f"{total_skips = }")
+        print(f"{multipole_type = }")
+        for elem in skip_counter:
+            print(f"Skips: {elem}: {skip_counter[elem]}")
+        # print(f"{skip_counter = }")
+        print(f"{transit_total_skips = }")
         print(f"{n_transitions = }")
         print(f"{n_transitions_included = }")
+        print(f"{level_density_total_skips = }")
+        print(f"{n_levels = }")
+        print(f"{n_levels_included = }")
         print("--------------------------------")
 
     if plot:
@@ -609,14 +628,14 @@ def gamma_strength_function_average(
             fig.savefig(fname=fname, dpi=300)
         plt.show()
 
-    if porter_thomas:
-        return bins, gSF_ExJpiavg, pt_counter
+    if return_n_transitions:
+        return bins, gSF_ExJpiavg, n_transitions_array
     else:
         return bins, gSF_ExJpiavg
 
 def level_plot(
     levels: np.ndarray,
-    include_n_states: int = 1_000,
+    include_n_levels: int = 1_000,
     filter_spins: Union[None, list] = None,
     ax: Union[None, plt.Axes] = None
     ):
@@ -630,7 +649,7 @@ def level_plot(
         NxM array of [[energy, spin, parity], ...]. This is the instance
         attribute 'levels' of ReadKshellOutput.
     
-    include_n_states : int
+    include_n_levels : int
         The maximum amount of states to plot for each spin. Default set
         to a large number to indicate ≈ no limit.
 
@@ -679,9 +698,9 @@ def level_plot(
         except KeyError:
             counts[spins[i]] = 1
         
-        if counts[spins[i]] > include_n_states:
+        if counts[spins[i]] > include_n_levels:
             """
-            Include only the first 'include_n_states' amount of states
+            Include only the first 'include_n_levels' amount of states
             for any of the spins.
             """
             continue
@@ -704,7 +723,7 @@ def level_plot(
 def level_density(
     levels: np.ndarray,
     bin_width: Union[int, float],
-    include_n_states: Union[None, int] = None,
+    include_n_levels: Union[None, int] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -720,9 +739,9 @@ def level_density(
     bin_width : Union[int, float]
         Energy interval of which to calculate the density.
 
-    include_n_states : Union[None, int]
+    include_n_levels : Union[None, int]
         The number of states per spin to include. Example:
-        include_n_states = 100 will include only the 100 lowest laying
+        include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
 
     plot : bool
@@ -748,9 +767,9 @@ def level_density(
         """
         energy_levels = np.array(levels)
     else:
-        if include_n_states is not None:
-            energy_levels = energy_levels[indices <= include_n_states]
-            # include_n_states = np.inf   # Include all states.
+        if include_n_levels is not None:
+            energy_levels = energy_levels[indices <= include_n_levels]
+            # include_n_levels = np.inf   # Include all states.
 
     if energy_levels[0] != 0:
         """
