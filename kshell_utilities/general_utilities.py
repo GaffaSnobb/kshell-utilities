@@ -76,8 +76,8 @@ def gamma_strength_function_average(
     filter_spins: Union[None, list] = None,
     filter_parities: str = "both",
     return_n_transitions: bool = False,
-    plot: bool = False,
-    save_plot: bool = False
+    # plot: bool = False,
+    # save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
     Calculate the gamma strength function averaged over total angular
@@ -306,7 +306,7 @@ def gamma_strength_function_average(
         msg = "'initial_or_final' must be either 'initial' or 'final'."
         msg += f" Got {initial_or_final}"
         raise ValueError(msg)
-        
+
     if abs(Ex_initial_or_final[0]) > 10:
         """
         Adjust energies relative to the ground state energy if they have
@@ -314,6 +314,7 @@ def gamma_strength_function_average(
         minus a few tens of MeV and above, so checking absolute value
         above 10 MeV is probably safe. Cant check for equality to zero
         since the initial state will never be zero.
+        NOTE: Just check if the value is negative instead?
         """
         Ex_initial_or_final -= E_ground_state
 
@@ -400,7 +401,6 @@ def gamma_strength_function_average(
                     skip_counter[f"Transit: j init: {spin_initial}"] += 1
                 except KeyError:
                     skip_counter[f"Transit: j init: {spin_initial}"] = 1
-
                 continue
 
         parity_initial = transitions[transition_idx, 1]
@@ -418,7 +418,6 @@ def gamma_strength_function_average(
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
         n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
-
         """
         transitions : np.ndarray
             OLD:
@@ -613,20 +612,6 @@ def gamma_strength_function_average(
         print(f"{n_levels = }")
         print(f"{n_levels_included = }")
         print("--------------------------------")
-
-    if plot:
-        unit_exponent = 2*int(multipole_type[-1]) + 1
-        fig, ax = plt.subplots()
-        ax.plot(bins, gSF_ExJpiavg, label=multipole_type.upper(), color="black")
-        ax.legend()
-        ax.grid()
-        ax.set_xlabel(r"E$_{\gamma}$ [MeV]")
-        ax.set_ylabel(f"$\gamma$SF [MeV$^-$$^{unit_exponent}$]")
-        if save_plot:
-            fname = f"gsf_{multipole_type}.png"
-            print(f"GSF saved as '{fname}'")
-            fig.savefig(fname=fname, dpi=300)
-        plt.show()
 
     if return_n_transitions:
         return bins, gSF_ExJpiavg, n_transitions_array
