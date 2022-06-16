@@ -15,7 +15,7 @@ setup(
     author = 'Jon Kristian Dahl',
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities', 'tests'],
-    install_requires = ['numpy', 'matplotlib'],
+    install_requires = ['numpy', 'matplotlib', 'seaborn'],
 
     classifiers = [
         'Development Status :: 5 - Production/Stable',
