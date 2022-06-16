@@ -3,6 +3,7 @@ from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import atomic_numbers, flags
 from .general_utilities import (
@@ -474,6 +475,8 @@ class ReadKshellOutput:
             include_n_levels: Union[None, int] = None,
             filter_spins: Union[None, int, list] = None,
             filter_parity: Union[None, str, int] = None,
+            E_min: Union[None, float, int] = None,
+            E_max: Union[None, float, int] = None,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -493,6 +496,8 @@ class ReadKshellOutput:
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parity = filter_parity,
+            E_min = E_min,
+            E_max = E_max,
             plot = plot,
             save_plot = save_plot
         )
@@ -504,6 +509,8 @@ class ReadKshellOutput:
         include_n_levels: Union[None, int] = None,
         filter_spins: Union[None, int, list] = None,
         filter_parity: Union[None, str, int] = None,
+        E_min: Union[None, float, int] = None,
+        E_max: Union[None, float, int] = None,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -515,6 +522,8 @@ class ReadKshellOutput:
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parity = filter_parity,
+            E_min = E_min,
+            E_max = E_max,
             plot = plot,
             save_plot = save_plot
         )
@@ -819,6 +828,129 @@ class ReadKshellOutput:
         axd["lower"].set_ylabel(r"Relative error")
         fig.savefig(fname=f"porter_thomas_{self.nucleus}_M1.png", dpi=300)
         plt.show()
+
+    def angular_momentum_distribution_plot(self,
+        bin_width: float = 0.2,
+        E_min: float = 5,
+        E_max: float = 10,
+        filter_spins: Union[None, int, float, list, tuple, np.ndarray] = None,
+        filter_parity: Union[None, int, str] = None,
+        plot: bool = True,
+        single_spin_plot: bool = None
+    ):
+        """
+        Plot the angular momentum distribution of the levels.
+        """
+        if not isinstance(single_spin_plot, (type(None), list, tuple, np.ndarray, int, float)):
+            msg = f"'single_spin_plot' must be of type: None, list, tuple, np.ndarray, int, float. Got {type(single_spin_plot)}."
+            raise TypeError(msg)
+
+        if isinstance(single_spin_plot, (int, float)):
+            single_spin_plot = [single_spin_plot]
+
+        if not isinstance(filter_parity, (type(None), int, str)):
+            msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_spins)}."
+            raise TypeError(msg)
+
+        if isinstance(filter_parity, str):
+            valid_filter_parity = ["+", "-"]
+            if filter_parity not in valid_filter_parity:
+                msg = f"Valid parity filters are: {valid_filter_parity}."
+                raise ValueError(msg)
+            
+            filter_parity = 1 if (filter_parity == "+") else -1
+
+        if filter_spins is None:
+            """
+            If no angular momentum filter, then include all angular
+            momenta in the data set.
+            """
+            angular_momenta = np.unique(self.levels[:, 1])/2
+        else:
+            if isinstance(filter_spins, (float, int)):
+                angular_momenta = [filter_spins]
+            
+            elif isinstance(filter_spins, (list, tuple, np.ndarray)):
+                angular_momenta = filter_spins
+            
+            else:
+                msg = f"'filter_spins' must be of type: None, list, int, float. Got {type(filter_spins)}."
+                raise TypeError(msg)
+        
+        n_bins = int((self.levels[-1, 0] - self.levels[0, 0] + bin_width)/bin_width)
+        n_angular_momenta = len(angular_momenta)
+        bins = np.zeros((n_bins, n_angular_momenta))
+        densities = np.zeros((n_bins, n_angular_momenta))
+
+        for i in range(n_angular_momenta):
+            bins[:, i], densities[:, i] = self.nld(
+                bin_width = bin_width,
+                filter_spins = angular_momenta[i],
+                filter_parity = filter_parity,
+                E_min = E_min,
+                E_max = E_max,
+                plot = False
+            )
+        try:
+            idx = np.where(bins[:, 0] > E_max)[0][0]
+        except IndexError:
+            idx = -1
+        
+        bins = bins[:idx]
+        densities = densities[:idx]
+
+        if filter_parity is None:
+            exponent = r"$^{\pm}$"
+        elif filter_parity == 1:
+            exponent = r"$^{+}$"
+        elif filter_parity == -1:
+            exponent = r"$^{-}$"
+
+        if single_spin_plot:
+            for j in single_spin_plot:
+                if j not in angular_momenta:
+                    msg = "Requested angular momentum is not present in the data."
+                    msg += f" Allowed values are: {angular_momenta}, got {j}."
+                    raise ValueError(msg)
+            
+            figax = []
+            for i in range(len(single_spin_plot)):
+                idx = np.where(angular_momenta == single_spin_plot[i])[0][0]  # Find the index of the angular momentum.
+
+                figax.append(plt.subplots())
+                label = r"$j^{\pi} =$" + f" {single_spin_plot[i]}" + exponent
+                figax[i][1].step(bins[:, 0], densities[:, idx], label=label, color="black")
+                figax[i][1].legend()
+                figax[i][1].set_xlabel(r"$E$ [MeV]")
+                figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
+
+        if plot:
+            fig, ax = plt.subplots()
+            ax = sns.heatmap(
+                data = densities.T[-1::-1],
+                linewidth = 0.5,
+                annot = True,
+                cmap = 'gray',
+                ax = ax,
+            )
+            xticklabels = []
+            for i in bins[:, 0]:
+                if (tmp := int(i)) == i:
+                    xticklabels.append(tmp)
+                else:
+                    xticklabels.append(round(i, 1))
+
+            ax.set_xticklabels(xticklabels)
+            ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
+            ax.set_xlabel(r"$E$ [MeV]")
+            ax.set_ylabel(r"$j$ [$\hbar$]")
+            cbar = ax.collections[0].colorbar
+            cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
+        
+        if plot or single_spin_plot:
+            plt.show()
+
+        return bins, densities
 
     @property
     def help(self):
