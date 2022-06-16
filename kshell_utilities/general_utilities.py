@@ -709,6 +709,8 @@ def level_density(
     levels: np.ndarray,
     bin_width: Union[int, float],
     include_n_levels: Union[None, int] = None,
+    filter_spins: Union[None, int, list] = None,
+    filter_parity: Union[None, str, int] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -729,6 +731,15 @@ def level_density(
         include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
 
+    filter_spins : Union[None, int, list]
+        Keep only the levels which have angular momenta in the filter.
+        If None, all angular momenta are kept. Input must be the actual
+        angular momenta values and not 2*j.
+
+    filter_parity : Union[None, str, int]
+        Keep only levels of parity 'filter_parity'. +1, -1, '+', '-'
+        allowed inputs.
+
     plot : bool
         For toggling plotting on / off.
 
@@ -742,28 +753,121 @@ def level_density(
 
     density : np.ndarray
         The level density.
+
+    Raises
+    ------
+    ValueError:
+        If a spin filter is given when energy_levels is a list of only
+        energy levels.
+
+        If filter_spins is of wrong type.
     """
-    try:
-        energy_levels = np.copy(levels[:, 0])
-        indices = levels[:, 3]  # Counter for the number of levels per spin.
-    except IndexError:
+    if not isinstance(levels, np.ndarray):
+        levels = np.array(levels)
+
+    if not isinstance(filter_spins, (int, float, list, type(None), np.ndarray)):
+        msg = f"'filter_spins' must be of type: int, float, list, None. Got {type(filter_spins)}."
+        raise TypeError(msg)
+
+    if not isinstance(include_n_levels, (int, type(None))):
+        msg = f"'include_n_levels' must be of type: int, None. Got {type(include_n_levels)}."
+        raise TypeError(msg)
+
+    if not isinstance(filter_parity, (type(None), int, str)):
+        msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_parity)}."
+        raise TypeError(msg)
+
+    if isinstance(filter_parity, str):
+        valid_filter_parity = ["+", "-"]
+        if filter_parity not in valid_filter_parity:
+            msg = f"Valid parity filters are: {valid_filter_parity}."
+            raise ValueError(msg)
+        
+        filter_parity = 1 if (filter_parity == "+") else -1
+
+    if isinstance(filter_spins, (int, float)):
+        filter_spins = [filter_spins]
+
+    if (levels.ndim == 1) and (filter_spins is not None):
+        msg = "Spin filter cannot be applied to a list of only energy levels!"
+        raise ValueError(msg)
+
+    if (levels.ndim == 1) and (include_n_levels is not None):
+        msg = "Cannot choose the number of levels per spin if 'levels' is only a list of energies!"
+        raise ValueError(msg)
+
+    if levels.ndim == 1:
         """
-        1D array / list of only energies are given.
+        'levels' only contain energy values.
         """
-        energy_levels = np.array(levels)
+        energy_levels = levels
     else:
+        """
+        'levels' is a multidimensional array on the form
+        [[E, 2*spin, parity, idx], ...].
+        """
+        energy_levels = np.copy(levels) # Copy just in case.
+        
         if include_n_levels is not None:
+            """
+            Include ony 'include_n_levels' of levels per angular
+            momentum and parity pair.
+            """
+            indices = energy_levels[:, 3]  # Counter for the number of levels per spin.
             energy_levels = energy_levels[indices <= include_n_levels]
-            # include_n_levels = np.inf   # Include all states.
 
-    if energy_levels[0] != 0:
-        """
-        Calculate energies relative to the ground state if not already
-        done.
-        """
-        energy_levels = energy_levels - energy_levels[0]
+        if filter_spins is not None:
+            """
+            filter_spins is a list of angular momenta. Inside this if
+            statement we know that 'levels' is a multidimensional array due
+            to the check inside the previous except.
+            levels: 
+            """
+            filter_spins = [2*j for j in filter_spins]  # energy_levels has 2*j to avoid fractions.
 
-    bins = np.arange(0, energy_levels[-1] + bin_width, bin_width)
+            mask_list = []
+            for j in filter_spins:
+                """
+                Create a [bool1, bool2, ...] mask for each j.
+                """
+                mask_list.append(energy_levels[:, 1] == j)
+
+            energy_levels = energy_levels[np.logical_or.reduce(mask_list)]  # Contains only levels of j in the filter.
+
+        if filter_parity is not None:
+            energy_levels = energy_levels[energy_levels[:, 2] == filter_parity]
+        
+        energy_levels = energy_levels[:, 0]
+
+    if levels.ndim == 1:
+        """
+        Decide the max value of the energy bins.
+        """
+        if levels[0] != 0:
+            """
+            Calculate energies relative to the ground state if not already
+            done.
+            """
+            energy_levels -= energy_levels[0]
+            E_max = levels[-1] - levels[0]    # The max energy of the un-filtered data set.
+        else:
+            E_max = levels[-1]
+
+    else:
+        """
+        Decide the max value of the energy bins.
+        """
+        if levels[0, 0] != 0:
+            """
+            Calculate energies relative to the ground state if not already
+            done.
+            """
+            energy_levels -= energy_levels[0]
+            E_max = levels[-1, 0] - levels[0, 0]    # The max energy of the un-filtered data set.
+        else:
+            E_max = levels[-1, 0]
+
+    bins = np.arange(0, E_max + bin_width, bin_width)
     n_bins = len(bins)
     counts = np.zeros(n_bins)
 

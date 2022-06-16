@@ -4,9 +4,14 @@ from typing import Union, Callable
 import numpy as np
 import matplotlib.pyplot as plt
 from .kshell_exceptions import KshellDataStructureError
-from .general_utilities import level_plot, level_density, gamma_strength_function_average, porter_thomas
 from .parameters import atomic_numbers, flags
-from .loaders import _generic_loader, _load_energy_levels, _load_transition_probabilities, _load_transition_probabilities_old, _load_transition_probabilities_jem
+from .general_utilities import (
+    level_plot, level_density, gamma_strength_function_average, porter_thomas
+)
+from .loaders import (
+    _generic_loader, _load_energy_levels, _load_transition_probabilities,
+    _load_transition_probabilities_old, _load_transition_probabilities_jem
+)
 
 def _generate_unique_identifier(path: str) -> str:
     """
@@ -467,6 +472,8 @@ class ReadKshellOutput:
     def level_density_plot(self,
             bin_width: Union[int, float] = 0.2,
             include_n_levels: Union[None, int] = None,
+            filter_spins: Union[None, int, list] = None,
+            filter_parity: Union[None, str, int] = None,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -484,6 +491,8 @@ class ReadKshellOutput:
             levels = self.levels,
             bin_width = bin_width,
             include_n_levels = include_n_levels,
+            filter_spins = filter_spins,
+            filter_parity = filter_parity,
             plot = plot,
             save_plot = save_plot
         )
@@ -493,6 +502,8 @@ class ReadKshellOutput:
     def nld(self,
         bin_width: Union[int, float] = 0.2,
         include_n_levels: Union[None, int] = None,
+        filter_spins: Union[None, int, list] = None,
+        filter_parity: Union[None, str, int] = None,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -502,6 +513,8 @@ class ReadKshellOutput:
         return self.level_density_plot(
             bin_width = bin_width,
             include_n_levels = include_n_levels,
+            filter_spins = filter_spins,
+            filter_parity = filter_parity,
             plot = plot,
             save_plot = save_plot
         )
