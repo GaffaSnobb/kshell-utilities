@@ -711,6 +711,8 @@ def level_density(
     include_n_levels: Union[None, int] = None,
     filter_spins: Union[None, int, list] = None,
     filter_parity: Union[None, str, int] = None,
+    E_min: Union[None, float, int] = None,
+    E_max: Union[None, float, int] = None,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -740,6 +742,14 @@ def level_density(
         Keep only levels of parity 'filter_parity'. +1, -1, '+', '-'
         allowed inputs.
 
+    E_min : Union[None, float, int]
+        Minimum energy to include in the calculation. If None, the
+        minimum energy in the levels array is used.
+
+    E_max : Union[None, float, int]
+        Maximum energy to include in the calculation. If None, the
+        maximum energy in the levels array is used.
+
     plot : bool
         For toggling plotting on / off.
 
@@ -757,10 +767,11 @@ def level_density(
     Raises
     ------
     ValueError:
-        If a spin filter is given when energy_levels is a list of only
+        If any filter is given when energy_levels is a list of only
         energy levels.
 
-        If filter_spins is of wrong type.
+    TypeError:
+        If input parameters are of the wrong type.
     """
     if not isinstance(levels, np.ndarray):
         levels = np.array(levels)
@@ -775,6 +786,14 @@ def level_density(
 
     if not isinstance(filter_parity, (type(None), int, str)):
         msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_parity)}."
+        raise TypeError(msg)
+
+    if not isinstance(E_min, (type(None), int, float)):
+        msg = f"'E_min' must be of type: None, int, float. Got {type(E_min)}."
+        raise TypeError(msg)
+
+    if not isinstance(E_max, (type(None), int, float)):
+        msg = f"'E_max' must be of type: None, int, float. Got {type(E_max)}."
         raise TypeError(msg)
 
     if isinstance(filter_parity, str):
@@ -794,6 +813,10 @@ def level_density(
 
     if (levels.ndim == 1) and (include_n_levels is not None):
         msg = "Cannot choose the number of levels per spin if 'levels' is only a list of energies!"
+        raise ValueError(msg)
+    
+    if (levels.ndim == 1) and (filter_parity is not None):
+        msg = "Parity filter cannot be applied to a list of only energy levels!"
         raise ValueError(msg)
 
     if levels.ndim == 1:
@@ -849,9 +872,9 @@ def level_density(
             done.
             """
             energy_levels -= energy_levels[0]
-            E_max = levels[-1] - levels[0]    # The max energy of the un-filtered data set.
+            bin_max = levels[-1] - levels[0]    # The max energy of the un-filtered data set.
         else:
-            E_max = levels[-1]
+            bin_max = levels[-1]
 
     else:
         """
@@ -863,11 +886,17 @@ def level_density(
             done.
             """
             energy_levels -= energy_levels[0]
-            E_max = levels[-1, 0] - levels[0, 0]    # The max energy of the un-filtered data set.
+            bin_max = levels[-1, 0] - levels[0, 0]    # The max energy of the un-filtered data set.
         else:
-            E_max = levels[-1, 0]
+            bin_max = levels[-1, 0]
 
-    bins = np.arange(0, E_max + bin_width, bin_width)
+    if E_min is not None:
+        energy_levels = energy_levels[energy_levels >= E_min]
+
+    if E_max is not None:
+        energy_levels = energy_levels[energy_levels <= E_max]
+
+    bins = np.arange(0, bin_max + bin_width, bin_width)
     n_bins = len(bins)
     counts = np.zeros(n_bins)
 
