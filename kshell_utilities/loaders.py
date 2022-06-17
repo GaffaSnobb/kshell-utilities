@@ -390,7 +390,7 @@ def _load_transition_probabilities_jem(infile: TextIO) -> tuple[list, int]:
     negative_spin_counts = 0
     transitions = []
 
-    for _ in range(2): infile.readline()
+    infile.readline()   # Skip header line.
     for line in infile:
         line_split = line.split()
         if not line_split: break
