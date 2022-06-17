@@ -19,6 +19,7 @@ def latex_plot():
         "ytick.labelsize": 15,
         "axes.labelsize": 14,
         "axes.titlesize": 15,
+        "figure.titlesize": 15
     })
 
 atomic_numbers = {
