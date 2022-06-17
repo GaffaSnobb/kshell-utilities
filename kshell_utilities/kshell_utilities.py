@@ -1,4 +1,4 @@
-import os, sys, multiprocessing, hashlib, ast, time
+import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
 from typing import Union, Callable
 import numpy as np
@@ -121,7 +121,7 @@ class ReadKshellOutput:
         self.fname_summary = None
         self.fname_ptn = None
         self.nucleus = None
-        self.model_space = None
+        self.interaction = None
         self.proton_partition = None
         self.neutron_partition = None
         self.levels = None
@@ -183,7 +183,7 @@ class ReadKshellOutput:
         fname_split = self.fname_ptn.split("/")[-1]
         fname_split = fname_split.split("_")
         self.nucleus = fname_split[0]
-        self.model_space = fname_split[1]
+        self.interaction = fname_split[1]
 
     def _read_ptn(self):
         """
@@ -288,9 +288,10 @@ class ReadKshellOutput:
         Extract nucleus and model space name.
         """
         fname_split = self.fname_summary.split("/")[-1]  # Remove path.
+        fname_split = fname_split.split(".")[0] # Remove .txt.
         fname_split = fname_split.split("_")
         self.nucleus = fname_split[1]
-        self.model_space = fname_split[2][:-4]  # Remove .txt and keep model space name.
+        self.interaction = fname_split[2]
 
     def _read_summary(self):
         """
@@ -836,10 +837,41 @@ class ReadKshellOutput:
         filter_spins: Union[None, int, float, list, tuple, np.ndarray] = None,
         filter_parity: Union[None, int, str] = None,
         plot: bool = True,
-        single_spin_plot: bool = None
+        single_spin_plot: Union[None, list, tuple, np.ndarray, int, float] = None,
+        save_plot: bool = False,
     ):
         """
         Plot the angular momentum distribution of the levels.
+
+        Parameters
+        ----------
+        bin_width : float
+            Width of the energy bins. MeV.
+
+        E_min : float
+            Minimum value of the energy range.
+
+        E_max : float
+            Maximum value of the energy range.
+
+        filter_spins : Union[None, int, float, list, tuple, np.ndarray]
+            Filter the levels by their angular momentum. If None,
+            all levels are plotted.
+
+        filter_parity : Union[None, int, str]
+            Filter the levels by their parity. If None, all levels
+            are plotted.
+
+        plot : bool
+            If True, the plot will be shown.
+        
+        single_spin_plot : Union[None, list, tuple, np.ndarray, int, float]
+            If not None, a single plot for each of the input angular
+            momenta will be shown. If an integer or float is given,
+            the plot will be shown for that angular momentum. If a
+            list is given, the plot will be shown for each
+            of the input angular momenta. If None, no plot will be
+            shown.
         """
         if not isinstance(single_spin_plot, (type(None), list, tuple, np.ndarray, int, float)):
             msg = f"'single_spin_plot' must be of type: None, list, tuple, np.ndarray, int, float. Got {type(single_spin_plot)}."
@@ -883,20 +915,26 @@ class ReadKshellOutput:
         densities = np.zeros((n_bins, n_angular_momenta))
 
         for i in range(n_angular_momenta):
-            bins[:, i], densities[:, i] = self.nld(
+            """
+            Calculate the nuclear level density for each angular
+            momentum.
+            """
+            bins[:, i], densities[:, i] = level_density(
+                levels = self.levels,
                 bin_width = bin_width,
                 filter_spins = angular_momenta[i],
                 filter_parity = filter_parity,
                 E_min = E_min,
                 E_max = E_max,
-                plot = False
+                plot = False,
+                save_plot = False
             )
         try:
             idx = np.where(bins[:, 0] > E_max)[0][0]
         except IndexError:
             idx = -1
         
-        bins = bins[:idx]
+        bins = bins[:idx]   # Remove bins of zero density.
         densities = densities[:idx]
 
         if filter_parity is None:
@@ -905,6 +943,8 @@ class ReadKshellOutput:
             exponent = r"$^{+}$"
         elif filter_parity == -1:
             exponent = r"$^{-}$"
+
+        parity_str = "+" if (filter_parity == 1) else "-"
 
         if single_spin_plot:
             for j in single_spin_plot:
@@ -923,6 +963,12 @@ class ReadKshellOutput:
                 figax[i][1].legend()
                 figax[i][1].set_xlabel(r"$E$ [MeV]")
                 figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
+
+                if save_plot:
+                    figax[i][0].savefig(
+                        f"{self.nucleus}_j={single_spin_plot[i]}{parity_str}_distribution.png",
+                        dpi = 300
+                    )
 
         if plot:
             fig, ax = plt.subplots()
@@ -944,8 +990,12 @@ class ReadKshellOutput:
             ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
+            ax.set_title(f"{self.nucleus_latex}, {self.interaction}")
             cbar = ax.collections[0].colorbar
             cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
+
+            if save_plot:
+                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=300)
         
         if plot or single_spin_plot:
             plt.show()
@@ -984,6 +1034,14 @@ class ReadKshellOutput:
         if os.path.isfile(path):
             path = path.rsplit("/", 1)[0]
         return get_parameters(path)
+
+    @property
+    def nucleus_latex(self):
+        m = re.search(r"\d+$", self.nucleus)
+        A = m.group()
+        X = self.nucleus[:m.span()[0]]
+        return r"$^{" + f"{A}" + r"}$" + f"{X}"
+
 
 def _process_kshell_output_in_parallel(args):
     """
