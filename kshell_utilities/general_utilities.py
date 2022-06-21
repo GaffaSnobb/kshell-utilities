@@ -925,6 +925,7 @@ def porter_thomas(
     transitions: np.ndarray,
     Ei: Union[int, float, list],
     BXL_bin_width: Union[int, float],
+    j_list: Union[list, None] = None,
     Ei_bin_width: Union[int, float] = 0.1,
     return_chi2: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
@@ -985,6 +986,26 @@ def porter_thomas(
     else:
         BXL = transitions[np.abs(transitions[:, 3] - Ei) < Ei_bin_width] # Consider only levels around Ei.
     
+    if j_list is not None:
+        """
+        Create a mask of j values for the transitions array. Allow only
+        entries with initial angular momenta in j_list.
+        """
+        if not isinstance(j_list, list):
+            msg = f"j_list must be of type list! Got {type(j_list)}."
+            raise TypeError(msg)
+
+        j_list = [2*j for j in j_list]  # Angular momenta are stored as 2*j to avoid fractions.
+
+        mask_list = []
+        for j in j_list:
+            """
+            Create a [bool1, bool2, ...] mask for each j.
+            """
+            mask_list.append(BXL[:, 0] == j)
+
+        BXL = BXL[np.logical_or.reduce(mask_list)]  # Contains only transitions of j in the filter.
+
     BXL = np.copy(BXL[:, 9]) # The 9th col. is the reduced decay transition probabilities.
     BXL.sort()
     BXL_ratio = BXL/np.mean(BXL)

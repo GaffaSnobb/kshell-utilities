@@ -703,7 +703,7 @@ class ReadKshellOutput:
         
         return porter_thomas(transitions_dict[multipole_type], **kwargs)
 
-    def porter_thomas_plot(self,
+    def porter_thomas_Ei_plot(self,
         Ei_range_min: float = 5,
         Ei_range_max: float = 9,
         Ei_values: Union[list, None] = None,
@@ -712,8 +712,9 @@ class ReadKshellOutput:
         multipole_type: str = "M1",
         ):
         """
-        Porter-Thomas analysis of the reduced transition probabilities.
-        Produces a figure very similar to fig. 3.3 in JEM PhD thesis:
+        Porter-Thomas analysis of the reduced transition probabilities
+        for different initial excitation energies. Produces a figure
+        very similar to fig. 3.3 in JEM PhD thesis:
         http://urn.nb.no/URN:NBN:no-79895.
 
         Parameters
@@ -766,6 +767,10 @@ class ReadKshellOutput:
             sharex = True
         )
         for Ei, color in zip(Ei_values, colors):
+            """
+            Calculate in a bin size of 'Ei_bin_width' around given Ei
+            values.
+            """
             bins, counts, chi2 = self.porter_thomas(
                 multipole_type = multipole_type,
                 Ei = Ei,
@@ -794,6 +799,9 @@ class ReadKshellOutput:
         axd["upper"].set_ylabel(r"Normalised counts")
 
         for i, color in enumerate(colors):
+            """
+            Calculate in the specified range of Ei values.
+            """
             bins, counts, chi2 = self.porter_thomas(
                 multipole_type = multipole_type,
                 Ei = [Ei_range[i], Ei_range[i+1]],
@@ -827,7 +835,152 @@ class ReadKshellOutput:
         axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
         axd["lower"].legend(loc="upper left")
         axd["lower"].set_ylabel(r"Relative error")
-        fig.savefig(fname=f"porter_thomas_{self.nucleus}_M1.png", dpi=300)
+        axd["upper"].set_title(
+            f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
+        )
+        fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type}.png", dpi=300)
+        plt.show()
+
+    def porter_thomas_j_plot(self,
+        Ex_min: float = 5,
+        Ex_max: float = 9,
+        j_lists: Union[list, None] = None,
+        BXL_bin_width: float = 0.1,
+        multipole_type: str = "M1",
+        ):
+        """
+        Porter-Thomas analysis of the reduced transition probabilities
+        for different angular momenta.
+
+        Parameters
+        ----------
+        Ex_min : float
+            Minimum value of the initial energy. MeV.
+        
+        Ex_max : float
+            Maximum value of the initial energy. MeV.
+
+        j_lists : Union[list, None]
+            Either a list of j values to compare, a list of lists of j
+            values to compare, or None where all j values available
+            will be used.
+
+        BXL_bin_width : float
+            Width of the BXL bins when the BXL/mean(BXL) values are
+            counted. Unitless.
+
+        multipole_type : str
+            Choose the multipolarity of the transitions. 'E1', 'M1',
+            'E2'.
+        """
+        transitions_dict = {
+            "E1": self.transitions_BE1,
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+        }
+        if j_lists is None:
+            j_lists = list(np.unique(transitions_dict[multipole_type][:, ]))
+        
+        elif isinstance(j_lists, list):
+            if not j_lists:
+                msg = "Please provide a list of j values or a list of lists of j values."
+                raise ValueError(msg)
+
+        else:
+            msg = f"j_lists must be of type: list, None. Got {type(j_lists)}."
+            raise TypeError(msg)
+        
+        if all(isinstance(j, list) for j in j_lists):
+            """
+            All entries in j_lists are lists.
+            """
+            pass
+        
+        elif any(isinstance(j, list) for j in j_lists):
+            """
+            Only some of the entries are lists. The case where all
+            entries are lists will be captured by the previous check.
+            """
+            msg = "j_lists cant contain a mix of lists and numbers!"
+            raise TypeError(msg)
+
+        else:
+            """
+            None of the entries are lists. Combine all numbers as a
+            single list inside j_lists.
+            """
+            if all(isinstance(j, (int, float)) for j in j_lists):
+                j_lists = [j_lists]
+            else:
+                msg = "All entries in j_lists must either all be lists or all be numbers!"
+                raise TypeError(msg)
+
+        if (j_lists_len := len(j_lists)) > 3:
+            msg = f"j_lists cannot contain more than 3 ranges of j values. Got {j_lists_len}."
+            raise ValueError(msg)
+
+        if Ex_min > Ex_max:
+            msg = "Ex_min cannot be larger than Ex_max!"
+            raise ValueError(msg)
+
+        if (Ex_min < 0) or (Ex_max < 0):
+            msg = "Ex_min and Ex_max cannot be negative!"
+            raise ValueError(msg)
+        
+        colors = ["blue", "royalblue", "lightsteelblue"]
+        
+        fig, axd = plt.subplot_mosaic(
+            [['upper'], ['lower']],
+            gridspec_kw = dict(height_ratios=[1, 0.5]),
+            figsize = (6.4, 8),
+            constrained_layout = True,
+            sharex = True
+        )
+        for j_list, color in zip(j_lists, colors):
+            """
+            Calculate for the j values in j_list (note: not in j_lists).
+            """
+            bins, counts, chi2 = self.porter_thomas(
+                multipole_type = multipole_type,
+                j_list = j_list,
+                Ei = [Ex_min, Ex_max],
+                BXL_bin_width = BXL_bin_width,
+                return_chi2 = True
+            )
+            idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
+            bins = bins[:idx]
+            counts = counts[:idx]
+            chi2 = chi2[:idx]
+            axd["upper"].step(
+                bins,
+                counts,
+                label = r"$j_i = $" + f"{j_list}",
+                color = color
+            )
+            axd["lower"].step(
+                bins,
+                counts/chi2,
+                color = color,
+                label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+            )
+    
+        axd["upper"].plot(
+            bins,
+            chi2,
+            color = "tab:green",
+            label = r"$\chi_{\nu = 1}^2$"
+        )
+        axd["upper"].legend(loc="upper right")
+        axd["upper"].set_ylabel(r"Normalised counts")
+
+        axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+        axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
+        axd["lower"].legend(loc="upper left")
+        axd["lower"].set_ylabel(r"Relative error")
+        axd["upper"].set_title(
+            f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
+        )
+        fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type}.png", dpi=300)
         plt.show()
 
     def angular_momentum_distribution_plot(self,
@@ -1041,7 +1194,6 @@ class ReadKshellOutput:
         A = m.group()
         X = self.nucleus[:m.span()[0]]
         return r"$^{" + f"{A}" + r"}$" + f"{X}"
-
 
 def _process_kshell_output_in_parallel(args):
     """
