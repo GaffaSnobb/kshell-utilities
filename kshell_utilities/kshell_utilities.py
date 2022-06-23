@@ -1186,49 +1186,66 @@ class ReadKshellOutput:
         total_B : np.ndarray
             The sum over every partial B value for each level.
         """
-        transitions_dict = {
-            "E1": self.transitions_BE1,
-            "M1": self.transitions_BM1,
-            "E2": self.transitions_BE2,
-        }
         total_time = time.perf_counter()
-        transitions = transitions_dict[multipole_type]
 
-        if filter_spins is None:
-            initial_j = np.unique(transitions[:, 0])
+        is_loaded = False
+        B_unique_string = f"{multipole_type}{filter_spins}{filter_parity}"
+        B_unique_id = hashlib.sha1((B_unique_string).encode()).hexdigest()
+        B_fname = f"{self.npy_path}/{self.base_fname}_Bdist_{B_unique_id}_{self.unique_id}.npy"
+
+        if os.path.isfile(B_fname) and self.load_and_save_to_file:
+            total_B = np.load(file=B_fname, allow_pickle=True)
+            msg = f"{self.nucleus} {multipole_type} B distribution data loaded from .npy!"
+            print(msg)
+            is_loaded = True
+
         else:
-            initial_j = filter_spins
-        
-        if filter_parity is None:
-            initial_pi = [-1, 1]
-        else:
-            initial_pi = [filter_parity]
-        
-        initial_indices = np.unique(transitions[:, 2]).astype(int)
-        
-        total_B = []    # The sum of every partial B value for each level.
-        idxi_masks = []
-        pii_masks = []
-        ji_masks = []
+            transitions_dict = {
+                "E1": self.transitions_BE1,
+                "M1": self.transitions_BM1,
+                "E2": self.transitions_BE2,
+            }
+            transitions = transitions_dict[multipole_type]
 
-        mask_time = time.perf_counter()
-        for idxi in initial_indices:
-            idxi_masks.append(transitions[:, 2] == idxi)
+            if filter_spins is None:
+                initial_j = np.unique(transitions[:, 0])
+            else:
+                initial_j = filter_spins
+            
+            if filter_parity is None:
+                initial_pi = [-1, 1]
+            else:
+                initial_pi = [filter_parity]
+            
+            initial_indices = np.unique(transitions[:, 2]).astype(int)
+            
+            total_B = []    # The sum of every partial B value for each level.
+            idxi_masks = []
+            pii_masks = []
+            ji_masks = []
 
-        for pii in initial_pi:
-            pii_masks.append(transitions[:, 1] == pii)
+            mask_time = time.perf_counter()
+            for idxi in initial_indices:
+                idxi_masks.append(transitions[:, 2] == idxi)
 
-        for ji in initial_j:
-            ji_masks.append(transitions[:, 0] == ji)
-        mask_time = time.perf_counter() - mask_time
+            for pii in initial_pi:
+                pii_masks.append(transitions[:, 1] == pii)
 
-        for pii in pii_masks:
-            for idxi in idxi_masks:
-                for ji in ji_masks:
-                    mask = np.logical_and(ji, np.logical_and(pii, idxi))
-                    total_B.append(np.sum(transitions[mask][:, 9]))   # 9 is B decay
+            for ji in initial_j:
+                ji_masks.append(transitions[:, 0] == ji)
+            mask_time = time.perf_counter() - mask_time
+
+            for pii in pii_masks:
+                for idxi in idxi_masks:
+                    for ji in ji_masks:
+                        mask = np.logical_and(ji, np.logical_and(pii, idxi))
+                        total_B.append(np.sum(transitions[mask][:, 9]))   # 9 is B decay
 
         total_B = np.asarray(total_B)
+        
+        if self.load_and_save_to_file and not is_loaded:
+            np.save(file=B_fname, arr=total_B, allow_pickle=True)
+        
         total_time = time.perf_counter() - total_time
 
         if flags["debug"]:
