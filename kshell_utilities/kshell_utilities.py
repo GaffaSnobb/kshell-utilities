@@ -1,6 +1,7 @@
 import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
 from typing import Union, Callable
+from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -1159,6 +1160,8 @@ class ReadKshellOutput:
         multipole_type: str = "M1",
         filter_spins: Union[None, list] = None,
         filter_parity: Union[None, int] = None,
+        filter_indices: Union[None, int, list] = None,
+        partial_or_total: str = "partial",
         plot: bool = True
     ) -> np.ndarray:
         """
@@ -1178,6 +1181,11 @@ class ReadKshellOutput:
             Filter the levels by their parity. If None, both parities
             are included.
 
+        partial_or_total : str
+            If total, then all partial B values will be summed per
+            level. If partial, then the distribution of all partial B
+            values will be generated.
+
         plot : bool
             If True, the plot will be shown.
 
@@ -1189,7 +1197,7 @@ class ReadKshellOutput:
         total_time = time.perf_counter()
 
         is_loaded = False
-        B_unique_string = f"{multipole_type}{filter_spins}{filter_parity}"
+        B_unique_string = f"{multipole_type}{filter_spins}{filter_parity}{filter_indices}{partial_or_total}"
         B_unique_id = hashlib.sha1((B_unique_string).encode()).hexdigest()
         B_fname = f"{self.npy_path}/{self.base_fname}_Bdist_{B_unique_id}_{self.unique_id}.npy"
 
@@ -1210,14 +1218,19 @@ class ReadKshellOutput:
             if filter_spins is None:
                 initial_j = np.unique(transitions[:, 0])
             else:
-                initial_j = filter_spins
+                initial_j = [2*j for j in filter_spins]
             
             if filter_parity is None:
                 initial_pi = [-1, 1]
             else:
                 initial_pi = [filter_parity]
-            
-            initial_indices = np.unique(transitions[:, 2]).astype(int)
+
+            if filter_indices is None:
+                initial_indices = np.unique(transitions[:, 2]).astype(int)
+            elif isinstance(filter_indices, list):
+                initial_indices = [int(i) for i in filter_indices]
+            elif isinstance(filter_indices, int):
+                initial_indices = [filter_indices]
             
             total_B = []    # The sum of every partial B value for each level.
             idxi_masks = []
@@ -1239,7 +1252,21 @@ class ReadKshellOutput:
                 for idxi in idxi_masks:
                     for ji in ji_masks:
                         mask = np.logical_and(ji, np.logical_and(pii, idxi))
-                        total_B.append(np.sum(transitions[mask][:, 9]))   # 9 is B decay
+                        # total_B.append(np.sum(transitions[mask][:, 9]))   # 9 is B decay
+                        total_B.append(transitions[mask][:, 9])   # 9 is B decay
+
+            if partial_or_total == "total":
+                """
+                Sum partial B values to get total B values.
+                """
+                for i in range(len(total_B)):
+                    total_B[i] = sum(total_B[i])
+            
+            elif partial_or_total == "partial":
+                """
+                Keep a 1D list of partial B values.
+                """
+                total_B = list(chain.from_iterable(total_B))
 
         total_B = np.asarray(total_B)
         
@@ -1249,7 +1276,7 @@ class ReadKshellOutput:
         total_time = time.perf_counter() - total_time
 
         if flags["debug"]:
-            print(f"B_distribution {mask_time = :.4f}")
+            if not is_loaded: print(f"B_distribution {mask_time = :.4f}")
             print(f"B_distribution {total_time = :.4f}")
 
         if plot:
