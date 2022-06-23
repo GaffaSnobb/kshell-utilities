@@ -1155,6 +1155,93 @@ class ReadKshellOutput:
 
         return bins, densities
 
+    def B_distribution(self,
+        multipole_type: str = "M1",
+        filter_spins: Union[None, list] = None,
+        filter_parity: Union[None, int] = None,
+        plot: bool = True
+    ) -> np.ndarray:
+        """
+        Plot a histogram of the distribution of B values.
+
+        Parameters
+        ----------
+        multipole_type : str
+            Choose the multipolarity of the transitions. 'E1', 'M1',
+            'E2'.
+        
+        filter_spins : Union[None, list]
+            Filter the levels by their angular momentum. If None,
+            all levels are included.
+
+        filter_parity : Union[None, int]
+            Filter the levels by their parity. If None, both parities
+            are included.
+
+        plot : bool
+            If True, the plot will be shown.
+
+        Returns
+        -------
+        total_B : np.ndarray
+            The sum over every partial B value for each level.
+        """
+        transitions_dict = {
+            "E1": self.transitions_BE1,
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+        }
+        total_time = time.perf_counter()
+        transitions = transitions_dict[multipole_type]
+
+        if filter_spins is None:
+            initial_j = np.unique(transitions[:, 0])
+        else:
+            initial_j = filter_spins
+        
+        if filter_parity is None:
+            initial_pi = [-1, 1]
+        else:
+            initial_pi = [filter_parity]
+        
+        initial_indices = np.unique(transitions[:, 2]).astype(int)
+        
+        total_B = []    # The sum of every partial B value for each level.
+        idxi_masks = []
+        pii_masks = []
+        ji_masks = []
+
+        mask_time = time.perf_counter()
+        for idxi in initial_indices:
+            idxi_masks.append(transitions[:, 2] == idxi)
+
+        for pii in initial_pi:
+            pii_masks.append(transitions[:, 1] == pii)
+
+        for ji in initial_j:
+            ji_masks.append(transitions[:, 0] == ji)
+        mask_time = time.perf_counter() - mask_time
+
+        for pii in pii_masks:
+            for idxi in idxi_masks:
+                for ji in ji_masks:
+                    mask = np.logical_and(ji, np.logical_and(pii, idxi))
+                    total_B.append(np.sum(transitions[mask][:, 9]))   # 9 is B decay
+
+        total_B = np.asarray(total_B)
+        total_time = time.perf_counter() - total_time
+
+        if flags["debug"]:
+            print(f"B_distribution {mask_time = :.4f}")
+            print(f"B_distribution {total_time = :.4f}")
+
+        if plot:
+            plt.hist(total_B, bins=100, color="black")
+            plt.xlabel(r"$B(" + f"{multipole_type}" + r")$")
+            plt.show()
+
+        return total_B
+
     @property
     def help(self):
         """
