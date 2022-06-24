@@ -1,6 +1,7 @@
 import sys, time, warnings
 from typing import Union, Tuple, Optional
 from fractions import Fraction
+from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
@@ -88,6 +89,8 @@ def gamma_strength_function_average(
     
     TODO: Figure out the pre-factors.
     TODO: Use numpy.logical_or to filter levels and transitions to avoid
+    TODO: Make res.transitions_BXL.ji, res.transitions_BXL.pii, etc.
+    class attributes (properties).
     using many if statements in the loops.
 
     Parameters
@@ -978,11 +981,11 @@ def porter_thomas(
         """
         If Ei defines a lower and an upper limit.
         """
-        BXL = np.logical_and(
+        Ei_mask = np.logical_and(
             transitions[:, 3] >= Ei[0],
             transitions[:, 3] < Ei[-1]
         )
-        BXL = transitions[BXL]
+        BXL = transitions[Ei_mask]
     else:
         BXL = transitions[np.abs(transitions[:, 3] - Ei) < Ei_bin_width] # Consider only levels around Ei.
     
@@ -1006,11 +1009,51 @@ def porter_thomas(
 
         BXL = BXL[np.logical_or.reduce(mask_list)]  # Contains only transitions of j in the filter.
 
-    BXL = np.copy(BXL[:, 9]) # The 9th col. is the reduced decay transition probabilities.
+    # BXL = np.copy(BXL[:, 9]) # The 9th col. is the reduced decay transition probabilities.
+    n_BXL_before = len(BXL)
+    idxi_masks = []
+    pii_masks = []
+    ji_masks = []
+    BXL_tmp = []
+
+    initial_indices = np.unique(BXL[:, 2]).astype(int)
+    initial_parities = np.unique(BXL[:, 1]).astype(int)
+    initial_j = np.unique(BXL[:, 0])
+
+    for idxi in initial_indices:
+        idxi_masks.append(BXL[:, 2] == idxi)
+
+    for pii in initial_parities:
+        pii_masks.append(BXL[:, 1] == pii)
+
+    for ji in initial_j:
+        ji_masks.append(BXL[:, 0] == ji)
+
+    for pii in pii_masks:
+        for idxi in idxi_masks:
+            for ji in ji_masks:
+                mask = np.logical_and(ji, np.logical_and(pii, idxi))
+                tmp = BXL[mask][:, 9]   # 9 is B decay.
+                if not tmp.size:
+                    """
+                    Some combinations of masks might not match any
+                    levels.
+                    """
+                    continue
+
+                BXL_tmp.extend(tmp/tmp.mean())
+
+    BXL = np.asarray(BXL_tmp)
     BXL.sort()
-    BXL_ratio = BXL/np.mean(BXL)
-    
-    BXL_bins = np.arange(0, BXL_ratio[-1] + BXL_bin_width, BXL_bin_width)
+    # BXL = BXL/np.mean(BXL)
+    n_BXL_after = len(BXL)
+
+    if n_BXL_before != n_BXL_after:
+        msg = "The number of BXL values has changed during the Porter-Thomas analysis!"
+        msg += f" This should not happen! {n_BXL_before = }, {n_BXL_after = }."
+        raise RuntimeError(msg)
+
+    BXL_bins = np.arange(0, BXL[-1] + BXL_bin_width, BXL_bin_width)
     n_BXL_bins = len(BXL_bins)
     BXL_counts = np.zeros(n_BXL_bins)
     pt_prepare_data_time = time.perf_counter() - pt_prepare_data_time
@@ -1021,7 +1064,7 @@ def porter_thomas(
         Calculate the number of transitions with BXL values between
         BXL_bins[i] and BXL_bins[i + 1].
         """
-        BXL_counts[i] = np.sum(BXL_bins[i] <= BXL_ratio[BXL_ratio < BXL_bins[i + 1]])
+        BXL_counts[i] = np.sum(BXL_bins[i] <= BXL[BXL < BXL_bins[i + 1]])
     
     pt_count_time = time.perf_counter() - pt_count_time
 
