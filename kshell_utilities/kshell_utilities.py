@@ -884,21 +884,21 @@ class ReadKshellOutput:
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
         """
-        transitions_dict = {
-            "E1": self.transitions_BE1,
-            "M1": self.transitions_BM1,
-            "E2": self.transitions_BE2,
-        }
-        if j_lists is None:
-            j_lists = list(np.unique(transitions_dict[multipole_type][:, ]))
+        # transitions_dict = {
+        #     "E1": self.transitions_BE1,
+        #     "M1": self.transitions_BM1,
+        #     "E2": self.transitions_BE2,
+        # }
+        # if j_lists is None:
+        #     j_lists = list(np.unique(transitions_dict[multipole_type][:, 0]))
         
-        elif isinstance(j_lists, list):
+        if isinstance(j_lists, list):
             if not j_lists:
                 msg = "Please provide a list of j values or a list of lists of j values."
                 raise ValueError(msg)
 
         else:
-            msg = f"j_lists must be of type: list, None. Got {type(j_lists)}."
+            msg = f"j_lists must be a list. Got {type(j_lists)}."
             raise TypeError(msg)
         
         if all(isinstance(j, list) for j in j_lists):
@@ -1006,6 +1006,21 @@ class ReadKshellOutput:
         See the docstring of _porter_thomas_j_plot_calculator for the
         rest of the descriptions.
         """
+        transitions_dict = {
+            "E1": self.transitions_BE1,
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+        }
+        if j_lists is None:
+            """
+            Default j_lists values.
+            """
+            j_lists = []
+            for elem in np.unique(transitions_dict[multipole_type][:, 0]):
+                j_lists.append([int(elem/2)])
+
+            j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
+
         colors = ["blue", "royalblue", "lightsteelblue"]
         if isinstance(multipole_type, str):
             multipole_type = [multipole_type]
