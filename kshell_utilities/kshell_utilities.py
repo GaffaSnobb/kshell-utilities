@@ -44,13 +44,19 @@ def _generate_unique_identifier(path: str) -> str:
             Loop over all elements in the directory and find the shell
             script and save_input file.
             """
-            if elem.endswith(".sh"):
-                with open(f"{directory}/{elem}", "r") as infile:
-                    shell_file_content += infile.read()
-            # elif elem.endswith(".input"):
-            elif "save_input_ui.txt" in elem:
-                with open(f"{directory}/{elem}", "r") as infile:
-                    save_input_content += infile.read()
+            try:
+                if elem.endswith(".sh"):
+                    with open(f"{directory}/{elem}", "r") as infile:
+                        shell_file_content += infile.read()
+                # elif elem.endswith(".input"):
+                elif "save_input_ui.txt" in elem:
+                    with open(f"{directory}/{elem}", "r") as infile:
+                        save_input_content += infile.read()
+            except UnicodeDecodeError:
+                msg = f"Skipping {elem} for tmp file unique identifier due to UnicodeDecodeError."
+                msg += " Are you sure this file is supposed to be in this directory?"
+                print(msg)
+                continue
     else:
         print(msg)
 
@@ -711,6 +717,7 @@ class ReadKshellOutput:
         Ei_bin_width: float = 0.2,
         BXL_bin_width: float = 0.1,
         multipole_type: str = "M1",
+        set_title: bool = True
         ):
         """
         Porter-Thomas analysis of the reduced transition probabilities
@@ -746,6 +753,9 @@ class ReadKshellOutput:
         multipole_type : str
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
+
+        set_title: bool
+            Toggle figure title on / off. Defaults to True (on).
         """
 
         if Ei_values is None:
@@ -836,22 +846,22 @@ class ReadKshellOutput:
         axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
         axd["lower"].legend(loc="upper left")
         axd["lower"].set_ylabel(r"Relative error")
-        axd["upper"].set_title(
-            f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
-        )
+        if set_title:
+            axd["upper"].set_title(
+                f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
+            )
         fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type}.png", dpi=300)
         plt.show()
 
-    def porter_thomas_j_plot(self,
-        Ex_min: float = 5,
-        Ex_max: float = 9,
-        j_lists: Union[list, None] = None,
-        BXL_bin_width: float = 0.1,
-        multipole_type: str = "M1",
+    def _porter_thomas_j_plot_calculator(self,
+        Ex_min: float,
+        Ex_max: float,
+        j_lists: Union[list, None],
+        BXL_bin_width: float,
+        multipole_type: str,
         ):
         """
-        Porter-Thomas analysis of the reduced transition probabilities
-        for different angular momenta.
+        Really just a wrapper to self.porter_thomas with j checks.
 
         Parameters
         ----------
@@ -928,16 +938,19 @@ class ReadKshellOutput:
             msg = "Ex_min and Ex_max cannot be negative!"
             raise ValueError(msg)
         
-        colors = ["blue", "royalblue", "lightsteelblue"]
+        # colors = ["blue", "royalblue", "lightsteelblue"]
         
-        fig, axd = plt.subplot_mosaic(
-            [['upper'], ['lower']],
-            gridspec_kw = dict(height_ratios=[1, 0.5]),
-            figsize = (6.4, 8),
-            constrained_layout = True,
-            sharex = True
-        )
-        for j_list, color in zip(j_lists, colors):
+        # fig, axd = plt.subplot_mosaic(
+        #     [['upper'], ['lower']],
+        #     gridspec_kw = dict(height_ratios=[1, 0.5]),
+        #     figsize = (6.4, 8),
+        #     constrained_layout = True,
+        #     sharex = True
+        # )
+        binss = []
+        countss = []
+        chi2s = []
+        for j_list in j_lists:
             """
             Calculate for the j values in j_list (note: not in j_lists).
             """
@@ -949,38 +962,225 @@ class ReadKshellOutput:
                 return_chi2 = True
             )
             idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            bins = bins[:idx]
-            counts = counts[:idx]
-            chi2 = chi2[:idx]
-            axd["upper"].step(
-                bins,
-                counts,
-                label = r"$j_i = $" + f"{j_list}",
-                color = color
-            )
-            axd["lower"].step(
-                bins,
-                counts/chi2,
-                color = color,
-                label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
-            )
-    
-        axd["upper"].plot(
-            bins,
-            chi2,
-            color = "tab:green",
-            label = r"$\chi_{\nu = 1}^2$"
-        )
-        axd["upper"].legend(loc="upper right")
-        axd["upper"].set_ylabel(r"Normalised counts")
+            # bins = bins[:idx]
+            # counts = counts[:idx]
+            # chi2 = chi2[:idx]
+            binss.append(bins[:idx])
+            countss.append(counts[:idx])
+            chi2s.append(chi2[:idx])
 
-        axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
-        axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
-        axd["lower"].legend(loc="upper left")
-        axd["lower"].set_ylabel(r"Relative error")
-        axd["upper"].set_title(
-            f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
-        )
+        return binss, countss, chi2s
+
+        # self._porter_thomas_j_plot_plotter(
+        #     binss = binss,
+        #     countss = countss,
+        #     chi2s = chi2s,
+        #     j_lists = j_lists,
+        #     colors = colors,
+        #     set_title = set_title,
+        #     multipole_type = multipole_type
+        # )
+
+    def porter_thomas_j_plot(self,
+        Ex_min: float = 5,
+        Ex_max: float = 9,
+        j_lists: Union[list, None] = None,
+        BXL_bin_width: float = 0.1,
+        multipole_type: Union[str, list] = "M1",
+        include_relative_difference: bool = True,
+        set_title: bool = True
+        ):
+        """
+        Porter-Thomas analysis of the reduced transition probabilities
+        for different angular momenta.
+
+        Parameter
+        ---------
+        multipole_type : Union[str, list]
+            Choose the multipolarity of the transitions. 'E1', 'M1',
+            'E2'. Accepts a list of max 2 multipolarities.
+
+        set_title : bool
+            Toggle plot title on / off.
+
+        See the docstring of _porter_thomas_j_plot_calculator for the
+        rest of the descriptions.
+        """
+        colors = ["blue", "royalblue", "lightsteelblue"]
+        if isinstance(multipole_type, str):
+            multipole_type = [multipole_type]
+        
+        elif isinstance(multipole_type, list):
+            pass
+        
+        else:
+            msg = f"multipole_type must be str or list. Got {type(multipole_type)}."
+            raise TypeError(msg)
+
+        if len(multipole_type) == 1:
+            if include_relative_difference:
+                fig, axd = plt.subplot_mosaic(
+                    [['upper'], ['lower']],
+                    gridspec_kw = dict(height_ratios=[1, 0.5]),
+                    figsize = (6.4, 8),
+                    constrained_layout = True,
+                    sharex = True
+                )
+            else:
+                fig, axd = plt.subplot_mosaic(
+                    [['upper']],
+                    gridspec_kw = dict(height_ratios=[1]),
+                    # figsize = (6.4, 8),
+                    constrained_layout = True,
+                    sharex = True
+                )
+
+            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+                Ex_min = Ex_min,
+                Ex_max = Ex_max,
+                j_lists = j_lists,
+                BXL_bin_width = BXL_bin_width,
+                multipole_type = multipole_type[0],
+            )
+
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+                axd["upper"].step(
+                    bins,
+                    counts,
+                    label = r"$j_i = $" + f"{j_list}",
+                    color = color
+                )
+                if include_relative_difference:
+                    axd["lower"].step(
+                        bins,
+                        counts/chi2,
+                        color = color,
+                        label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+                    )
+        
+            axd["upper"].plot(
+                bins,
+                chi2,
+                color = "tab:green",
+                label = r"$\chi_{\nu = 1}^2$"
+            )
+            axd["upper"].legend(loc="upper right")
+            axd["upper"].set_ylabel(r"Normalised counts")
+            if set_title:
+                axd["upper"].set_title(
+                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
+                )
+
+            if include_relative_difference:
+                axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+                axd["lower"].legend(loc="upper left")
+                axd["lower"].set_ylabel(r"Relative error")
+                axd["lower"].set_xlabel(
+                    r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
+                )
+            else:
+                axd["upper"].set_xlabel(
+                    r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
+                )
+
+        elif len(multipole_type) == 2:
+            fig, axd = plt.subplot_mosaic(
+                [['upper left', 'upper right'], ['lower left', 'lower right']],
+                gridspec_kw = dict(height_ratios=[1, 0.5]),
+                figsize = (10, 8),
+                constrained_layout = True,
+                sharex = True
+            )
+            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+                Ex_min = Ex_min,
+                Ex_max = Ex_max,
+                j_lists = j_lists,
+                BXL_bin_width = BXL_bin_width,
+                multipole_type = multipole_type[0],
+            )
+
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+                axd["upper left"].step(
+                    bins,
+                    counts,
+                    label = r"$j_i = $" + f"{j_list}",
+                    color = color
+                )
+                axd["lower left"].step(
+                    bins,
+                    counts/chi2,
+                    color = color,
+                    label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+                )
+        
+            axd["upper left"].plot(
+                bins,
+                chi2,
+                color = "tab:green",
+                label = r"$\chi_{\nu = 1}^2$"
+            )
+            axd["upper left"].legend(loc="upper right")
+            axd["upper left"].set_ylabel(r"Normalised counts")
+
+            axd["lower left"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+            axd["lower left"].set_xlabel(
+                r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
+            )
+            axd["lower left"].legend(loc="upper left")
+            axd["lower left"].set_ylabel(r"Relative error")
+            if set_title:
+                axd["upper left"].set_title(
+                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
+                )
+
+            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+                Ex_min = Ex_min,
+                Ex_max = Ex_max,
+                j_lists = j_lists,
+                BXL_bin_width = BXL_bin_width,
+                multipole_type = multipole_type[1],
+            )
+
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+                axd["upper right"].step(
+                    bins,
+                    counts,
+                    label = r"$j_i = $" + f"{j_list}",
+                    color = color
+                )
+                axd["lower right"].step(
+                    bins,
+                    counts/chi2,
+                    color = color,
+                    label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+                )
+        
+            axd["upper right"].plot(
+                bins,
+                chi2,
+                color = "tab:green",
+                label = r"$\chi_{\nu = 1}^2$"
+            )
+            # axd["upper right"].legend(loc="upper right")
+            axd["upper right"].set_yticklabels([])
+            axd["upper right"].set_ylim(axd["upper left"].get_ylim())
+
+            axd["lower right"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+            axd["lower right"].set_xlabel(
+                r"$B(" + f"{multipole_type[1]}" + r")/\langle B(" + f"{multipole_type[1]}" + r") \rangle$"
+            )
+            # axd["lower right"].legend(loc="upper left")
+            axd["lower right"].set_yticklabels([])
+            axd["lower right"].set_ylim(axd["lower left"].get_ylim())
+            if set_title:
+                axd["upper right"].set_title(
+                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
+                )
+        else:
+            msg = "Only 1 and 2 multipole types may be given at the same time!"
+            msg += f" Got {len(multipole_type)}."
+            raise ValueError(msg)
+
         fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type}.png", dpi=300)
         plt.show()
 
@@ -1157,18 +1357,23 @@ class ReadKshellOutput:
         return bins, densities
 
     def B_distribution(self,
+        partial_or_total: str,
         multipole_type: str = "M1",
         filter_spins: Union[None, list] = None,
         filter_parity: Union[None, int] = None,
         filter_indices: Union[None, int, list] = None,
-        partial_or_total: str = "partial",
-        plot: bool = True
+        plot: bool = True,
     ) -> np.ndarray:
         """
         Plot a histogram of the distribution of B values.
 
         Parameters
         ----------
+        partial_or_total : str
+            If total, then all partial B values will be summed per
+            level. If partial, then the distribution of all partial B
+            values will be generated.
+
         multipole_type : str
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
@@ -1180,11 +1385,6 @@ class ReadKshellOutput:
         filter_parity : Union[None, int]
             Filter the levels by their parity. If None, both parities
             are included.
-
-        partial_or_total : str
-            If total, then all partial B values will be summed per
-            level. If partial, then the distribution of all partial B
-            values will be generated.
 
         plot : bool
             If True, the plot will be shown.
