@@ -1,7 +1,6 @@
 import sys, time, warnings
 from typing import Union, Tuple, Optional
 from fractions import Fraction
-from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
@@ -1070,9 +1069,10 @@ def porter_thomas(
 
     pt_post_process_time = time.perf_counter()
     rv = chi2(1)
-    BXL_counts = BXL_counts[1:]
+    BXL_counts = BXL_counts[1:] # Exclude the first data point because chi2(1) goes to infinity and is hard to work with there.
     BXL_bins = BXL_bins[1:]
-    BXL_counts /= np.trapz(BXL_counts)  # Normalize counts.
+    n_BXL_bins -= 1
+    # BXL_counts_normalised = BXL_counts/np.trapz(BXL_counts)  # Normalize counts.
     # popt, _ = curve_fit(
     #     f = lambda x, scale: scale*rv.pdf(x),
     #     xdata = BXL_bins,
@@ -1081,6 +1081,15 @@ def porter_thomas(
     #     method = "lm",
     # )
     # BXL_counts *= popt[0]   # Scale counts to match chi2.
+    # BXL_counts_normalised *= np.mean(rv.pdf(BXL_bins)[1:20]/BXL_counts_normalised[1:20])
+    """
+    Normalise BXL_counts to the chi2(1) distribution, ie. find a
+    coefficient which makes BXL_counts become chi2(1) by
+    BXL_counts*chi2(1)/BXL_counts = chi2(1). Since any single point in
+    the BXL distribution might over or undershoot chi2(1), I have chosen
+    to use the mean of 19 ([1:20] slice, pretty arbitrary chosen) of
+    these values to make a more stable normalisation coefficient.
+    """
     BXL_counts *= np.mean(rv.pdf(BXL_bins)[1:20]/BXL_counts[1:20])
     pt_post_process_time = time.perf_counter() - pt_post_process_time
 
@@ -1089,11 +1098,16 @@ def porter_thomas(
         print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
         print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
         print(f"Porter-Thomas: Post process time: {pt_post_process_time:.3f} s")
+        print(f"{sum(BXL_counts) = }")
+        print(f"{Ei = }")
+        print(f"{Ei_bin_width = }")
         print("--------------------------------")
 
     if return_chi2:
+        # return BXL_bins, BXL_counts_normalised, rv.pdf(BXL_bins)
         return BXL_bins, BXL_counts, rv.pdf(BXL_bins)
     else:
+        # return BXL_bins, BXL_counts_normalised
         return BXL_bins, BXL_counts
 
 def nuclear_shell_model():
