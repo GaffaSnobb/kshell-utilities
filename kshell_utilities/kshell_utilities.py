@@ -716,7 +716,7 @@ class ReadKshellOutput:
         Ei_values: Union[list, None] = None,
         Ei_bin_width: float = 0.2,
         BXL_bin_width: float = 0.1,
-        multipole_type: str = "M1",
+        multipole_type: Union[str, list] = "M1",
         set_title: bool = True
         ):
         """
@@ -767,90 +767,212 @@ class ReadKshellOutput:
         if len(Ei_values) > 3:
             raise ValueError("Ei_values must be a list of length <= 3.")
 
+        if isinstance(multipole_type, str):
+            multipole_type = [multipole_type]
+        
+        elif isinstance(multipole_type, list):
+            pass
+        
+        else:
+            msg = f"multipole_type must be str or list. Got {type(multipole_type)}."
+            raise TypeError(msg)
+
         colors = ["blue", "royalblue", "lightsteelblue"]
         Ei_range = np.linspace(Ei_range_min, Ei_range_max, 4)
         
-        fig, axd = plt.subplot_mosaic(
-            [['upper'], ['middle'], ['lower']],
-            gridspec_kw = dict(height_ratios=[1, 1, 0.7]),
-            figsize = (6.4, 8),
-            constrained_layout = True,
-            sharex = True
-        )
-        for Ei, color in zip(Ei_values, colors):
-            """
-            Calculate in a bin size of 'Ei_bin_width' around given Ei
-            values.
-            """
-            bins, counts, chi2 = self.porter_thomas(
-                multipole_type = multipole_type,
-                Ei = Ei,
-                BXL_bin_width = BXL_bin_width,
-                Ei_bin_width = Ei_bin_width,
-                return_chi2 = True
+        if len(multipole_type) == 1:
+            fig, axd = plt.subplot_mosaic(
+                [['upper'], ['middle'], ['lower']],
+                gridspec_kw = dict(height_ratios=[1, 1, 0.7]),
+                figsize = (6.4, 8),
+                constrained_layout = True,
+                sharex = True
             )
-            idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            bins = bins[:idx]
-            counts = counts[:idx]
-            chi2 = chi2[:idx]
-            axd["upper"].step(
-                bins,
-                counts,
-                label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
-                color = color
-            )
-    
-        axd["upper"].plot(
-            bins,
-            chi2,
-            color = "tab:green",
-            label = r"$\chi_{\nu = 1}^2$"
-        )
-        axd["upper"].legend(loc="upper right")
-        axd["upper"].set_ylabel(r"Normalised counts")
 
-        for i, color in enumerate(colors):
-            """
-            Calculate in the specified range of Ei values.
-            """
-            bins, counts, chi2 = self.porter_thomas(
-                multipole_type = multipole_type,
-                Ei = [Ei_range[i], Ei_range[i+1]],
-                BXL_bin_width = BXL_bin_width,
-                return_chi2 = True
+            for Ei, color in zip(Ei_values, colors):
+                """
+                Calculate in a bin size of 'Ei_bin_width' around given Ei
+                values.
+                """
+                bins, counts, chi2 = self.porter_thomas(
+                    multipole_type = multipole_type[0],
+                    Ei = Ei,
+                    BXL_bin_width = BXL_bin_width,
+                    Ei_bin_width = Ei_bin_width,
+                    return_chi2 = True
+                )
+                idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
+                bins = bins[:idx]
+                counts = counts[:idx]
+                chi2 = chi2[:idx]
+                axd["upper"].step(
+                    bins,
+                    counts,
+                    label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
+                    color = color
+                )
+        
+            axd["upper"].plot(
+                bins,
+                chi2,
+                color = "tab:green",
+                label = r"$\chi_{\nu = 1}^2$"
             )
+            axd["upper"].legend(loc="upper right")
+            axd["upper"].set_ylabel(r"Normalised counts")
+
+            for i, color in enumerate(colors):
+                """
+                Calculate in the specified range of Ei values.
+                """
+                bins, counts, chi2 = self.porter_thomas(
+                    multipole_type = multipole_type[0],
+                    Ei = [Ei_range[i], Ei_range[i+1]],
+                    BXL_bin_width = BXL_bin_width,
+                    return_chi2 = True
+                )
+                
+                idx = np.argmin(np.abs(bins - 10))
+                bins = bins[:idx]
+                counts = counts[:idx]
+                chi2 = chi2[:idx]
+                
+                axd["middle"].step(
+                    bins,
+                    counts,
+                    color = color,
+                    label = r"$E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV"
+                )
+                axd["lower"].step(
+                    bins,
+                    counts/chi2,
+                    color = color,
+                    label = r"($E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV)" + r"$/\chi_{\nu = 1}^2$",
+                )
+
+            axd["middle"].plot(bins, chi2, color="tab:green", label=r"$\chi_{\nu = 1}^2$")
+            axd["middle"].legend(loc="upper right")
+            axd["middle"].set_ylabel(r"Normalised counts")
+
+            axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+            axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
+            axd["lower"].legend(loc="upper left")
+            axd["lower"].set_ylabel(r"Relative error")
+            axd["lower"].set_xlabel(
+                r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
+            )
+            if set_title:
+                axd["upper"].set_title(
+                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
+                )
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}.png", dpi=300)
+        
+        elif len(multipole_type) == 2:
+            fig, axd = plt.subplot_mosaic([
+                    ['upper left', 'upper right'],
+                    ['middle left', 'middle right'],
+                    ['lower left', 'lower right']
+                ],
+                gridspec_kw = dict(height_ratios=[1, 1, 0.7]),
+                figsize = (10, 8),
+                constrained_layout = True,
+                sharex = True
+            )
+
+            for multipole_type_, loc in zip(multipole_type, ["left", "right"]):
+                for Ei, color in zip(Ei_values, colors):
+                    """
+                    Calculate in a bin size of 'Ei_bin_width' around given Ei
+                    values.
+                    """
+                    bins, counts, chi2 = self.porter_thomas(
+                        multipole_type = multipole_type_,
+                        Ei = Ei,
+                        BXL_bin_width = BXL_bin_width,
+                        Ei_bin_width = Ei_bin_width,
+                        return_chi2 = True
+                    )
+                    idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
+                    bins = bins[:idx]
+                    counts = counts[:idx]
+                    chi2 = chi2[:idx]
+                    axd["upper " + loc].step(
+                        bins,
+                        counts,
+                        label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
+                        color = color
+                    )
             
-            idx = np.argmin(np.abs(bins - 10))
-            bins = bins[:idx]
-            counts = counts[:idx]
-            chi2 = chi2[:idx]
+                axd["upper " + loc].plot(
+                    bins,
+                    chi2,
+                    color = "tab:green",
+                    label = r"$\chi_{\nu = 1}^2$"
+                )
+
+                for i, color in enumerate(colors):
+                    """
+                    Calculate in the specified range of Ei values.
+                    """
+                    bins, counts, chi2 = self.porter_thomas(
+                        multipole_type = multipole_type_,
+                        Ei = [Ei_range[i], Ei_range[i+1]],
+                        BXL_bin_width = BXL_bin_width,
+                        return_chi2 = True
+                    )
+                    
+                    idx = np.argmin(np.abs(bins - 10))
+                    bins = bins[:idx]
+                    counts = counts[:idx]
+                    chi2 = chi2[:idx]
+                    
+                    axd["middle " + loc].step(
+                        bins,
+                        counts,
+                        color = color,
+                        label = r"$E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV"
+                    )
+                    axd["lower " + loc].step(
+                        bins,
+                        counts/chi2,
+                        color = color,
+                        label = r"($E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV)" + r"$/\chi_{\nu = 1}^2$",
+                    )
+
+                axd["middle " + loc].plot(bins, chi2, color="tab:green", label=r"$\chi_{\nu = 1}^2$")
+
+                axd["lower " + loc].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+                # axd["lower " + loc].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
+                axd["lower " + loc].set_xlabel(
+                    r"$B(" + f"{multipole_type_}" + r")/\langle B(" + f"{multipole_type_}" + r") \rangle$"
+                )
+                if set_title:
+                    axd["upper " + loc].set_title(
+                        f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type_}" + r"$"
+                    )
             
-            axd["middle"].step(
-                bins,
-                counts,
-                color = color,
-                label = r"$E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV"
-            )
-            axd["lower"].step(
-                bins,
-                counts/chi2,
-                color = color,
-                label = r"($E_i = $" + f"[{Ei_range[i]:.2f}, {Ei_range[i+1]:.2f}] MeV)" + r"$/\chi_{\nu = 1}^2$",
-            )
+            axd["lower left"].legend(loc="upper left")
+            axd["middle left"].legend(loc="upper right")
+            axd["middle left"].set_ylabel(r"Normalised counts")
+            axd["lower left"].set_ylabel(r"Relative error")
+            axd["upper left"].legend(loc="upper right")
+            axd["upper left"].set_ylabel(r"Normalised counts")
+            
+            axd["upper right"].set_yticklabels([])
+            axd["upper right"].set_ylim(axd["upper left"].get_ylim())
 
-        axd["middle"].plot(bins, chi2, color="tab:green", label=r"$\chi_{\nu = 1}^2$")
-        axd["middle"].legend(loc="upper right")
-        axd["middle"].set_ylabel(r"Normalised counts")
+            axd["middle right"].set_yticklabels([])
+            axd["middle right"].set_ylim(axd["middle left"].get_ylim())
 
-        axd["lower"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
-        axd["lower"].set_xlabel(r"$B(M1)/\langle B(M1) \rangle$")
-        axd["lower"].legend(loc="upper left")
-        axd["lower"].set_ylabel(r"Relative error")
-        if set_title:
-            axd["upper"].set_title(
-                f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type}" + r"$"
-            )
-        fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type}.png", dpi=300)
+            axd["lower right"].set_yticklabels([])
+            axd["lower right"].set_ylim(axd["lower left"].get_ylim())
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.png", dpi=300)
+
+        else:
+            msg = "Only 1 or 2 multipole types may be given at the same time!"
+            msg += f" Got {len(multipole_type)}."
+            raise ValueError(msg)
+        
         plt.show()
 
     def _porter_thomas_j_plot_calculator(self,
@@ -883,15 +1005,7 @@ class ReadKshellOutput:
         multipole_type : str
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
-        """
-        # transitions_dict = {
-        #     "E1": self.transitions_BE1,
-        #     "M1": self.transitions_BM1,
-        #     "E2": self.transitions_BE2,
-        # }
-        # if j_lists is None:
-        #     j_lists = list(np.unique(transitions_dict[multipole_type][:, 0]))
-        
+        """        
         if isinstance(j_lists, list):
             if not j_lists:
                 msg = "Please provide a list of j values or a list of lists of j values."
@@ -938,15 +1052,6 @@ class ReadKshellOutput:
             msg = "Ex_min and Ex_max cannot be negative!"
             raise ValueError(msg)
         
-        # colors = ["blue", "royalblue", "lightsteelblue"]
-        
-        # fig, axd = plt.subplot_mosaic(
-        #     [['upper'], ['lower']],
-        #     gridspec_kw = dict(height_ratios=[1, 0.5]),
-        #     figsize = (6.4, 8),
-        #     constrained_layout = True,
-        #     sharex = True
-        # )
         binss = []
         countss = []
         chi2s = []
@@ -970,16 +1075,6 @@ class ReadKshellOutput:
             chi2s.append(chi2[:idx])
 
         return binss, countss, chi2s
-
-        # self._porter_thomas_j_plot_plotter(
-        #     binss = binss,
-        #     countss = countss,
-        #     chi2s = chi2s,
-        #     j_lists = j_lists,
-        #     colors = colors,
-        #     set_title = set_title,
-        #     multipole_type = multipole_type
-        # )
 
     def porter_thomas_j_plot(self,
         Ex_min: float = 5,
@@ -1098,6 +1193,8 @@ class ReadKshellOutput:
                     r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
                 )
 
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.png", dpi=300)
+
         elif len(multipole_type) == 2:
             fig, axd = plt.subplot_mosaic(
                 [['upper left', 'upper right'], ['lower left', 'lower right']],
@@ -1191,12 +1288,12 @@ class ReadKshellOutput:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.png", dpi=300)
         else:
-            msg = "Only 1 and 2 multipole types may be given at the same time!"
+            msg = "Only 1 or 2 multipole types may be given at the same time!"
             msg += f" Got {len(multipole_type)}."
             raise ValueError(msg)
 
-        fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type}.png", dpi=300)
         plt.show()
 
     def angular_momentum_distribution_plot(self,
@@ -1307,13 +1404,14 @@ class ReadKshellOutput:
         densities = densities[:idx]
 
         if filter_parity is None:
-            exponent = r"$^{\pm}$"
+            exponent = r"$^{\pm}$"  # For exponent in yticklabels.
+            parity_str = "+-"       # For filename in savefig.
         elif filter_parity == 1:
             exponent = r"$^{+}$"
+            parity_str = "+"
         elif filter_parity == -1:
             exponent = r"$^{-}$"
-
-        parity_str = "+" if (filter_parity == 1) else "-"
+            parity_str = "-"
 
         if single_spin_plot:
             for j in single_spin_plot:
@@ -1340,6 +1438,34 @@ class ReadKshellOutput:
                     )
 
         if plot:
+            xticklabels = []
+            for i in bins[:, 0]:
+                """
+                Loop for generating x tick labels.
+                
+                Loop over the bins of the first angular momentum entry.
+                Note that the bins are equal for all the different
+                angular momenta (all columns in 'bins' are equal). Round
+                all energies to 1 decimal when that decimal is != 0. If
+                that decimal is zero, round to 0 decimals.
+                """
+                if (tmp := int(i)) == i:
+                    """
+                    Eg.
+                    >>> 1 == 1.0
+                    True
+                    
+                    (round to 0 decimals)
+                    """
+                    xticklabels.append(tmp)
+                    print(f"{tmp = } appended")
+                else:
+                    """
+                    Round to 1 decimal.
+                    """
+                    print(f"{tmp = }")
+                    xticklabels.append(round(i, 1))
+            
             fig, ax = plt.subplots()
             ax = sns.heatmap(
                 data = densities.T[-1::-1],
@@ -1347,15 +1473,16 @@ class ReadKshellOutput:
                 annot = True,
                 cmap = 'gray',
                 ax = ax,
+                xticklabels = xticklabels,
+                fmt = ".0f"
             )
-            xticklabels = []
-            for i in bins[:, 0]:
-                if (tmp := int(i)) == i:
-                    xticklabels.append(tmp)
-                else:
-                    xticklabels.append(round(i, 1))
 
-            ax.set_xticklabels(xticklabels)
+            print(f"{bins = }")
+            print(f"{xticklabels = }")
+            print(f"{len(xticklabels) = }")
+            print(f"{densities.shape = }")
+            print(f"{densities.T.shape = }")
+            # ax.set_xticklabels(xticklabels)
             ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
