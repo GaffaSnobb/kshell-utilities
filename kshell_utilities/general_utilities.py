@@ -4,8 +4,8 @@ from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
-from scipy.optimize import curve_fit
 from .parameters import flags
+# from scipy.optimize import curve_fit
 
 def create_spin_parity_list(
     spins: np.ndarray,
@@ -701,8 +701,8 @@ def level_plot(
 
     ax.set_xticks(spin_scope)
     ax.set_xticklabels([f"{Fraction(i)}" + f"$^{parity_symbol}$" for i in spin_scope])
-    ax.set_xlabel("Spin")
-    ax.set_ylabel("E [MeV]")
+    ax.set_xlabel(r"$j^{\pi}$")
+    ax.set_ylabel(r"$E$ [MeV]")
 
     if not ax_input:
         plt.show()
@@ -715,6 +715,7 @@ def level_density(
     filter_parity: Union[None, str, int] = None,
     E_min: Union[None, float, int] = None,
     E_max: Union[None, float, int] = None,
+    use_E_limits_on_bins: bool = False,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -898,7 +899,11 @@ def level_density(
     if E_max is not None:
         energy_levels = energy_levels[energy_levels <= E_max]
 
-    bins = np.arange(0, bin_max + bin_width, bin_width)
+    if use_E_limits_on_bins:
+        bins = np.arange(E_min, E_max + bin_width, bin_width)
+    else:
+        bins = np.arange(0, bin_max + bin_width, bin_width)
+        
     n_bins = len(bins)
     counts = np.zeros(n_bins)
 
@@ -1090,7 +1095,7 @@ def porter_thomas(
     to use the mean of 19 ([1:20] slice, pretty arbitrary chosen) of
     these values to make a more stable normalisation coefficient.
     """
-    BXL_counts *= np.mean(rv.pdf(BXL_bins)[1:20]/BXL_counts[1:20])
+    BXL_counts_normalised = BXL_counts*np.mean(rv.pdf(BXL_bins)[1:20]/BXL_counts[1:20])
     pt_post_process_time = time.perf_counter() - pt_post_process_time
 
     if flags["debug"]:
@@ -1099,16 +1104,17 @@ def porter_thomas(
         print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
         print(f"Porter-Thomas: Post process time: {pt_post_process_time:.3f} s")
         print(f"{sum(BXL_counts) = }")
+        print(f"{sum(BXL_counts_normalised) = }")
         print(f"{Ei = }")
         print(f"{Ei_bin_width = }")
         print("--------------------------------")
 
     if return_chi2:
-        # return BXL_bins, BXL_counts_normalised, rv.pdf(BXL_bins)
-        return BXL_bins, BXL_counts, rv.pdf(BXL_bins)
+        return BXL_bins, BXL_counts_normalised, rv.pdf(BXL_bins)
+        # return BXL_bins, BXL_counts, rv.pdf(BXL_bins)
     else:
-        # return BXL_bins, BXL_counts_normalised
-        return BXL_bins, BXL_counts
+        return BXL_bins, BXL_counts_normalised
+        # return BXL_bins, BXL_counts
 
 def nuclear_shell_model():
     """
