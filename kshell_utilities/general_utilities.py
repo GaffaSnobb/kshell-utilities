@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
 from .parameters import flags
+# warnings.filterwarnings("error")    # To catch warnings with try except.
 # from scipy.optimize import curve_fit
 
 def create_spin_parity_list(
@@ -992,7 +993,7 @@ def porter_thomas(
         BXL = transitions[Ei_mask]
     else:
         BXL = transitions[np.abs(transitions[:, 3] - Ei) < Ei_bin_width] # Consider only levels around Ei.
-    
+
     if j_list is not None:
         """
         Create a mask of j values for the transitions array. Allow only
@@ -1033,18 +1034,21 @@ def porter_thomas(
     for ji in initial_j:
         ji_masks.append(BXL[:, 0] == ji)
 
+    n_B_skips = 0
     for pii in pii_masks:
         for idxi in idxi_masks:
             for ji in ji_masks:
                 mask = np.logical_and(ji, np.logical_and(pii, idxi))
                 tmp = BXL[mask][:, 9]   # 9 is B decay.
+                n_B_skips += sum(tmp == 0)  # Count the number of zero values.
+                tmp = tmp[tmp != 0] # Remove all zero values.
                 if not tmp.size:
                     """
                     Some combinations of masks might not match any
                     levels.
                     """
                     continue
-
+                
                 BXL_tmp.extend(tmp/tmp.mean())
 
     BXL = np.asarray(BXL_tmp)
@@ -1052,9 +1056,12 @@ def porter_thomas(
     # BXL = BXL/np.mean(BXL)
     n_BXL_after = len(BXL)
 
-    if n_BXL_before != n_BXL_after:
-        msg = "The number of BXL values has changed during the Porter-Thomas analysis!"
-        msg += f" This should not happen! {n_BXL_before = }, {n_BXL_after = }."
+    if (n_BXL_before - n_B_skips) != n_BXL_after:
+        msg = "The number of BXL values has changed too much during the Porter-Thomas analysis!"
+        msg += f" This should not happen! n_BXL_after should be: {n_BXL_before - n_B_skips}, got: {n_BXL_after}."
+        msg += f"\n{n_BXL_before = }"
+        msg += f"\n{n_BXL_after = }"
+        msg += f"\n{n_B_skips = }"
         raise RuntimeError(msg)
 
     BXL_bins = np.arange(0, BXL[-1] + BXL_bin_width, BXL_bin_width)
@@ -1105,16 +1112,17 @@ def porter_thomas(
         print(f"Porter-Thomas: Post process time: {pt_post_process_time:.3f} s")
         print(f"{sum(BXL_counts) = }")
         print(f"{sum(BXL_counts_normalised) = }")
+        print(f"{n_B_skips = }")
         print(f"{Ei = }")
         print(f"{Ei_bin_width = }")
         print("--------------------------------")
 
     if return_chi2:
-        return BXL_bins, BXL_counts_normalised, rv.pdf(BXL_bins)
         # return BXL_bins, BXL_counts, rv.pdf(BXL_bins)
+        return BXL_bins, BXL_counts_normalised, rv.pdf(BXL_bins)
     else:
-        return BXL_bins, BXL_counts_normalised
         # return BXL_bins, BXL_counts
+        return BXL_bins, BXL_counts_normalised
 
 def nuclear_shell_model():
     """
