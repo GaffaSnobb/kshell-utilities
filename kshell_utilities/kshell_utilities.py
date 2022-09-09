@@ -1,6 +1,6 @@
 import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
-from typing import Union, Callable
+from typing import Union, Callable, Tuple
 from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
@@ -1101,20 +1101,16 @@ class ReadKshellOutput:
         See the docstring of _porter_thomas_j_plot_calculator for the
         rest of the descriptions.
         """
+        if j_lists is None:
+            j_list_default = True
+        else:
+            j_list_default = False
+
         transitions_dict = {
             "E1": self.transitions_BE1,
             "M1": self.transitions_BM1,
             "E2": self.transitions_BE2,
         }
-        if j_lists is None:
-            """
-            Default j_lists values.
-            """
-            j_lists = []
-            for elem in np.unique(transitions_dict[multipole_type][:, 0]):
-                j_lists.append([int(elem/2)])
-
-            j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
 
         colors = ["blue", "royalblue", "lightsteelblue"]
         if isinstance(multipole_type, str):
@@ -1128,6 +1124,16 @@ class ReadKshellOutput:
             raise TypeError(msg)
 
         if len(multipole_type) == 1:
+            if j_list_default:
+                """
+                Default j_lists values.
+                """
+                j_lists = []
+                for elem in np.unique(transitions_dict[multipole_type[0]][:, 0]):
+                    j_lists.append([elem/2])
+
+                j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
+
             if include_relative_difference:
                 fig, axd = plt.subplot_mosaic(
                     [['upper'], ['lower']],
@@ -1196,6 +1202,16 @@ class ReadKshellOutput:
             fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.png", dpi=300)
 
         elif len(multipole_type) == 2:
+            if j_list_default:
+                """
+                Default j_lists values.
+                """
+                j_lists = []
+                for elem in np.unique(transitions_dict[multipole_type[0]][:, 0]):
+                    j_lists.append([elem/2])
+
+                j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
+
             fig, axd = plt.subplot_mosaic(
                 [['upper left', 'upper right'], ['lower left', 'lower right']],
                 gridspec_kw = dict(height_ratios=[1, 0.5]),
@@ -1244,6 +1260,16 @@ class ReadKshellOutput:
                 axd["upper left"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
+
+            if j_list_default:
+                """
+                Default j_lists values.
+                """
+                j_lists = []
+                for elem in np.unique(transitions_dict[multipole_type[1]][:, 0]):
+                    j_lists.append([elem/2])
+
+                j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
 
             binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
                 Ex_min = Ex_min,
@@ -1627,6 +1653,134 @@ class ReadKshellOutput:
             plt.show()
 
         return total_B
+
+    def _brink_axel_j_calculator(self,
+        bin_width: Union[float, int],
+        Ex_min: Union[float, int],
+        Ex_max: Union[float, int],
+        multipole_type: str,
+        j_list: list,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calculate the GSF as a function of Eg for all Ei and ji, as well
+        as the GSF individually for all ji in j_list.
+        """
+        bins_all_j, gsf_all_j = self.gsf(
+            bin_width = bin_width,
+            Ex_min = Ex_min,
+            Ex_max = Ex_max,
+            multipole_type = multipole_type,
+            return_n_transitions = False,
+            plot = False,
+        )
+        n_j = len(j_list)
+        n_gsf_all_j = len(gsf_all_j)
+        gsf = np.zeros((n_gsf_all_j, n_j))
+        bins = np.zeros((n_gsf_all_j, n_j))   # Eg rows, j cols.
+
+        for i in range(n_j):
+            """
+            Calculate the GSF individually for each ji.
+            """
+            bins_one_j, gsf_one_j = self.gsf(
+                bin_width = bin_width,
+                Ex_min = Ex_min,
+                Ex_max = Ex_max,
+                multipole_type = multipole_type,
+                filter_spins = [j_list[i]],
+                return_n_transitions = False,
+                plot = False,
+            )
+            gsf[:, i] = gsf_one_j
+            bins[:, i] = bins_one_j
+
+        return bins, gsf, bins_all_j, gsf_all_j
+
+    def brink_axel_j(self,
+        bin_width: Union[float, int] = 0.2,
+        Ex_min: Union[float, int] = 5,
+        Ex_max: Union[float, int] = 50,
+        multipole_type: Union[list, str] = "M1",
+        j_list: Union[list, None] = None,
+        set_title: bool = True
+    ):
+        """
+        Plot a comparison of the GSF averaged over all ji and GSFs for
+        each individual ji.
+        """
+        if j_list is None:
+            j_list_default = True
+        else:
+            j_list_default = False
+            
+        transitions_dict = {
+            "E1": self.transitions_BE1,
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+        }
+
+        if isinstance(multipole_type, str):
+            multipole_type = [multipole_type]
+        
+        n_multipole_types = len(multipole_type)
+
+        fig, ax = plt.subplots(
+            nrows = n_multipole_types,
+            ncols = 1,
+            figsize = (6.4, 4.8*n_multipole_types)
+        )
+        if not isinstance(ax, np.ndarray):
+            ax = [ax]
+
+        upper_ylim = -np.inf
+        lower_ylim = np.inf
+        for i in range(n_multipole_types):
+            if j_list_default:
+                """
+                Choose all available angular momenta as default.
+                """
+                j_list = np.unique(transitions_dict[multipole_type[i]][:, 0])/2
+                j_list.sort()   # Just in case.
+
+            bins, gsf, bins_all_j, gsf_all_j = self._brink_axel_j_calculator(
+                    bin_width = bin_width,
+                    Ex_min = Ex_min,
+                    Ex_max = Ex_max,
+                    multipole_type = multipole_type[i],
+                    j_list = j_list,
+                )
+
+            ax[i].plot(bins_all_j, gsf_all_j, color="black", label=r"All $j_i$")
+            ax[i].plot(bins, gsf, color="black", alpha=0.2)
+            ax[i].plot([0], [0], color="black", alpha=0.2, label=r"Single $j_i$")  # Dummy for legend.
+            ax[i].set_yscale('log')
+            ax[i].set_ylabel(r"GSF [MeV$^{-3}$]")
+            ax[i].legend()
+            if set_title:
+                ax[i].set_title(
+                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[i]}" + r"$"
+                )
+            else:
+                ax[i].set_title(
+                    r"$" + f"{multipole_type[i]}" + r"$"
+                )
+
+            lower_ylim = min(ax[i].get_ylim()[0], lower_ylim)
+            upper_ylim = max(ax[i].get_ylim()[1], upper_ylim)
+
+        for i in range(n_multipole_types):
+            """
+            Set both lower ylim to the lowest of the two and both upper
+            ylims to the largest of the two.
+            """
+            ax[i].set_ylim((lower_ylim, upper_ylim))
+        
+        ax[-1].set_xlabel(r"E$_{\gamma}$ [MeV]")
+        fig.savefig(
+            fname = f"{self.nucleus}_brink-axel_ji_{'_'.join(multipole_type)}.png",
+            dpi = 300
+        )
+        plt.show()
 
     @property
     def help(self):
