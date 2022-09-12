@@ -13,6 +13,17 @@ pip install .
 
 ## Usage
 
+NB! Always use `if __name__ == "__main__"` when using kshell-utilities, eg.
+``` python
+def main():
+    # kshell-utilities code here
+    
+if __name__ == "__main__":
+    main()
+    # Or kshell-utilities code here
+```
+This is because kshell-utilities uses Pythons subprocess module for parallelization which requires this.
+
 <details>
 <summary>Load and view data from KSHELL</summary>
 <p>
