@@ -89,9 +89,9 @@ def gamma_strength_function_average(
     
     TODO: Figure out the pre-factors.
     TODO: Use numpy.logical_or to filter levels and transitions to avoid
+    using many if statements in the loops (less readable, though!).
     TODO: Make res.transitions_BXL.ji, res.transitions_BXL.pii, etc.
     class attributes (properties).
-    using many if statements in the loops.
 
     Parameters
     ----------
@@ -714,9 +714,9 @@ def level_density(
     include_n_levels: Union[None, int] = None,
     filter_spins: Union[None, int, list] = None,
     filter_parity: Union[None, str, int] = None,
-    E_min: Union[None, float, int] = None,
-    E_max: Union[None, float, int] = None,
-    use_E_limits_on_bins: bool = False,
+    E_min: Union[float, int] = 0,
+    E_max: Union[float, int] = np.inf,
+    return_counts: bool = False,
     plot: bool = False,
     save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -747,12 +747,16 @@ def level_density(
         allowed inputs.
 
     E_min : Union[None, float, int]
-        Minimum energy to include in the calculation. If None, the
-        minimum energy in the levels array is used.
+        Minimum energy to include in the calculation.
 
     E_max : Union[None, float, int]
-        Maximum energy to include in the calculation. If None, the
-        maximum energy in the levels array is used.
+        Maximum energy to include in the calculation. If input E_max is
+        larger than the largest E in the data set, E_max is set to that
+        value.
+
+    return_counts : bool
+        Return the counts per bin instead of the density
+        (density = counts/bin_width).
 
     plot : bool
         For toggling plotting on / off.
@@ -792,12 +796,12 @@ def level_density(
         msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_parity)}."
         raise TypeError(msg)
 
-    if not isinstance(E_min, (type(None), int, float)):
-        msg = f"'E_min' must be of type: None, int, float. Got {type(E_min)}."
+    if not isinstance(E_min, (int, float)):
+        msg = f"'E_min' must be of type: int, float. Got {type(E_min)}."
         raise TypeError(msg)
 
-    if not isinstance(E_max, (type(None), int, float)):
-        msg = f"'E_max' must be of type: None, int, float. Got {type(E_max)}."
+    if not isinstance(E_max, (int, float)):
+        msg = f"'E_max' must be of type: int, float. Got {type(E_max)}."
         raise TypeError(msg)
 
     if isinstance(filter_parity, str):
@@ -823,17 +827,23 @@ def level_density(
         msg = "Parity filter cannot be applied to a list of only energy levels!"
         raise ValueError(msg)
 
-    if levels.ndim == 1:
+    energy_levels = np.copy(levels) # Just in case.
+    if energy_levels.ndim == 1:
         """
-        'levels' only contain energy values.
+        'levels' only contains energy values.
         """
-        energy_levels = levels
-    else:
+        if energy_levels[0] < 0:
+            msg = "Please scale energies relative to the ground state"
+            msg += " energy before calculating the NLD!"
+            raise ValueError(msg)
+
+    elif energy_levels.ndim == 2:
         """
         'levels' is a multidimensional array on the form
-        [[E, 2*spin, parity, idx], ...].
+        [[E, 2*spin, parity, idx], ...]. Subtract ground state energy
+        from all energies.
         """
-        energy_levels = np.copy(levels) # Copy just in case.
+        energy_levels[:, 0] -= energy_levels[0, 0]
         
         if include_n_levels is not None:
             """
@@ -866,58 +876,45 @@ def level_density(
         
         energy_levels = energy_levels[:, 0]
 
-    if levels.ndim == 1:
+    E_max = min(E_max, energy_levels[-1]) # E_max cant be larger than the largest energy in the data set.
+    if E_max <= E_min:
         """
-        Decide the max value of the energy bins.
+        This behaviour is OK for angular momentum distribution heatmaps
+        where the NLDs for different angular momenta are compared using
+        the same bin range.
+
+        In this situation, the density at E_min is of course zero
+        because there are no levels of this energy for the given angular
+        momentum.
         """
-        if levels[0] != 0:
-            """
-            Calculate energies relative to the ground state if not already
-            done.
-            """
-            energy_levels -= energy_levels[0]
-            bin_max = levels[-1] - levels[0]    # The max energy of the un-filtered data set.
-        else:
-            bin_max = levels[-1]
+        bins = np.array([E_min])
+        density = np.array([0])
+        return bins, density
 
-    else:
-        """
-        Decide the max value of the energy bins.
-        """
-        if levels[0, 0] != 0:
-            """
-            Calculate energies relative to the ground state if not already
-            done.
-            """
-            energy_levels -= energy_levels[0]
-            bin_max = levels[-1, 0] - levels[0, 0]    # The max energy of the un-filtered data set.
-        else:
-            bin_max = levels[-1, 0]
+    bins = np.arange(E_min, E_max + bin_width, bin_width)
 
-    if E_min is not None:
-        energy_levels = energy_levels[energy_levels >= E_min]
-
-    if E_max is not None:
-        energy_levels = energy_levels[energy_levels <= E_max]
-
-    if use_E_limits_on_bins:
-        bins = np.arange(E_min, E_max + bin_width, bin_width)
-    else:
-        bins = np.arange(0, bin_max + bin_width, bin_width)
-        
     n_bins = len(bins)
-    counts = np.zeros(n_bins)
+    counts = np.zeros(n_bins - 1)
 
     for i in range(n_bins - 1):
-        counts[i] = np.sum(bins[i] <= energy_levels[energy_levels < bins[i + 1]])
+        mask_1 = energy_levels >= bins[i]
+        mask_2 = energy_levels < bins[i+1]
+        mask_3 = np.logical_and(mask_1, mask_2)
+        counts[i] = sum(mask_3)
+        # counts[i] = np.sum(bins[i] <= energy_levels[energy_levels < bins[i + 1]])
     
-    density = (counts/bin_width)[:-1]
-    bins = bins[1:]
+    density = (counts/bin_width)
+    # bins = bins[1:]
+    bins = bins[:-1]    # Maybe just a matter of preference...?
 
     if plot:
         fig, ax = plt.subplots()
-        ax.step(bins, density, color="black")
-        ax.set_ylabel(r"Density [MeV$^{-1}$]")
+        if return_counts:
+            ax.step(bins, counts, color="black")
+            ax.set_ylabel(r"Counts")
+        else:
+            ax.step(bins, density, color="black")
+            ax.set_ylabel(r"NLD [MeV$^{-1}$]")
         ax.set_xlabel("E [MeV]")
         ax.legend([f"{bin_width=} MeV"])
         ax.grid()
@@ -927,7 +924,10 @@ def level_density(
             fig.savefig(fname=fname, dpi=300)
         plt.show()
 
-    return bins, density
+    if return_counts:
+        return bins, counts
+    else:
+        return bins, density
 
 def porter_thomas(
     transitions: np.ndarray,
