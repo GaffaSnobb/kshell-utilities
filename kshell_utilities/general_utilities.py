@@ -876,7 +876,7 @@ def level_density(
         
         energy_levels = energy_levels[:, 0]
 
-    E_max = min(E_max, energy_levels[-1]) # E_max cant be larger than the largest energy in the data set.
+    E_max = min(E_max, energy_levels[-1] + 0.1) # E_max cant be larger than the largest energy in the data set. Add small number to include the final level(s) in the counting.
     if E_max <= E_min:
         """
         This behaviour is OK for angular momentum distribution heatmaps
@@ -892,6 +892,7 @@ def level_density(
         return bins, density
 
     bins = np.arange(E_min, E_max + bin_width, bin_width)
+    bins[-1] = E_max    # arange will mess up the final bin if it does not match the bin width.
 
     n_bins = len(bins)
     counts = np.zeros(n_bins - 1)
@@ -928,7 +929,7 @@ def level_density(
         return bins, density, counts
     else:
         return bins, density
-        
+
 def porter_thomas(
     transitions: np.ndarray,
     Ei: Union[int, float, list],

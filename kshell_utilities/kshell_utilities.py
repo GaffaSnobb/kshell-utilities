@@ -1452,8 +1452,11 @@ class ReadKshellOutput:
             mask_upper = (E_tmp[:, 0] - self.ground_state_energy) < E_max   # Keep only levels lower than E_max.
             mask_total = np.logical_and(mask_lower, mask_upper)             # Combine the two masks with and.
             n_levels_in_range = sum(mask_total) # The number of Trues is the number of levels within the energy range.
-            msg = "The number of levels from the NLD does not match the expected value!"
-            success = n_levels_in_range == sum(counts_tmp)
+            n_counts_tmp = sum(counts_tmp)
+            msg = f"The number of levels from the NLD in the range [{E_min, E_max})"
+            msg += " does not match the expected value!"
+            msg += f" {n_levels_in_range = }, {n_counts_tmp = }"
+            success = n_levels_in_range == n_counts_tmp
             assert success, msg
 
             """
