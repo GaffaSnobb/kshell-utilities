@@ -1409,13 +1409,9 @@ class ReadKshellOutput:
                 msg = f"'filter_spins' must be of type: None, list, int, float. Got {type(filter_spins)}."
                 raise TypeError(msg)
         
-        # n_bins = int((self.levels[-1, 0] - self.levels[0, 0] + bin_width)/bin_width)
-        # E_max = min(E_max, energy_levels[-1]) # E_max cant be larger than the largest energy in the data set.
-        # n_bins = ceil((E_max - E_min)/bin_width)
         bins = np.arange(E_min, E_max, bin_width)
         n_bins = len(bins)
         n_angular_momenta = len(angular_momenta)
-        # bins = np.zeros((n_bins, n_angular_momenta))
         densities = np.zeros((n_bins, n_angular_momenta))
 
         for i in range(n_angular_momenta):
@@ -1426,8 +1422,7 @@ class ReadKshellOutput:
             NOTE: Each column is the density for a unique angular
             momentum. Consequently, rows are the energy axis.
             """
-            # bins[:, i], densities[:, i] = level_density(
-            bins_tmp, densities_tmp = level_density(
+            bins_tmp, densities_tmp, counts_tmp = level_density(
                 levels = self.levels,
                 bin_width = bin_width,
                 filter_spins = angular_momenta[i],
@@ -1446,6 +1441,20 @@ class ReadKshellOutput:
                 bins, but never longer.
                 """
                 assert b1 == b2, "NLD bins do not match the expected bins!"
+
+            """
+            Check that the total number of levels returned by the NLD
+            function is actually the correct number of levels as counted
+            with the following stright-forward counter:
+            """
+            E_tmp = self.levels[self.levels[:, 1] == 2*angular_momenta[i]]  # Extract levels of correct angular momentum.
+            mask_lower = (E_tmp[:, 0] - self.ground_state_energy) >= E_min  # Keep only levels larger or equal to E_min.
+            mask_upper = (E_tmp[:, 0] - self.ground_state_energy) < E_max   # Keep only levels lower than E_max.
+            mask_total = np.logical_and(mask_lower, mask_upper)             # Combine the two masks with and.
+            n_levels_in_range = sum(mask_total) # The number of Trues is the number of levels within the energy range.
+            msg = "The number of levels from the NLD does not match the expected value!"
+            success = n_levels_in_range == sum(counts_tmp)
+            assert success, msg
 
             """
             If E_max exceeds the max energy in the data set,

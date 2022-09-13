@@ -925,10 +925,10 @@ def level_density(
         plt.show()
 
     if return_counts:
-        return bins, counts
+        return bins, density, counts
     else:
         return bins, density
-
+        
 def porter_thomas(
     transitions: np.ndarray,
     Ei: Union[int, float, list],
