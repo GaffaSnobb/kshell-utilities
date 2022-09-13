@@ -1448,6 +1448,8 @@ class ReadKshellOutput:
             with the following stright-forward counter:
             """
             E_tmp = self.levels[self.levels[:, 1] == 2*angular_momenta[i]]  # Extract levels of correct angular momentum.
+            if filter_parity is not None:
+                E_tmp = E_tmp[E_tmp[:, 2] == filter_parity]
             mask_lower = (E_tmp[:, 0] - self.ground_state_energy) >= E_min  # Keep only levels larger or equal to E_min.
             mask_upper = (E_tmp[:, 0] - self.ground_state_energy) < E_max   # Keep only levels lower than E_max.
             mask_total = np.logical_and(mask_lower, mask_upper)             # Combine the two masks with and.
