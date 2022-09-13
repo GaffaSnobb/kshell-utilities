@@ -2,6 +2,7 @@ import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
 from typing import Union, Callable, Tuple
 from itertools import chain
+from math import ceil
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -182,6 +183,9 @@ class ReadKshellOutput:
             else:
                 msg = f"Handling for file {fname} is not implemented."
                 raise KshellDataStructureError(msg)
+
+        self.ground_state_energy = self.levels[0, 0]
+        self.check_data()
 
     def _extract_info_from_ptn_fname(self):
         """
@@ -483,8 +487,9 @@ class ReadKshellOutput:
             include_n_levels: Union[None, int] = None,
             filter_spins: Union[None, int, list] = None,
             filter_parity: Union[None, str, int] = None,
-            E_min: Union[None, float, int] = None,
-            E_max: Union[None, float, int] = None,
+            return_counts: bool = False,
+            E_min: Union[float, int] = 0,
+            E_max: Union[float, int] = np.inf,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -504,6 +509,7 @@ class ReadKshellOutput:
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parity = filter_parity,
+            return_counts = return_counts,
             E_min = E_min,
             E_max = E_max,
             plot = plot,
@@ -517,8 +523,9 @@ class ReadKshellOutput:
         include_n_levels: Union[None, int] = None,
         filter_spins: Union[None, int, list] = None,
         filter_parity: Union[None, str, int] = None,
-        E_min: Union[None, float, int] = None,
-        E_max: Union[None, float, int] = None,
+        E_min: Union[float, int] = 0,
+        E_max: Union[float, int] = np.inf,
+        return_counts: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -532,6 +539,7 @@ class ReadKshellOutput:
             filter_parity = filter_parity,
             E_min = E_min,
             E_max = E_max,
+            return_counts = return_counts,
             plot = plot,
             save_plot = save_plot
         )
@@ -1401,33 +1409,66 @@ class ReadKshellOutput:
                 msg = f"'filter_spins' must be of type: None, list, int, float. Got {type(filter_spins)}."
                 raise TypeError(msg)
         
-        n_bins = int((self.levels[-1, 0] - self.levels[0, 0] + bin_width)/bin_width)
+        # n_bins = int((self.levels[-1, 0] - self.levels[0, 0] + bin_width)/bin_width)
+        # E_max = min(E_max, energy_levels[-1]) # E_max cant be larger than the largest energy in the data set.
+        # n_bins = ceil((E_max - E_min)/bin_width)
+        bins = np.arange(E_min, E_max, bin_width)
+        n_bins = len(bins)
         n_angular_momenta = len(angular_momenta)
-        bins = np.zeros((n_bins, n_angular_momenta))
+        # bins = np.zeros((n_bins, n_angular_momenta))
         densities = np.zeros((n_bins, n_angular_momenta))
 
         for i in range(n_angular_momenta):
             """
             Calculate the nuclear level density for each angular
             momentum.
+
+            NOTE: Each column is the density for a unique angular
+            momentum. Consequently, rows are the energy axis.
             """
-            bins[:, i], densities[:, i] = level_density(
+            # bins[:, i], densities[:, i] = level_density(
+            bins_tmp, densities_tmp = level_density(
                 levels = self.levels,
                 bin_width = bin_width,
                 filter_spins = angular_momenta[i],
                 filter_parity = filter_parity,
                 E_min = E_min,
                 E_max = E_max,
+                return_counts = True,
                 plot = False,
                 save_plot = False
             )
-        try:
-            idx = np.where(bins[:, 0] > E_max)[0][0]
-        except IndexError:
-            idx = -1
-        
-        bins = bins[:idx]   # Remove bins of zero density.
-        densities = densities[:idx]
+            assert len(bins_tmp) <= n_bins, "There are more NLD bins than bins in the expected range!"
+            for b1, b2 in zip(bins_tmp, bins):
+                """
+                Check that the returned bins match the expected bin
+                range. Note that bins_tmp might be shorter than
+                bins, but never longer.
+                """
+                assert b1 == b2, "NLD bins do not match the expected bins!"
+
+            """
+            If E_max exceeds the max energy in the data set,
+            level_density will adjust E_max to the max energy value. In
+            this function, the bin range should be the same for all
+            angular momenta, meaning that we might have to add some
+            extra zeros to the end of the densities array.
+            """
+            n_missing_values = n_bins - len(bins_tmp)
+            densities[:, i] = np.concatenate((densities_tmp, np.zeros(n_missing_values)))
+
+            if flags["debug"]:
+                print("-----------------------------------")
+                print("angular_momentum_distribution debug")
+                if all(densities_tmp == 0):
+                    print("No levels in this energy range!")
+                print(f"{angular_momenta[i] = }")
+                print(f"{filter_parity = }")
+                print(f"{bin_width = }")
+                print(f"{E_min = }")
+                print(f"{E_max = }")
+                print(f"densities extended with {n_missing_values} zeros")
+                print("-----------------------------------")
 
         if filter_parity is None:
             exponent = r"$^{\pm}$"  # For exponent in yticklabels.
@@ -1452,7 +1493,7 @@ class ReadKshellOutput:
 
                 figax.append(plt.subplots())
                 label = r"$j^{\pi} =$" + f" {single_spin_plot[i]}" + exponent
-                figax[i][1].step(bins[:, 0], densities[:, idx], label=label, color="black")
+                figax[i][1].step(bins, densities[:, idx], label=label, color="black")
                 figax[i][1].legend()
                 figax[i][1].set_xlabel(r"$E$ [MeV]")
                 figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
@@ -1465,7 +1506,7 @@ class ReadKshellOutput:
 
         if plot:
             xticklabels = []
-            for i in bins[:, 0]:
+            for i in bins:
                 """
                 Loop for generating x tick labels.
                 
@@ -1484,31 +1525,21 @@ class ReadKshellOutput:
                     (round to 0 decimals)
                     """
                     xticklabels.append(tmp)
-                    print(f"{tmp = } appended")
                 else:
                     """
                     Round to 1 decimal.
                     """
-                    print(f"{tmp = }")
                     xticklabels.append(round(i, 1))
             
-            fig, ax = plt.subplots()
             ax = sns.heatmap(
                 data = densities.T[-1::-1],
                 linewidth = 0.5,
                 annot = True,
                 cmap = 'gray',
-                ax = ax,
                 xticklabels = xticklabels,
                 fmt = ".0f"
             )
-
-            print(f"{bins = }")
-            print(f"{xticklabels = }")
-            print(f"{len(xticklabels) = }")
-            print(f"{densities.shape = }")
-            print(f"{densities.T.shape = }")
-            # ax.set_xticklabels(xticklabels)
+            fig = ax.get_figure()
             ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
@@ -1821,6 +1852,29 @@ class ReadKshellOutput:
         A = m.group()
         X = self.nucleus[:m.span()[0]]
         return r"$^{" + f"{A}" + r"}$" + f"{X}"
+
+    def check_data(self):
+        """
+        Check that the 'levels' data is sorted in order of increasing
+        energy.
+        """
+        msg = "'levels' should be sorted in order of increasing energy,"
+        msg += " but it isnt! Check the data!"
+        energies = self.levels[:, 0]
+        success = np.all(energies[:-1] <= energies[1:])
+        assert success, msg
+
+        """
+        Check that the ground state energy is correct.
+        """
+        msg = "'ground_state_energy' is not the lowest energy in 'levels'"
+        msg += " as it should be! Check the data!"
+        success = self.ground_state_energy == np.min(self.levels[:, 0])
+        assert success, msg
+
+        """
+        Insert more checks under...
+        """
 
 def _process_kshell_output_in_parallel(args):
     """
