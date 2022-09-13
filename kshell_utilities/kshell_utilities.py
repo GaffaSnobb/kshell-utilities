@@ -1338,7 +1338,8 @@ class ReadKshellOutput:
         filter_parity: Union[None, int, str] = None,
         plot: bool = True,
         single_spin_plot: Union[None, list, tuple, np.ndarray, int, float] = None,
-        save_plot: bool = False,
+        save_plot: bool = True,
+        set_title: bool = True
     ):
         """
         Plot the angular momentum distribution of the levels.
@@ -1545,19 +1546,21 @@ class ReadKshellOutput:
                     """
                     xticklabels.append(round(i, 1))
             
-            ax = sns.heatmap(
+            fig, ax = plt.subplots(figsize=(6.4, 6.4))
+            sns.heatmap(
                 data = densities.T[-1::-1],
                 linewidth = 0.5,
                 annot = True,
                 cmap = 'gray',
                 xticklabels = xticklabels,
-                fmt = ".0f"
+                fmt = ".0f",
+                ax = ax
             )
-            fig = ax.get_figure()
             ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
-            ax.set_title(f"{self.nucleus_latex}, {self.interaction}")
+            if set_title:
+                ax.set_title(f"{self.nucleus_latex}, {self.interaction}")
             cbar = ax.collections[0].colorbar
             cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
 
