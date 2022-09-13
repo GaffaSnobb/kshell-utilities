@@ -9,7 +9,8 @@ import seaborn as sns
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import atomic_numbers, flags
 from .general_utilities import (
-    level_plot, level_density, gamma_strength_function_average, porter_thomas
+    level_plot, level_density, gamma_strength_function_average, porter_thomas,
+    isotope
 )
 from .loaders import (
     _generic_loader, _load_energy_levels, _load_transition_probabilities,
@@ -185,6 +186,11 @@ class ReadKshellOutput:
                 raise KshellDataStructureError(msg)
 
         self.ground_state_energy = self.levels[0, 0]
+        self.A = int("".join(filter(str.isdigit, self.nucleus)))
+        self.Z, self.N = isotope(
+            name = "".join(filter(str.isalpha, self.nucleus)).lower(),
+            A = self.A
+        )
         self.check_data()
 
     def _extract_info_from_ptn_fname(self):
@@ -1546,7 +1552,7 @@ class ReadKshellOutput:
                     """
                     xticklabels.append(round(i, 1))
             
-            fig, ax = plt.subplots(figsize=(6.4, 6.4))
+            fig, ax = plt.subplots(figsize=(7, 6.4))
             sns.heatmap(
                 data = densities.T[-1::-1],
                 linewidth = 0.5,
@@ -1556,7 +1562,8 @@ class ReadKshellOutput:
                 fmt = ".0f",
                 ax = ax
             )
-            ax.set_yticklabels(np.flip([f"{int(i)}" + exponent for i in angular_momenta]), rotation=0)
+
+            ax.set_yticklabels(np.flip([f"{Fraction(i)}" + exponent for i in angular_momenta]), rotation=0)
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
             if set_title:
