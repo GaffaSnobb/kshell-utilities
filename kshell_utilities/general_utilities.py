@@ -4,9 +4,14 @@ from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
-from .parameters import flags
+from .parameters import flags, elements
 # warnings.filterwarnings("error")    # To catch warnings with try except.
 # from scipy.optimize import curve_fit
+
+def isotope(name: str, A: int):
+    protons = elements[name]
+    neutrons = A - protons
+    return protons, neutrons
 
 def create_spin_parity_list(
     spins: np.ndarray,
