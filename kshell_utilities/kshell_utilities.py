@@ -1,8 +1,7 @@
 import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
-from typing import Union, Callable, Tuple
+from typing import Union, Callable, Tuple, Iterable
 from itertools import chain
-from math import ceil
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -1340,10 +1339,10 @@ class ReadKshellOutput:
         bin_width: float = 0.2,
         E_min: float = 5,
         E_max: float = 10,
-        filter_spins: Union[None, int, float, list, tuple, np.ndarray] = None,
+        filter_spins: Union[None, int, float, Iterable] = None,
         filter_parity: Union[None, int, str] = None,
         plot: bool = True,
-        single_spin_plot: Union[None, list, tuple, np.ndarray, int, float] = None,
+        # single_spin_plot: Union[None, int, float, Iterable] = None,
         save_plot: bool = True,
         set_title: bool = True
     ):
@@ -1361,7 +1360,7 @@ class ReadKshellOutput:
         E_max : float
             Maximum value of the energy range.
 
-        filter_spins : Union[None, int, float, list, tuple, np.ndarray]
+        filter_spins : Union[None, int, float, Iterable]
             Filter the levels by their angular momentum. If None,
             all levels are plotted.
 
@@ -1372,20 +1371,20 @@ class ReadKshellOutput:
         plot : bool
             If True, the plot will be shown.
         
-        single_spin_plot : Union[None, list, tuple, np.ndarray, int, float]
-            If not None, a single plot for each of the input angular
-            momenta will be shown. If an integer or float is given,
-            the plot will be shown for that angular momentum. If a
-            list is given, the plot will be shown for each
-            of the input angular momenta. If None, no plot will be
-            shown.
+        # single_spin_plot : Union[None, int, float, Iterable]
+        #     If not None, a single plot for each of the input angular
+        #     momenta will be shown. If an integer or float is given,
+        #     the plot will be shown for that angular momentum. If a
+        #     list is given, the plot will be shown for each
+        #     of the input angular momenta. If None, no plot will be
+        #     shown.
         """
-        if not isinstance(single_spin_plot, (type(None), list, tuple, np.ndarray, int, float)):
-            msg = f"'single_spin_plot' must be of type: None, list, tuple, np.ndarray, int, float. Got {type(single_spin_plot)}."
-            raise TypeError(msg)
+        # if not isinstance(single_spin_plot, (type(None), Iterable, int, float)) or isinstance(single_spin_plot, str):
+        #     msg = f"'single_spin_plot' must be of type: None, Iterable, int, float. Got {type(single_spin_plot)}."
+        #     raise TypeError(msg)
 
-        if isinstance(single_spin_plot, (int, float)):
-            single_spin_plot = [single_spin_plot]
+        # if isinstance(single_spin_plot, (int, float)):
+        #     single_spin_plot = [single_spin_plot]
 
         if not isinstance(filter_parity, (type(None), int, str)):
             msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_spins)}."
@@ -1409,11 +1408,11 @@ class ReadKshellOutput:
             if isinstance(filter_spins, (float, int)):
                 angular_momenta = [filter_spins]
             
-            elif isinstance(filter_spins, (list, tuple, np.ndarray)):
+            elif isinstance(filter_spins, Iterable) and not isinstance(filter_spins, str):
                 angular_momenta = filter_spins
             
             else:
-                msg = f"'filter_spins' must be of type: None, list, int, float. Got {type(filter_spins)}."
+                msg = f"'filter_spins' must be of type: None, Iterable, int, float. Got {type(filter_spins)}."
                 raise TypeError(msg)
         
         bins = np.arange(E_min, E_max, bin_width)
@@ -1501,29 +1500,29 @@ class ReadKshellOutput:
             exponent = r"$^{-}$"
             parity_str = "-"
 
-        if single_spin_plot:
-            for j in single_spin_plot:
-                if j not in angular_momenta:
-                    msg = "Requested angular momentum is not present in the data."
-                    msg += f" Allowed values are: {angular_momenta}, got {j}."
-                    raise ValueError(msg)
+        # if single_spin_plot:
+        #     for j in single_spin_plot:
+        #         if j not in angular_momenta:
+        #             msg = "Requested angular momentum is not present in the data."
+        #             msg += f" Allowed values are: {angular_momenta}, got {j}."
+        #             raise ValueError(msg)
             
-            figax = []
-            for i in range(len(single_spin_plot)):
-                idx = np.where(angular_momenta == single_spin_plot[i])[0][0]  # Find the index of the angular momentum.
+        #     figax = []
+        #     for i in range(len(single_spin_plot)):
+        #         idx = np.where(angular_momenta == single_spin_plot[i])[0]  # Find the index of the angular momentum.
 
-                figax.append(plt.subplots())
-                label = r"$j^{\pi} =$" + f" {single_spin_plot[i]}" + exponent
-                figax[i][1].step(bins, densities[:, idx], label=label, color="black")
-                figax[i][1].legend()
-                figax[i][1].set_xlabel(r"$E$ [MeV]")
-                figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
+        #         figax.append(plt.subplots())
+        #         label = r"$j^{\pi} =$" + f" {single_spin_plot[i]}" + exponent
+        #         figax[i][1].step(bins, densities[:, idx], label=label, color="black")
+        #         figax[i][1].legend()
+        #         figax[i][1].set_xlabel(r"$E$ [MeV]")
+        #         figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
 
-                if save_plot:
-                    figax[i][0].savefig(
-                        f"{self.nucleus}_j={single_spin_plot[i]}{parity_str}_distribution.png",
-                        dpi = 300
-                    )
+        #         if save_plot:
+        #             figax[i][0].savefig(
+        #                 f"{self.nucleus}_j={single_spin_plot[i]}{parity_str}_distribution.png",
+        #                 dpi = 300
+        #             )
 
         if plot:
             xticklabels = []
@@ -1574,7 +1573,7 @@ class ReadKshellOutput:
             if save_plot:
                 fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=300)
         
-        if plot or single_spin_plot:
+        if plot:# or single_spin_plot:
             plt.show()
 
         return bins, densities
