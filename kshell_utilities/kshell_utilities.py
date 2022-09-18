@@ -5,6 +5,7 @@ from itertools import chain
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from .collect_logs import collect_logs
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import atomic_numbers, flags
 from .general_utilities import (
@@ -39,27 +40,28 @@ def _generate_unique_identifier(path: str) -> str:
             Example: path is 'summary.txt'
             """
             directory = "."
+    
+    elif os.path.isdir(path):
+        directory = path
 
-        for elem in os.listdir(directory):
-            """
-            Loop over all elements in the directory and find the shell
-            script and save_input file.
-            """
-            try:
-                if elem.endswith(".sh"):
-                    with open(f"{directory}/{elem}", "r") as infile:
-                        shell_file_content += infile.read()
-                # elif elem.endswith(".input"):
-                elif "save_input_ui.txt" in elem:
-                    with open(f"{directory}/{elem}", "r") as infile:
-                        save_input_content += infile.read()
-            except UnicodeDecodeError:
-                msg = f"Skipping {elem} for tmp file unique identifier due to UnicodeDecodeError."
-                msg += " Are you sure this file is supposed to be in this directory?"
-                print(msg)
-                continue
-    else:
-        print(msg)
+    for elem in os.listdir(directory):
+        """
+        Loop over all elements in the directory and find the shell
+        script and save_input file.
+        """
+        try:
+            if elem.endswith(".sh"):
+                with open(f"{directory}/{elem}", "r") as infile:
+                    shell_file_content += infile.read()
+                    
+            elif "save_input_ui.txt" in elem:
+                with open(f"{directory}/{elem}", "r") as infile:
+                    save_input_content += infile.read()
+        except UnicodeDecodeError:
+            msg = f"Skipping {elem} for tmp file unique identifier due to UnicodeDecodeError."
+            msg += " Are you sure this file is supposed to be in this directory?"
+            print(msg)
+            continue
 
     if (shell_file_content == "") and (save_input_content == ""):
         print(msg)
@@ -122,24 +124,22 @@ class ReadKshellOutput:
             2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
         """
 
-        self.path = path
+        self.path = path.rstrip("/")    # Just in case, prob. not necessary.
         self.load_and_save_to_file = load_and_save_to_file
         self.old_or_new = old_or_new
         # Some attributes might not be altered, depending on the input file.
-        self.fname_summary = None
-        self.fname_ptn = None
+        # self.fname_ptn = None     # I'll fix .pnt reading when the functionality is actually needed.
+        # self.fname_summary = None
+        # self.proton_partition = None
+        # self.neutron_partition = None
+        # self.truncation = None
         self.nucleus = None
         self.interaction = None
-        self.proton_partition = None
-        self.neutron_partition = None
         self.levels = None
         self.transitions_BM1 = None
         self.transitions_BE2 = None
         self.transitions_BE1 = None
-        self.truncation = None
         self.npy_path = "tmp"   # Directory for storing .npy files.
-        self.base_fname = self.path.split("/")[-1][:-4] # Base filename for .npy files.
-        self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
         # Debug.
         self.negative_spin_counts = np.array([0, 0, 0, 0])  # The number of skipped -1 spin states for [levels, BM1, BE2, BE1].
 
@@ -148,42 +148,59 @@ class ReadKshellOutput:
             msg += f" Got '{self.load_and_save_to_file}'."
             raise ValueError(msg)
 
-        if os.path.isdir(path):
+        if os.path.isdir(self.path):
             """
-            If input 'path' is a directory containing KSHELL files,
-            extract info from both summary and .ptn file.
+            If input 'path' is a directory. Look for summaries.
             """
-            for elem in os.listdir(path):
-                if elem.startswith("summary"):
-                    self.fname_summary = f"{path}/{elem}"
-                    self._extract_info_from_summary_fname()
-                    self._read_summary()
+            summaries = [i for i in os.listdir(self.path) if "summary" in i]
 
-                elif elem.endswith(".ptn"):
-                    self.fname_ptn = f"{path}/{elem}"
-                    self._extract_info_from_ptn_fname()
-                    self.read_ptn()
+            if not summaries:
+                """
+                No summaries found, call collect_logs.
+                """
+                self.fname_summary = collect_logs(
+                    path = self.path,
+                    old_or_new = "both"
+                )
+                self.path_summary = f"{self.path}/{self.fname_summary}"
 
-        else:
+            elif len(summaries) > 1:
+                msg = f"Several summaries found in {self.path}. Please specify path"
+                msg += " directly to the summary file you want to load."
+                raise RuntimeError(msg)
+
+            else:
+                self.fname_summary = summaries[0]   # Just filename.
+                self.path_summary = f"{self.path}/{summaries[0]}"    # Complete path (maybe relative).
+
+        elif os.path.isfile(self.path):
             """
             'path' is a single file, not a directory.
             """
-            fname = path.split("/")[-1]
+            self.fname_summary = path.split("/")[-1]       # Just filename.
+            self.path_summary = self.path    # Complete path (maybe relative).
 
-            if fname.startswith("summary"):
-                self.fname_summary = path
-                self._extract_info_from_summary_fname()
-                self._read_summary()
+        else:
+            msg = f"{self.path} is not a file or a directory!"
+            tmp_directory = self.path.rsplit('/', 1)[0]
+            if os.path.isdir(tmp_directory):
+                summaries = [i for i in os.listdir(tmp_directory) if "summary" in i]
+                if summaries:
+                    msg += f" {len(summaries)} summary files were found in {tmp_directory}."
+                    msg += f" {summaries}"
+                
+                logs = [i for i in os.listdir(tmp_directory) if i.startswith("log_")]
+                if logs and (not summaries):
+                    msg += f" Logs found in '{tmp_directory}'. Set path to '{tmp_directory}'"
+                    msg += " to collect logs and load the summary file."
 
-            elif fname.endswith(".ptn"):
-                self.fname_ptn = path
-                self._extract_info_from_ptn_fname()
-                self._read_ptn()
+            raise RuntimeError(msg)
 
-            else:
-                msg = f"Handling for file {fname} is not implemented."
-                raise KshellDataStructureError(msg)
-
+        self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npy tmp files.
+        self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
+        self._extract_info_from_summary_fname()
+        self._read_summary()
+        
         self.ground_state_energy = self.levels[0, 0]
         self.A = int("".join(filter(str.isdigit, self.nucleus)))
         self.Z, self.N = isotope(
@@ -369,10 +386,10 @@ class ReadKshellOutput:
                 return
 
         parallel_args = [
-            [self.fname_summary, "Energy", "replace_this_entry_with_loader", 0],
-            [self.fname_summary, "B(E1)", "replace_this_entry_with_loader", 1],
-            [self.fname_summary, "B(M1)", "replace_this_entry_with_loader", 2],
-            [self.fname_summary, "B(E2)", "replace_this_entry_with_loader", 3],
+            [self.path_summary, "Energy", "replace_this_entry_with_loader", 0],
+            [self.path_summary, "B(E1)", "replace_this_entry_with_loader", 1],
+            [self.path_summary, "B(M1)", "replace_this_entry_with_loader", 2],
+            [self.path_summary, "B(E2)", "replace_this_entry_with_loader", 3],
         ]
 
         if self.old_or_new == "new":
@@ -1339,7 +1356,7 @@ class ReadKshellOutput:
         bin_width: float = 0.2,
         E_min: float = 5,
         E_max: float = 10,
-        filter_spins: Union[None, int, float, Iterable] = None,
+        j_list: Union[None, int, float, Iterable] = None,
         filter_parity: Union[None, int, str] = None,
         plot: bool = True,
         # single_spin_plot: Union[None, int, float, Iterable] = None,
@@ -1360,7 +1377,7 @@ class ReadKshellOutput:
         E_max : float
             Maximum value of the energy range.
 
-        filter_spins : Union[None, int, float, Iterable]
+        j_list : Union[None, int, float, Iterable]
             Filter the levels by their angular momentum. If None,
             all levels are plotted.
 
@@ -1371,23 +1388,9 @@ class ReadKshellOutput:
         plot : bool
             If True, the plot will be shown.
         
-        # single_spin_plot : Union[None, int, float, Iterable]
-        #     If not None, a single plot for each of the input angular
-        #     momenta will be shown. If an integer or float is given,
-        #     the plot will be shown for that angular momentum. If a
-        #     list is given, the plot will be shown for each
-        #     of the input angular momenta. If None, no plot will be
-        #     shown.
         """
-        # if not isinstance(single_spin_plot, (type(None), Iterable, int, float)) or isinstance(single_spin_plot, str):
-        #     msg = f"'single_spin_plot' must be of type: None, Iterable, int, float. Got {type(single_spin_plot)}."
-        #     raise TypeError(msg)
-
-        # if isinstance(single_spin_plot, (int, float)):
-        #     single_spin_plot = [single_spin_plot]
-
         if not isinstance(filter_parity, (type(None), int, str)):
-            msg = f"'filter_parity' must be of type: None, int, str. Got {type(filter_spins)}."
+            msg = f"'filter_parity' must be of type: None, int, str. Got {type(j_list)}."
             raise TypeError(msg)
 
         if isinstance(filter_parity, str):
@@ -1398,21 +1401,21 @@ class ReadKshellOutput:
             
             filter_parity = 1 if (filter_parity == "+") else -1
 
-        if filter_spins is None:
+        if j_list is None:
             """
             If no angular momentum filter, then include all angular
             momenta in the data set.
             """
             angular_momenta = np.unique(self.levels[:, 1])/2
         else:
-            if isinstance(filter_spins, (float, int)):
-                angular_momenta = [filter_spins]
+            if isinstance(j_list, (float, int)):
+                angular_momenta = [j_list]
             
-            elif isinstance(filter_spins, Iterable) and not isinstance(filter_spins, str):
-                angular_momenta = filter_spins
+            elif isinstance(j_list, Iterable) and not isinstance(j_list, str):
+                angular_momenta = j_list
             
             else:
-                msg = f"'filter_spins' must be of type: None, Iterable, int, float. Got {type(filter_spins)}."
+                msg = f"'j_list' must be of type: None, Iterable, int, float. Got {type(j_list)}."
                 raise TypeError(msg)
         
         bins = np.arange(E_min, E_max, bin_width)
@@ -1500,30 +1503,6 @@ class ReadKshellOutput:
             exponent = r"$^{-}$"
             parity_str = "-"
 
-        # if single_spin_plot:
-        #     for j in single_spin_plot:
-        #         if j not in angular_momenta:
-        #             msg = "Requested angular momentum is not present in the data."
-        #             msg += f" Allowed values are: {angular_momenta}, got {j}."
-        #             raise ValueError(msg)
-            
-        #     figax = []
-        #     for i in range(len(single_spin_plot)):
-        #         idx = np.where(angular_momenta == single_spin_plot[i])[0]  # Find the index of the angular momentum.
-
-        #         figax.append(plt.subplots())
-        #         label = r"$j^{\pi} =$" + f" {single_spin_plot[i]}" + exponent
-        #         figax[i][1].step(bins, densities[:, idx], label=label, color="black")
-        #         figax[i][1].legend()
-        #         figax[i][1].set_xlabel(r"$E$ [MeV]")
-        #         figax[i][1].set_ylabel(r"NLD [MeV$^{-1}$]")
-
-        #         if save_plot:
-        #             figax[i][0].savefig(
-        #                 f"{self.nucleus}_j={single_spin_plot[i]}{parity_str}_distribution.png",
-        #                 dpi = 300
-        #             )
-
         if plot:
             xticklabels = []
             for i in bins:
@@ -1573,7 +1552,7 @@ class ReadKshellOutput:
             if save_plot:
                 fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=300)
         
-        if plot:# or single_spin_plot:
+        if plot:
             plt.show()
 
         return bins, densities
@@ -1899,39 +1878,19 @@ class ReadKshellOutput:
         Insert more checks under...
         """
 
-def _process_kshell_output_in_parallel(args):
-    """
-    Simple wrapper for parallelizing loading of KSHELL files.
-    """
-    filepath, load_and_save_to_file, old_or_new = args
-    print(filepath)
-    return ReadKshellOutput(filepath, load_and_save_to_file, old_or_new)
-
 def loadtxt(
     path: str,
-    is_directory: bool = False,
-    filter_: Union[None, str] = None,
     load_and_save_to_file: Union[bool, str] = True,
     old_or_new = "new"
     ) -> list:
     """
     Wrapper for using ReadKshellOutput class as a function.
-    TODO: Consider changing 'path' to 'fname' to be the same as
-    np.loadtxt.
 
     Parameters
     ----------
     path : str
-        Filename (and path) of `KSHELL` output data file, or path to
-        directory containing sub-directories with `KSHELL` output data.
-    
-    is_directory : bool
-        If True, and 'path' is a directory containing sub-directories
-        with `KSHELL` data files, the contents of 'path' will be scanned
-        for `KSHELL` data files. Currently supports only summary files.
-
-    filter_ : Union[None, str]
-        NOTE: Shouldnt the type be list, not str?
+        Path to summary file or path to directory with summary / log
+        files.
 
     load_and_save_to_file : Union[bool, str]
         Toggle saving data as `.npy` files on / off. If 'overwrite',
@@ -1949,98 +1908,23 @@ def loadtxt(
 
     Returns
     -------
-    data : list
-        List of instances with data from `KSHELL` data file as
-        attributes.
+    res : ReadKshellOutput instance
+        Instances with data from `KSHELL` data file as attributes.
     """
     loadtxt_time = time.perf_counter()  # Debug.
-    all_fnames = None
-    data = []
+
     if old_or_new not in (old_or_new_allowed := ["old", "new", "jem"]):
         msg = f"'old_or_new' argument must be in {old_or_new_allowed}!"
         msg += f" Got '{old_or_new}'."
         raise ValueError(msg)
 
-    if (is_directory) and (not os.path.isdir(path)):
-        msg = f"{path} is not a directory"
-        raise NotADirectoryError(msg)
-
-    elif (not is_directory) and (not os.path.isfile(path)):
-        msg = f"{path} is not a file"
-        raise FileNotFoundError(msg)
-
-    elif (is_directory) and (os.path.isdir(path)):
-        msg = "The 'is_directory' option is not properly tested and is"
-        msg += " deprecated at the moment. Might return in the future."
-        raise DeprecationWarning(msg)
-        all_fnames = {}
-
-        for element in sorted(os.listdir(path)):
-            """
-            List all content in path.
-            """
-            if os.path.isdir(path + element):
-                """
-                If element is a directory, enter it to find data files.
-                """
-                all_fnames[element] = []    # Create blank list entry in dict for current element.
-                for isotope in os.listdir(path + element):
-                    """
-                    List all content in the element directory.
-                    """
-                    if isotope.startswith("summary") and isotope.endswith(".txt"):
-                        """
-                        Extract summary data files.
-                        """
-                        try:
-                            """
-                            Example: O16.
-                            """
-                            n_neutrons = int(isotope[9:11])
-                        except ValueError:
-                            """
-                            Example: Ne20.
-                            """
-                            n_neutrons = int(isotope[10:12])
-
-                        n_neutrons -= atomic_numbers[element.split("_")[1]]
-                        all_fnames[element].append([element + "/" + isotope, n_neutrons])
-        
-        pool = multiprocessing.Pool()
-        for key in all_fnames:
-            """
-            Sort each list in the dict by the number of neutrons. Loop
-            over all directories in 'all_fnames' and extract KSHELL data
-            and append to a list.
-            """
-            if filter_ is not None:
-                if key.split("_")[1] not in filter_:
-                    """
-                    Skip elements not in filter_.
-                    """
-                    continue
-
-            all_fnames[key].sort(key=lambda tup: tup[1])   # Why not do this when directory is listed?
-            sub_fnames = all_fnames[key]
-            arg_list = [(path + i[0], load_and_save_to_file, old_or_new) for i in sub_fnames]
-            data += pool.map(_process_kshell_output_in_parallel, arg_list)
-
-    else:
-        """
-        Only a single KSHELL data file.
-        """
-        data.append(ReadKshellOutput(path, load_and_save_to_file, old_or_new))
-
-    if not data:
-        msg = "No KSHELL data loaded. Most likely error is that the given"
-        msg += f" directory has no KSHELL data files. {path=}"
-        raise RuntimeError(msg)
+    res = ReadKshellOutput(path, load_and_save_to_file, old_or_new)
 
     loadtxt_time = time.perf_counter() - loadtxt_time
     if flags["debug"]:
         print(f"{loadtxt_time = } s")
 
-    return data
+    return res
 
 def _get_timing_data(path: str):
     """
