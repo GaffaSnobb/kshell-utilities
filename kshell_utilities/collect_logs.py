@@ -793,3 +793,5 @@ def collect_logs(path: str=".", old_or_new: str="new"):
                 for _, out in sorted(output_e.items()):
                     outfile.write(out)
                 outfile.write("\n\n")
+
+    return summary_filename
