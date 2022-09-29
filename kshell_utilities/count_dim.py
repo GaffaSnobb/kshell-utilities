@@ -174,7 +174,7 @@ def _parallel(args):
     _mp_add( dim_mp_parallel, _mp_product(dim_idp_mp, dim_idn_mp) )
     return dim_mp_parallel
 
-@lru_cache(maxsize=None, typed=False)
+# @lru_cache(maxsize=None, typed=False)
 def count_dim(
     model_space_filename: str,
     partition_filename: str,
@@ -279,13 +279,13 @@ def count_dim(
     huge partition files.
     """
     timing_product_dimension = time.time()
-    pool = multiprocessing.Pool(16)
     dim_mp = {}
-    list_of_dicts = pool.map(
-        _parallel,
-        # [(dim_idp_mp[idp], dim_idn_mp[idn]) for idp, idn in total_partition]
-        [(i, dim_idp_mp[idx[0]], dim_idn_mp[idx[1]]) for i, idx in enumerate(total_partition)]
-    )
+    with multiprocessing.Pool() as pool:
+        list_of_dicts = pool.map(
+            _parallel,
+            # [(dim_idp_mp[idp], dim_idn_mp[idn]) for idp, idn in total_partition]
+            [(i, dim_idp_mp[idx[0]], dim_idn_mp[idx[1]]) for i, idx in enumerate(total_partition)]
+        )
     for dict_ in list_of_dicts:
         for key in dict_:
             try:
