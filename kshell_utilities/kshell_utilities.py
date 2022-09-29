@@ -1882,7 +1882,7 @@ def loadtxt(
     path: str,
     load_and_save_to_file: Union[bool, str] = True,
     old_or_new = "new"
-    ) -> list:
+    ) -> ReadKshellOutput:
     """
     Wrapper for using ReadKshellOutput class as a function.
 
@@ -1908,7 +1908,7 @@ def loadtxt(
 
     Returns
     -------
-    res : ReadKshellOutput instance
+    res : ReadKshellOutput
         Instances with data from `KSHELL` data file as attributes.
     """
     loadtxt_time = time.perf_counter()  # Debug.
@@ -2284,3 +2284,248 @@ def get_parameters(path: str, verbose: bool = True) -> dict:
             res[key] = value
 
     return res
+
+def inspect_log(
+    path: str
+):
+    """
+    Load log file(s) for inspection.
+
+    Parameters
+    ----------
+    path : str
+        Path to directory of log files or directly to a log file.
+    """
+    allowed_multipolarities_list = []
+    if os.path.isdir(path):
+        """
+        List all log files in 'path' and let the user decide which one
+        to inspect.
+        """
+        content = [i for i in os.listdir(path) if "log_" in i]
+        content.sort()
+        content = np.array(content)
+        
+        if not content.size:
+            msg = f"No log files found in '{path}'!"
+            raise FileNotFoundError(msg)
+
+        for i, elem in enumerate(content):
+            """
+            Make log file names more readable and calculate allowed
+            multipolarities (E1, M1, E2) based on angular momentum and
+            parity (if transition log file).
+            """
+            if "_tr_" in elem:
+                """
+                Transition log file.
+                """
+                elem = elem.rstrip(".txt")
+                elem = elem.split("_")[-2:]
+                elem[0] = elem[0].lstrip("j")
+                elem[1] = elem[1].lstrip("j")
+                
+                delta_parity = elem[0][-1] != elem[1][-1]   # Change in parity.
+
+                j_i = int(elem[0][:-1])/2   # Initial total angular momentum.
+                j_f = int(elem[1][:-1])/2   # Final.
+
+                if delta_parity:
+                    j_max = 1   # Because KSHELL doesnt support M2.
+                else:
+                    j_max = 2   # Because KSHELL supports max. E2.
+                
+                allowed_j = np.arange(max(np.abs(j_i - j_f), 1), min(j_i + j_f, j_max) + 1, 1, dtype=int)   # Possible j couplings.
+
+                tmp_multipolarity = []
+                if delta_parity:
+                    """
+                    If there is a change in parity: Even numbered
+                    magnetic and odd numbered electric.
+                    """
+                    for j in allowed_j:
+                        if j%2 == 0:
+                            tmp_multipolarity.append(f"M{j}")
+                        else:
+                            tmp_multipolarity.append(f"E{j}")
+
+                else:
+                    """
+                    If there is not a change in parity: Even numbered
+                    electric and odd numbered magnetic.
+                    """
+                    for j in allowed_j:
+                        if j%2 == 0:
+                            tmp_multipolarity.append(f"E{j}")
+                        else:
+                            tmp_multipolarity.append(f"M{j}")
+
+                allowed_multipolarities_list.append(tmp_multipolarity)
+                
+                elem = " <-> ".join(elem)
+            else:
+                elem = elem.rstrip(".txt")
+                elem = elem.split("_")[-1]
+                elem = elem.lstrip("j")
+                allowed_multipolarities_list.append([])
+
+            print(f"{i}: {elem}")
+
+        allowed_multipolarities_list = np.array(allowed_multipolarities_list, dtype=object) # Numpy arrays support indexing with lists of indices.
+
+        while True:
+            """
+            Prompt user for a single index or indices separated by
+            comma. The latter is converted to a list and used as indices
+            to the correct path and accompanying allowed multipolarity.
+            """
+            choice = input("Choose a log file for inspection: ")
+            try:
+                choice = ast.literal_eval(choice)
+            except (SyntaxError, ValueError):
+                print("Input must be an index or comma separated indices!")
+                continue
+            try:
+                if isinstance(choice, int):
+                    path_log = [content[choice]]
+                    allowed_multipolarities = [allowed_multipolarities_list[choice]]
+                elif isinstance(choice, Iterable):
+                    choice = list(choice)
+                    path_log = content[choice]
+                    allowed_multipolarities = allowed_multipolarities_list[choice]
+                else:
+                    continue
+                
+                break
+
+            except IndexError:
+                print(f"Input indices cannot be larger than {len(content) - 1}.")
+                continue
+
+        print(f"{path_log} chosen")
+        path_log = [f"{path}/{log}" for log in path_log]    # Prepend entire path (relative or absolute depending on user input).
+
+    elif os.path.isfile(path):
+        """
+        If path to a single log file is given.
+        """
+        path_log = [path]
+        elem = path_log[0].split("/")[-1]
+        elem = elem.rstrip(".txt")
+        elem = elem.split("_")[-2:]
+        elem[0] = elem[0].lstrip("j")
+        elem[1] = elem[1].lstrip("j")
+        
+        delta_parity = elem[0][-1] != elem[1][-1]
+
+        j_i = int(elem[0][:-1])/2   # Initial total angular momentum.
+        j_f = int(elem[1][:-1])/2   # Final.
+
+        if delta_parity:
+            j_max = 1   # Because KSHELL doesnt support M2.
+        else:
+            j_max = 2   # Because KSHELL supports max. E2.
+        
+        allowed_j = np.arange(max(np.abs(j_i - j_f), 1), min(j_i + j_f, j_max) + 1, 1, dtype=int)   # Possible j couplings.
+
+        tmp_multipolarity = []
+        if delta_parity:
+            """
+            If there is a change in parity: Even numbered
+            magnetic and odd numbered electric.
+            """
+            for j in allowed_j:
+                if j%2 == 0:
+                    tmp_multipolarity.append(f"M{j}")
+                else:
+                    tmp_multipolarity.append(f"E{j}")
+
+        else:
+            """
+            If there is not a change in parity: Even numbered
+            electric and odd numbered magnetic.
+            """
+            for j in allowed_j:
+                if j%2 == 0:
+                    tmp_multipolarity.append(f"E{j}")
+                else:
+                    tmp_multipolarity.append(f"M{j}")
+
+        allowed_multipolarities = [tmp_multipolarity]
+    
+    else:
+        msg = "Input 'path' must be a file or directory!"
+        raise FileNotFoundError(msg)
+
+    for i, log in enumerate(path_log):
+        if "_tr_" not in log:
+            msg = "Inspection implemented only for transition log files (for now)."
+            msg += f"\n{log = }"
+            raise NotImplementedError(msg)
+        
+        for multipolarity in allowed_multipolarities[i]:
+            j_f = []
+            idx_f = []
+            E_f = []
+            j_i = []
+            idx_i = []
+            E_i = []
+            E_x = []
+            mred = []
+            B_decay = []
+            B_excite = []
+            mom = []
+
+            with open(log, "r") as infile:
+                for line in infile:
+                    """
+                    Find where 'multipolarity' starts in the log file.
+                    """
+                    if f"{multipolarity} transition" not in line:
+                        continue
+                    else:
+                        break
+                
+                infile.readline()   # Skip a line.
+
+                for line in infile:
+                    try:
+                        tmp_j_f, tmp_idx_f, tmp_E_f, tmp_j_i, tmp_idx_i, tmp_E_i, \
+                        tmp_E_x, tmp_mred, tmp_B_decay, tmp_B_excite, tmp_mom = \
+                            [ast.literal_eval(i) for i in line.split()]
+
+                        j_f.append(tmp_j_f)
+                        idx_f.append(tmp_idx_f)
+                        E_f.append(tmp_E_f)
+                        j_i.append(tmp_j_i)
+                        idx_i.append(tmp_idx_i)
+                        E_i.append(tmp_E_i)
+                        E_x.append(tmp_E_x)
+                        mred.append(tmp_mred)
+                        B_decay.append(tmp_B_decay)
+                        B_excite.append(tmp_B_excite)
+                        mom.append(tmp_mom)
+                    except ValueError:
+                        break
+            
+            j_f = np.array(j_f)
+            idx_f = np.array(idx_f)
+            E_f = np.array(E_f)
+            j_i = np.array(j_i)
+            idx_i = np.array(idx_i)
+            E_i = np.array(E_i)
+            E_x = np.array(E_x)
+            mred = np.array(mred)
+            B_decay = np.array(B_decay)
+            B_excite = np.array(B_excite)
+            mom = np.array(mom)
+
+            print(f"{multipolarity} inspection summary of {log.split('/')[-1]}")
+            print(f"{np.mean(B_decay) = }")
+            print(f"{np.min(B_decay) = }")
+            print(f"{np.max(B_decay) = }")
+            print(f"{sum(B_decay) = }")
+            print(f"{sum(B_decay == 0) = }")
+            print(f"{sum(B_decay != 0) = }")
+            print(f"{len(B_decay) = }")
+            print()
