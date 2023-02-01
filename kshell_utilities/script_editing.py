@@ -1,4 +1,5 @@
 import os, warnings
+from .parameters import GS_FREE_PROTON, GS_FREE_NEUTRON
 
 def _ask_for_time_input(unit: str, lower_lim: int, upper_lim: int) -> int:
     """
@@ -47,6 +48,7 @@ def edit_and_queue_executables():
         "hours": False,
         "days": False,
         "job_name": False,
+        "quench": False,
         "queue": False
     }
 
@@ -83,6 +85,7 @@ def edit_and_queue_executables():
         time_parameter = ""
         nodes_parameter = ""
         job_name_parameter = ""
+        gs_parameter = ""
         content = ""
 
         with open(elem, "r") as infile:
@@ -97,6 +100,8 @@ def edit_and_queue_executables():
                     nodes_parameter += line
                 elif "#SBATCH --job-name=" in line:
                     job_name_parameter += line
+                elif "gs =" in line:
+                    gs_parameter += line
 
         if (not content) or ((not time_parameter) and (not nodes_parameter) and (not job_name_parameter)):
             print(f"Could not extract info from {elem}. Skipping ...")
@@ -156,6 +161,16 @@ def edit_and_queue_executables():
             tmp = time_parameter_new.split(":")
             _, tmp_hours = tmp[0].split("-")
             time_parameter_new = f"{available_parameters['days']}-{tmp_hours}:{tmp[1]}:{tmp[2]}"
+
+        if available_parameters["quench"]:
+            while True:
+                try:
+                    available_parameters["quench"] = float(input("quench: "))
+                    break
+                except ValueError:
+                    print("Only integers and floats are allowed!")
+                    continue
+
         
         if time_parameter:
             """
@@ -200,7 +215,23 @@ def edit_and_queue_executables():
                 warnings.warn(msg, RuntimeWarning)
             else:
                 content = content_tmp
-        
+
+        if available_parameters["quench"]:
+            quenching_factor = available_parameters["quench"]
+            gs_parameter_new = gs_parameter.split("=")[0]
+            gsp = round(quenching_factor*GS_FREE_PROTON, 2)
+            gsn = round(quenching_factor*GS_FREE_NEUTRON, 2)
+            gs_parameter_new += f"= {gsp}, {gsn}\n"
+            content_tmp = content.replace(gs_parameter, gs_parameter_new)
+
+            if content_tmp == content:
+                msg = "gs parameter is unchanged. Either str.replace could"
+                msg += " not find a match or new nodes parameter is identical"
+                msg += " to old nodes parameter."
+                warnings.warn(msg, RuntimeWarning)
+            else:
+                content = content_tmp
+
         with open(elem, "w") as outfile:
             outfile.write(content)
 
