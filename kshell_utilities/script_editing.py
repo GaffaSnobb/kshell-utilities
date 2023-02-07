@@ -170,8 +170,7 @@ def edit_and_queue_executables():
                 except ValueError:
                     print("Only integers and floats are allowed!")
                     continue
-
-        
+  
         if time_parameter:
             """
             Insert new time parameter.
