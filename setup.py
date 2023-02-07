@@ -8,7 +8,7 @@ from setuptools import setup
 
 setup(
     name = 'kshell-utilities',
-    version = '1.3.0.1',    
+    version = '1.4.0.0',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
     # long_description = long_description,
     url = 'https://github.com/GaffaSnobb/kshell-utilities',
