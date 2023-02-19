@@ -1,4 +1,4 @@
-__version__ = "1.4.0.0"
+__version__ = "1.4.0.1"
 __author__ = "Jon Kristian Dahl"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
@@ -19,4 +19,3 @@ from .count_dim import *
 from .parameters import *
 from .collect_logs import collect_logs, check_multipolarities
 from .script_editing import edit_and_queue_executables
-# from .low_energy_enhancement import * # Not ready for ver. 1.0
