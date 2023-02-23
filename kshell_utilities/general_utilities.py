@@ -630,8 +630,8 @@ def level_plot(
     levels: np.ndarray,
     include_n_levels: int = 1_000,
     filter_spins: Union[None, list] = None,
-    ax: Union[None, plt.Axes] = None
-    ):
+    ax: Union[None, plt.Axes] = None,
+    color: Union[None, str] = "black"):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
@@ -702,7 +702,7 @@ def level_plot(
             y = energies[i],
             xmin = spins[i] - line_width,
             xmax = spins[i] + line_width,
-            color = "black"
+            color = color
         )
 
     ax.set_xticks(spin_scope)
