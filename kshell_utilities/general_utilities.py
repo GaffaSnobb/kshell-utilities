@@ -631,7 +631,7 @@ def level_plot(
     include_n_levels: int = 1_000,
     filter_spins: Union[None, list] = None,
     ax: Union[None, plt.Axes] = None,
-    color: Union[None, str] = "black"):
+    color: Union[None, str] = None):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
@@ -653,6 +653,10 @@ def level_plot(
     ax : Union[None, plt.Axes]
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
+
+    color : Union[None, str]
+        Color to use for the levels. If None, the next color in the matplotlib
+        color_cycle iterator is used. 
     """
     ax_input = False if (ax is None) else True
 
@@ -677,6 +681,9 @@ def level_plot(
 
     if not ax_input:
         fig, ax = plt.subplots()
+
+    if color is None:
+        color = next(ax._get_lines.color_cycle)
 
     for i in range(len(energies)):
         if filter_spins is not None:
@@ -1394,3 +1401,5 @@ def nuclear_shell_model():
 
     fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
     plt.show()
+
+
