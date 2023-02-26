@@ -1,5 +1,5 @@
-__version__ = "1.4.0.1"
-__author__ = "Jon Kristian Dahl"
+__version__ = "1.5.0.0"
+__author__ = "Jon Kristian Dahl, Johannes Heines"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
 """
@@ -17,5 +17,6 @@ from .general_utilities import *
 from .kshell_exceptions import *
 from .count_dim import *
 from .parameters import *
+from .comparison_plots import ComparisonPlots
 from .collect_logs import collect_logs, check_multipolarities
 from .script_editing import edit_and_queue_executables
