@@ -87,8 +87,12 @@ class ComparisonPlots:
                 ax = ax,
                 color = color)
 
-            for tick_position, tick_label in zip(ax.get_xticks(),
-                                                 ax.get_xticklabels()):
+            for tick_position, tick_label in zip(
+                    ax.get_xticks(),
+                    [l.get_text() for l in ax.get_xticklabels()]
+                    ):
+                print(tick_position, id(tick_position))
+                print(tick_label, id(tick_label))
                 xticks[tick_position] = tick_label
 
             ax.plot([], [], label=kshell_output.nucleus, color=color)
