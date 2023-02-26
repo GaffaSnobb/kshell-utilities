@@ -156,7 +156,17 @@ class ComparisonPlots:
         return_n_transitions: bool = False,
         ):
         """
-        """
+        Draw gamma strength function plots for all kshell outputs.
+
+        Parameters
+        ----------
+        ax : Union[None, plt.Axes]
+            matplotlib Axes on which to plot. If None, plt.Figure and plt.Axes 
+            is generated in this function.
+
+        See level_density in general_utilities.py for details on the other
+        parameters.
+         """
         ax_input, fig, ax = self._get_fig_and_ax(ax)
 
         for color, kshell_output in zip(self._color_palette,
@@ -193,7 +203,7 @@ class ComparisonPlots:
     @staticmethod
     def _get_fig_and_ax(
         ax: Union[None, plt.Axes]
-        ) -> Tuple(bool, plt.Figure, plt.Axes):
+        ) -> Tuple[bool, plt.Figure, plt.Axes]:
         """
         Return a matplotlib Figure and Axes on which to plot, and whether these
         were generated in this function or existed previously.
