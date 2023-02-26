@@ -86,6 +86,10 @@ class ComparisonPlots:
                 ax = ax,
                 color = color)
 
+            ax.plot([], [], label=kshell_output.nucleus, color=color)
+
+        ax.legend(loc="lower right")
+
         if not ax_input:
             plt.show()
 

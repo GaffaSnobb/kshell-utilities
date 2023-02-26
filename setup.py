@@ -8,11 +8,11 @@ from setuptools import setup
 
 setup(
     name = 'kshell-utilities',
-    version = '1.4.0.1',    
+    version = '1.5.0.0',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
     # long_description = long_description,
     url = 'https://github.com/GaffaSnobb/kshell-utilities',
-    author = 'Jon Kristian Dahl',
+    author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities', 'tests'],
     install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy'],
