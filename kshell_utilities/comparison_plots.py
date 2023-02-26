@@ -76,6 +76,7 @@ class ComparisonPlots:
         parameters.
         """
         ax_input, fig, ax = self._get_fig_and_ax(ax)
+        xticks = {}
 
         for color, kshell_output in zip(self._color_palette, 
                                         self._kshell_outputs):
@@ -86,7 +87,13 @@ class ComparisonPlots:
                 ax = ax,
                 color = color)
 
+            for tick_position, tick_label in zip(ax.get_xticks(),
+                                                 ax.get_xticklabels()):
+                xticks[tick_position] = tick_label
+
             ax.plot([], [], label=kshell_output.nucleus, color=color)
+
+        ax.xticks(ticks=xticks.keys(), labels=xticks.values())
 
         ax.legend(loc="lower right")
 
