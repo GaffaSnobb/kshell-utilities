@@ -195,7 +195,7 @@ class ComparisonPlots:
                 filter_parities = filter_parities,
                 return_n_transitions = return_n_transitions
                 )
-            ax.plot(bins, gsf)
+            ax.plot(bins, gsf, color=color)
 
         if not ax_input:
             plt.show()
