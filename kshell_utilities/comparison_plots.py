@@ -93,7 +93,7 @@ class ComparisonPlots:
 
             ax.plot([], [], label=kshell_output.nucleus, color=color)
 
-        ax.xticks(ticks=xticks.keys(), labels=xticks.values())
+        ax.set_xticks(ticks=list(xticks.keys()), labels=list(xticks.values()))
 
         ax.legend(loc="lower right")
 
