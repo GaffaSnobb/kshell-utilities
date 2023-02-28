@@ -3,6 +3,7 @@ from itertools import cycle, islice
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from .kshell_utilities import ReadKshellOutput
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average
 )
@@ -23,6 +24,16 @@ class Compare:
             list of instances of the ReadKshellOutput class to be
             plotted together.
         """
+        type_error_msg = 'kshell_outputs must be a list of ReadKshellOutput'
+        type_error_msg += ' instances (the return value of ksutil.loadtxt).'
+        type_error_msg += ' Eg: ksutil.Compare(kshell_outputs=[V50, V51]).'
+        if not isinstance(kshell_outputs, (list, tuple)):
+            raise TypeError(type_error_msg)
+        
+        else:
+            if not all(isinstance(i, ReadKshellOutput) for i in kshell_outputs):
+                raise TypeError(type_error_msg)
+
         self._kshell_outputs = kshell_outputs
         self._color_palette = sns.color_palette(
             palette = "tab10",
@@ -115,8 +126,7 @@ class Compare:
                     ax.get_xticks(),
                     [l.get_text() for l in ax.get_xticklabels()]
                     ):
-                print(tick_position, id(tick_position))
-                print(tick_label, id(tick_label))
+
                 xticks[tick_position] = tick_label
 
             ax.plot([], [], label=kshell_output.nucleus, color=color)
