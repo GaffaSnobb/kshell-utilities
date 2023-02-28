@@ -654,6 +654,11 @@ def level_plot(
         Which spins to include in the plot. If None, all spins are
         plotted.
 
+    filter_parity : Union[None, str]
+        A filter for parity. If None (default) then the parity of the
+        ground state will be used. `+` is positive, `-` is negative,
+        while `both` gives both parities.
+
     ax : Union[None, plt.Axes]
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
