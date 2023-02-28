@@ -3,17 +3,17 @@
 
     N    J prty N_Jp    T     E(MeV)  Ex(MeV)  log-file
 
-    1     0 +     1     4    -41.394    0.000  log_S24_usda_m0p.txt
-    6     3 +     1     4    -33.378    8.016  log_S24_usda_m0p.txt
-    5   2.0 +     1   2.0   -114.552    0.240  log_V50_gxpf1a_j4p.txt 
-    6   5.0 +     2   2.0   -114.044    0.748  log_V50_gxpf1a_j10p.txt 
-    7   4.0 +     2   2.0   -113.972    0.820  log_V50_gxpf1a_j8p.txt 
-    8   7.0 +     1   2.0   -113.898    0.894  log_V50_gxpf1a_j14p.txt 
-    9   2.0 +     2   2.0   -113.762    1.030  log_V50_gxpf1a_j4p.txt 
-   10   3.0 +     2   2.0   -113.602    1.190  log_V50_gxpf1a_j6p.txt
-   11   -1 +     2   2.0   -113.602    1.190  log_V50_gxpf1a_j6p.txt
-   12   3/2 -     1   3/2     -9.896    6.669  log_O19_sdpf-mu_m1n.txt 
-   13   7/2 -     1   3/2     -9.052    7.513  log_O19_sdpf-mu_m1n.txt 
+   1     2.0 +     1   2.0   -114.552    0.240  log_V50_gxpf1a_j4p.txt 
+   2     5.0 +     2   2.0   -114.044    0.748  log_V50_gxpf1a_j10p.txt 
+   3     4.0 +     2   2.0   -113.972    0.820  log_V50_gxpf1a_j8p.txt 
+   4     7.0 +     1   2.0   -113.898    0.894  log_V50_gxpf1a_j14p.txt 
+   5     2.0 +     2   2.0   -113.762    1.030  log_V50_gxpf1a_j4p.txt 
+   6      -1 +     2   2.0   -113.602    1.190  log_V50_gxpf1a_j6p.txt
+   7     3.0 +     2   2.0   -113.602    1.190  log_V50_gxpf1a_j6p.txt
+   8       0 +     1     4    -41.394    0.000  log_S24_usda_m0p.txt
+   9       3 +     1     4    -33.378    8.016  log_S24_usda_m0p.txt
+   10    3/2 -     1   3/2     -9.896    6.669  log_O19_sdpf-mu_m1n.txt 
+   11    7/2 -     1   3/2     -9.052    7.513  log_O19_sdpf-mu_m1n.txt 
 
 
 B(E2)  ( > -0.0 W.u.)  mass = 50    1 W.u. = 10.9 e^2 fm^4
