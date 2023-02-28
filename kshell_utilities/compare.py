@@ -1,28 +1,27 @@
-from typing import Union, Callable, Tuple, Iterable
+from typing import Union, Tuple
 from itertools import cycle, islice
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from .kshell_utilities import ReadKshellOutput
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average
 )
 
-class ComparisonPlots:
+class Compare:
     """
-    Plot levels, level density and gamma strength function for easy comparison
-    between multiple kshell outputs.
+    Plot levels, level density and gamma strength function for easy
+    comparison between multiple kshell outputs.
     """
-    def __init__(self, *kshell_outputs):
+    def __init__(self, kshell_outputs):
         """
-        Initialize instance with the given kshell outputs and a default color
-        palette.
+        Initialize instance with the given kshell outputs and a default
+        color palette.
 
         Parameters
         ----------
         kshell_outputs : list[ReadKshellOutput]
-            list of instances of the ReadKshellOutput class to be plotted 
-            together.
+            list of instances of the ReadKshellOutput class to be
+            plotted together.
         """
         self._kshell_outputs = kshell_outputs
         self._color_palette = sns.color_palette(
@@ -87,6 +86,7 @@ class ComparisonPlots:
                 width must be halved to make room for both.
                 """
                 line_width = 0.2
+                x_offset_scale = 0.5
                 break
 
         else:
@@ -95,6 +95,7 @@ class ComparisonPlots:
             half integer angular momenta, not both.
             """
             line_width = 0.4
+            x_offset_scale = 1
 
         for color, kshell_output in zip(self._color_palette, 
                                         self._kshell_outputs):
@@ -107,7 +108,7 @@ class ComparisonPlots:
                 ax = ax,
                 color = color,
                 line_width = line_width,
-                x_offset_scale = 0.5,
+                x_offset_scale = x_offset_scale,
             )
 
             for tick_position, tick_label in zip(
