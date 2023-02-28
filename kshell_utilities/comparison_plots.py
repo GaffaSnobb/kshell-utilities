@@ -26,7 +26,7 @@ class ComparisonPlots:
         """
         self._kshell_outputs = kshell_outputs
         self._color_palette = sns.color_palette(
-            palette = "deep",
+            palette = "tab10",
             n_colors = len(self._kshell_outputs))
 
     def set_color_palette(
