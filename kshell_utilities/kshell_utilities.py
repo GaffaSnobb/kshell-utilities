@@ -481,12 +481,13 @@ class ReadKshellOutput:
 
     def level_plot(self,
         include_n_levels: int = 1000,
-        filter_spins: Union[None, list] = None
+        filter_spins: Union[None, list] = None,
+        color: Union[None, str] = "black"
         ):
         """
         Wrapper method to include level plot as an attribute to this
-        class. Generate a level plot for a single isotope. Spin on the x
-        axis, energy on the y axis.
+        class. Generate a level plot for a single isotope. Angular
+        momentum on the x axis, energy on the y axis.
 
         Parameters
         ----------
@@ -497,12 +498,15 @@ class ReadKshellOutput:
         filter_spins : Union[None, list]
             Which spins to include in the plot. If `None`, all spins are
             plotted. Defaults to `None`
+
+        color : Union[None, str]
+            Set the color of the level lines.
         """
         level_plot(
             levels = self.levels,
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
-            color = "black"
+            color = color
         )
 
     def level_density_plot(self,
