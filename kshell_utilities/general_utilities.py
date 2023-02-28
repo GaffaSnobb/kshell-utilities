@@ -683,12 +683,20 @@ def level_plot(
         """
         Default to the ground state parity.
         """
-        parity_integer: int = levels[0, 2]
-        parity_symbol: str = "+" if levels[0, 2] == 1 else "-"
+        parity_integer: int = [levels[0, 2]]
+        parity_symbol: str = "+" if (levels[0, 2] == 1) else "-"
+        x_offset = 0    # No offset needed for single parity plot.
 
-    else:
+    elif isinstance(filter_parity, str):
         parity_symbol: str = filter_parity
-        parity_integer: int = 1 if (parity_symbol == "+") else -1
+        parity_integer: int = [1] if (parity_symbol == "+") else [-1]
+        x_offset = 0
+
+    elif isinstance(filter_parity, list):
+        line_width /= 2 # Make room for both parities.
+        parity_integer = [-1, 1]
+        parity_symbol = r"-+"
+        x_offset = 1/4  # Offset for plots containing both parities.
     
     if filter_spins is not None:
         spin_scope = np.unique(filter_spins)    # x values for the plot.
@@ -711,31 +719,32 @@ def level_plot(
                 """
                 continue
 
-        if parities[i] != parity_integer:
+        if parities[i] not in parity_integer:
             continue
 
+        key: str = f"{spins[i]} + {parities[i]}"
         try:
-            counts[spins[i]] += 1
+            counts[key] += 1
         except KeyError:
-            counts[spins[i]] = 1
+            counts[key] = 1
         
-        if counts[spins[i]] > include_n_levels:
+        if counts[key] > include_n_levels:
             """
-            Include only the first 'include_n_levels' amount of states
+            Include only the first `include_n_levels` amount of states
             for any of the spins.
             """
             continue
 
         ax.hlines(
             y = energies[i],
-            xmin = spins[i] - line_width,
-            xmax = spins[i] + line_width,
+            xmin = spins[i] - line_width + x_offset*parities[i],
+            xmax = spins[i] + line_width + x_offset*parities[i],
             color = color,
             alpha = 0.5,
         )
 
     ax.set_xticks(spin_scope)
-    ax.set_xticklabels([f"{Fraction(i)}" + f"$^{parity_symbol}$" for i in spin_scope])
+    ax.set_xticklabels([f"{Fraction(i)}" + r"$^{" + f"{parity_symbol}" + r"}$" for i in spin_scope])
     ax.set_xlabel(r"$j^{\pi}$")
     ax.set_ylabel(r"$E$ [MeV]")
 
@@ -1423,5 +1432,3 @@ def nuclear_shell_model():
 
     fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
     plt.show()
-
-
