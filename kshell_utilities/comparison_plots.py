@@ -77,14 +77,35 @@ class ComparisonPlots:
         ax_input, fig, ax = self._get_fig_and_ax(ax)
         xticks = {}
 
+        is_half_integer: bool = any(self._kshell_outputs[0].levels[:, 1]%2 == 1)
+        for kshell_output in self._kshell_outputs:
+            if is_half_integer != any(kshell_output.levels[:, 1]%2 == 1):
+                """
+                If both integer and half integer angular momentum
+                exsists in two or more kshell data sets, then the line
+                width must be halved to make room for both.
+                """
+                line_width = 0.2
+                break
+
+        else:
+            """
+            In this case, the kshell outputs contain either integer or
+            half integer angular momenta, not both.
+            """
+            line_width = 0.4
+
         for color, kshell_output in zip(self._color_palette, 
                                         self._kshell_outputs):
+
             level_plot(
                 levels = kshell_output.levels,
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
                 ax = ax,
-                color = color)
+                color = color,
+                line_width = line_width,
+            )
 
             for tick_position, tick_label in zip(
                     ax.get_xticks(),
