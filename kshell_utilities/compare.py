@@ -13,7 +13,10 @@ class Compare:
     Plot levels, level density and gamma strength function for easy
     comparison between multiple kshell outputs.
     """
-    def __init__(self, kshell_outputs):
+    def __init__(self,
+            kshell_outputs: list[ReadKshellOutput],
+            legend_labels: Union[None, list[str]] = None,
+        ):
         """
         Initialize instance with the given kshell outputs and a default
         color palette.
@@ -33,7 +36,16 @@ class Compare:
         else:
             if not all(isinstance(i, ReadKshellOutput) for i in kshell_outputs):
                 raise TypeError(type_error_msg)
+            
+        if isinstance(legend_labels, list):
+            if len(legend_labels) != len(kshell_outputs):
+                msg = (
+                    "The number of labels must equal the number of"
+                    " ReadKshellOutput instances!"
+                )
+                raise RuntimeError(msg)
 
+        self._legend_labels = legend_labels
         self._kshell_outputs = kshell_outputs
         self._color_palette = sns.color_palette(
             palette = "tab10",
@@ -79,8 +91,8 @@ class Compare:
         Parameters
         ----------
         ax : Union[None, plt.Axes]
-            matplotlib Axes on which to plot. If None, plt.Figure and plt.Axes 
-            is generated in this function.
+            matplotlib Axes on which to plot. If None, plt.Figure and
+            plt.Axes is generated in this function.
 
         See level_plot in general_utilities.py for details on the other
         parameters.
@@ -108,8 +120,14 @@ class Compare:
             line_width = 0.4
             x_offset_scale = 1
 
-        for color, kshell_output in zip(self._color_palette, 
-                                        self._kshell_outputs):
+        if self._legend_labels is None:
+            labels: list = [i.nucleus for i in self._kshell_outputs]
+        else:
+            labels: list = self._legend_labels
+
+        for color, kshell_output, label in zip(
+                self._color_palette, self._kshell_outputs, labels
+            ):
 
             level_plot(
                 levels = kshell_output.levels,
@@ -129,7 +147,7 @@ class Compare:
 
                 xticks[tick_position] = tick_label
 
-            ax.plot([], [], label=kshell_output.nucleus, color=color)
+            ax.plot([], [], label=label, color=color)
 
         ax.set_xticks(ticks=list(xticks.keys()), labels=list(xticks.values()))
 
