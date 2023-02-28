@@ -60,7 +60,8 @@ class ComparisonPlots:
         self,
         ax: Union[None, plt.Axes] = None,
         include_n_levels: int = 1_000,
-        filter_spins: Union[None, list] = None
+        filter_spins: Union[None, list] = None,
+        filter_parity: Union[None, str] = None,
         ):
         """
         Draw level plots for all kshell outputs. 
@@ -102,9 +103,11 @@ class ComparisonPlots:
                 levels = kshell_output.levels,
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
+                filter_parity = filter_parity,
                 ax = ax,
                 color = color,
                 line_width = line_width,
+                x_offset_scale = 0.5,
             )
 
             for tick_position, tick_label in zip(
