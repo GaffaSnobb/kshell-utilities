@@ -630,6 +630,7 @@ def level_plot(
     levels: np.ndarray,
     include_n_levels: int = 1_000,
     filter_spins: Union[None, list] = None,
+    filter_parity: Union[None, str] = None,
     ax: Union[None, plt.Axes] = None,
     color: Union[None, str] = None):
     """
@@ -639,8 +640,8 @@ def level_plot(
     Parameters
     ----------
     levels : np.ndarray
-        NxM array of [[energy, spin, parity], ...]. This is the instance
-        attribute 'levels' of ReadKshellOutput.
+        NxM array of [[energy, spin, parity, index], ...]. This is the
+        instance attribute 'levels' of ReadKshellOutput.
     
     include_n_levels : int
         The maximum amount of states to plot for each spin. Default set
@@ -655,8 +656,8 @@ def level_plot(
         generated in this function.
 
     color : Union[None, str]
-        Color to use for the levels. If None, the next color in the matplotlib
-        color_cycle iterator is used. 
+        Color to use for the levels. If None, the next color in the
+        matplotlib color_cycle iterator is used. 
     """
     ax_input = False if (ax is None) else True
 
@@ -669,14 +670,26 @@ def level_plot(
         energies = levels[:, 0]
 
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
-    parity_symbol = "+" if levels[0, 2] == 1 else "-"
+    parities = levels[:, 2]
+
+    if filter_parity is None:
+        """
+        Default to the ground state parity.
+        """
+        # filter_parity = levels[0, 2]
+        parity_integer: int = levels[0, 2]
+        parity_symbol: str = "+" if levels[0, 2] == 1 else "-"
+
+    else:
+        parity_symbol: str = filter_parity
+        parity_integer: int = 1 if (parity_symbol == "+") else -1
     
     if filter_spins is not None:
         spin_scope = np.unique(filter_spins)    # x values for the plot.
     else:
         spin_scope = np.unique(spins)
     
-    counts = {} # Dict to keep tabs on how many states of each spin have been plotted.
+    counts = {} # Dict to keep tabs on how many levels of each angular momentum have been plotted.
     line_width = np.abs(spins[0] - spins[1])/4*0.9
 
     if not ax_input:
@@ -692,6 +705,9 @@ def level_plot(
                 Skip spins which are not in the filter.
                 """
                 continue
+
+        if parities[i] != parity_integer:
+            continue
 
         try:
             counts[spins[i]] += 1

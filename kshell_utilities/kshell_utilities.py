@@ -482,6 +482,7 @@ class ReadKshellOutput:
     def level_plot(self,
         include_n_levels: int = 1000,
         filter_spins: Union[None, list] = None,
+        filter_parity: Union[None, str] = None,
         color: Union[None, str] = "black"
         ):
         """
@@ -506,7 +507,8 @@ class ReadKshellOutput:
             levels = self.levels,
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
-            color = color
+            filter_parity = filter_parity,
+            color = color,
         )
 
     def level_density_plot(self,
