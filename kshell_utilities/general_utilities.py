@@ -634,6 +634,7 @@ def level_plot(
     ax: Union[None, plt.Axes] = None,
     color: Union[None, str] = None,
     line_width: float = 0.4,
+    x_offset_scale: float = 1.0,
     ):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
@@ -665,6 +666,11 @@ def level_plot(
         The width of the level lines. Not really supposed to be changed
         by the user. Set to 0.2 for comparison plots when both integer
         and half integer angular momenta are included, 0.4 else.
+
+    x_offset_scale : float
+        To scale the x offset for the hlines. This is used to fit
+        columns for both integer and half integer angular momenta, as
+        well as both parities.
     """
     ax_input = False if (ax is None) else True
 
@@ -679,6 +685,11 @@ def level_plot(
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
     parities = levels[:, 2]
 
+    allowed_filter_parity = [None, "+", "-", "both"]
+    if filter_parity not in allowed_filter_parity:
+        msg = f"Allowed parity filters are: {allowed_filter_parity}."
+        raise ValueError(msg)
+
     if filter_parity is None:
         """
         Default to the ground state parity.
@@ -687,16 +698,21 @@ def level_plot(
         parity_symbol: str = "+" if (levels[0, 2] == 1) else "-"
         x_offset = 0    # No offset needed for single parity plot.
 
-    elif isinstance(filter_parity, str):
+    elif filter_parity == "+":
         parity_symbol: str = filter_parity
-        parity_integer: int = [1] if (parity_symbol == "+") else [-1]
+        parity_integer: list = [1]
         x_offset = 0
 
-    elif isinstance(filter_parity, list):
+    elif filter_parity == "-":
+        parity_symbol: str = filter_parity
+        parity_integer: list = [-1]
+        x_offset = 0
+
+    elif filter_parity == "both":
         line_width /= 2 # Make room for both parities.
-        parity_integer = [-1, 1]
-        parity_symbol = r"-+"
-        x_offset = 1/4  # Offset for plots containing both parities.
+        parity_symbol: str = r"-+"
+        parity_integer: list = [-1, 1]
+        x_offset = 1/4*x_offset_scale  # Offset for plots containing both parities.
     
     if filter_spins is not None:
         spin_scope = np.unique(filter_spins)    # x values for the plot.
