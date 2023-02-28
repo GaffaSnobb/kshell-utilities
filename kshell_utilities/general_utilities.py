@@ -632,7 +632,9 @@ def level_plot(
     filter_spins: Union[None, list] = None,
     filter_parity: Union[None, str] = None,
     ax: Union[None, plt.Axes] = None,
-    color: Union[None, str] = None):
+    color: Union[None, str] = None,
+    line_width: float = 0.4,
+    ):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
@@ -657,7 +659,12 @@ def level_plot(
 
     color : Union[None, str]
         Color to use for the levels. If None, the next color in the
-        matplotlib color_cycle iterator is used. 
+        matplotlib color_cycle iterator is used.
+    
+    line_width : float
+        The width of the level lines. Not really supposed to be changed
+        by the user. Set to 0.2 for comparison plots when both integer
+        and half integer angular momenta are included, 0.4 else.
     """
     ax_input = False if (ax is None) else True
 
@@ -676,7 +683,6 @@ def level_plot(
         """
         Default to the ground state parity.
         """
-        # filter_parity = levels[0, 2]
         parity_integer: int = levels[0, 2]
         parity_symbol: str = "+" if levels[0, 2] == 1 else "-"
 
@@ -690,7 +696,6 @@ def level_plot(
         spin_scope = np.unique(spins)
     
     counts = {} # Dict to keep tabs on how many levels of each angular momentum have been plotted.
-    line_width = np.abs(spins[0] - spins[1])/4*0.9
 
     if not ax_input:
         fig, ax = plt.subplots()
@@ -725,7 +730,8 @@ def level_plot(
             y = energies[i],
             xmin = spins[i] - line_width,
             xmax = spins[i] + line_width,
-            color = color
+            color = color,
+            alpha = 0.5,
         )
 
     ax.set_xticks(spin_scope)
