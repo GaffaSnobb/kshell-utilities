@@ -8,7 +8,6 @@ from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average
 )
 
-
 class ComparisonPlots:
     """
     Plot levels, level density and gamma strength function for easy comparison
