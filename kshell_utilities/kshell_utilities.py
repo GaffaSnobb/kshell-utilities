@@ -202,11 +202,22 @@ class ReadKshellOutput:
         self._read_summary()
         
         self.ground_state_energy = self.levels[0, 0]
-        self.A = int("".join(filter(str.isdigit, self.nucleus)))
-        self.Z, self.N = isotope(
-            name = "".join(filter(str.isalpha, self.nucleus)).lower(),
-            A = self.A
-        )
+        
+        try:
+            self.A = int("".join(filter(str.isdigit, self.nucleus)))
+            self.Z, self.N = isotope(
+                name = "".join(filter(str.isalpha, self.nucleus)).lower(),
+                A = self.A
+            )
+        except ValueError:
+            """
+            Prob. because the summary filename does not contain the name
+            of the isotope.
+            """
+            self.A = None
+            self.Z = None
+            self.N = None
+        
         self.check_data()
 
     def _extract_info_from_ptn_fname(self):
