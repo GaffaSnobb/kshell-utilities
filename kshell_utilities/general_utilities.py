@@ -758,8 +758,8 @@ def level_plot(
 
         ax.hlines(
             y = energies[i],
-            xmin = spins[i] - line_width + x_offset*parities[i],
-            xmax = spins[i] + line_width + x_offset*parities[i],
+            xmin = spins[i] - line_width + x_offset*parities[i]*0.9,
+            xmax = spins[i] + line_width + x_offset*parities[i]*0.9,
             color = color,
             alpha = 0.5,
         )
