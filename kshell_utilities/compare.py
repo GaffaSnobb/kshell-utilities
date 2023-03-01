@@ -24,8 +24,13 @@ class Compare:
         Parameters
         ----------
         kshell_outputs : list[ReadKshellOutput]
-            list of instances of the ReadKshellOutput class to be
+            list of instances of the `ReadKshellOutput` class to be
             plotted together.
+
+        legend_labels : Union[None, list[str]]
+            A list of labels for the legends of the plots. The number of
+            labels must equal the number of elements in
+            `kshell_outputs`.
         """
         type_error_msg = 'kshell_outputs must be a list of ReadKshellOutput'
         type_error_msg += ' instances (the return value of ksutil.loadtxt).'
