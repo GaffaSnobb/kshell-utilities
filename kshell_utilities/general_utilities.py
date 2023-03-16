@@ -259,10 +259,11 @@ def gamma_strength_function_average(
         msg = "Ex_max cannot be smaller than Ex_min!"
         raise ValueError(msg)
 
-    prefactors = {   # Factor from the def. of the GSF.
+    prefactors: dict[str, float] = {   # Factor for converting from B(XL) to GSF
         "M1": 11.5473e-9, # [1/(mu_N**2*MeV**2)].
         # "E1": 1.047e-6,
-        "E1": 3.4888977e-7
+        "E1": 3.4888977e-7,
+        "E2": 0.80632e-12,   # PhysRevC.90.064321
     }
     if prefactor_E1 is not None:
         """
@@ -271,15 +272,9 @@ def gamma_strength_function_average(
         prefactors["E1"] = prefactor_E1
     
     if prefactor_M1 is not None:
-        """
-        Override the M1 prefactor.
-        """
         prefactors["M1"] = prefactor_M1
     
     if prefactor_E2 is not None:
-        """
-        Override the E2 prefactor.
-        """
         prefactors["E2"] = prefactor_E2
     
     prefactor = prefactors[multipole_type]
@@ -291,10 +286,11 @@ def gamma_strength_function_average(
 
     try:
         Ex, spins, parities, level_counter = np.copy(levels[:, 0]), levels[:, 1], levels[:, 2], levels[:, 3]
+    
     except IndexError as err:
         msg = f"{err.__str__()}\n"
         msg += "Error probably due to old tmp files. Use loadtxt parameter"
-        msg += " load_and_save_to_file = 'overwrite' to re-read data from the"
+        msg += " load_and_save_to_file = 'overwrite' (once) to re-read data from the"
         msg += " summary file and generate new tmp files."
         raise Exception(msg) from err
     
@@ -302,6 +298,7 @@ def gamma_strength_function_average(
         Ex_initial_or_final = np.copy(transitions[:, 3])   # To avoid altering the raw data.
         spin_initial_or_final_idx = 0
         parity_initial_or_final_idx = 1
+    
     elif initial_or_final == "final":
         Ex_initial_or_final = np.copy(transitions[:, 7])   # To avoid altering the raw data.
         spin_initial_or_final_idx = 4
@@ -310,6 +307,7 @@ def gamma_strength_function_average(
         msg += " and should only be used for comparison with the correct"
         msg += " option which is using initial states for the energy limits."
         warnings.warn(msg, RuntimeWarning)
+    
     else:
         msg = "'initial_or_final' must be either 'initial' or 'final'."
         msg += f" Got {initial_or_final}"
