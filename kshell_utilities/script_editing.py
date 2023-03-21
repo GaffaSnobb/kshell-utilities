@@ -44,6 +44,76 @@ def edit_and_queue_executables():
     except KeyboardInterrupt:
         print("\nExiting...")
         return
+    
+def _prompt_user_for_values(
+    available_parameters: dict[str, bool],
+    available_parameters_values: dict[str, str | int | float]
+):
+    """
+    Ask the user for the actual values for each of the parameters which
+    are to be changed.
+    """
+    if available_parameters["job_name"]:
+        available_parameters_values["job_name"] = input("Job name: ")
+
+    if available_parameters["nodes"]:
+        while True:
+            """
+            Ask for new number of nodes.
+            """
+            try:
+                available_parameters_values["nodes"] = int(input("Number of nodes: "))
+                break
+            except ValueError:
+                print("Only integers are allowed!")
+                continue
+
+    if available_parameters["seconds"]:
+        available_parameters_values["seconds"] = _ask_for_time_input(
+            unit = "seconds",
+            lower_lim = 0,
+            upper_lim = 59
+        )
+        tmp = available_parameters_values["time_parameter_new"].split(":")
+        available_parameters_values["time_parameter_new"] = f"{tmp[0]}:{tmp[1]}:{available_parameters_values['seconds']:02d}"
+
+    if available_parameters["minutes"]:
+        available_parameters_values["minutes"] = _ask_for_time_input(
+            unit = "minutes",
+            lower_lim = 0,
+            upper_lim = 59
+        )
+        tmp = available_parameters_values["time_parameter_new"].split(":")
+        available_parameters_values["time_parameter_new"] = f"{tmp[0]}:{available_parameters_values['minutes']:02d}:{tmp[2]}"
+
+    if available_parameters["hours"]:
+        available_parameters_values["hours"] = _ask_for_time_input(
+            unit = "hours",
+            lower_lim = 0,
+            upper_lim = 23
+        )
+        tmp = available_parameters_values["time_parameter_new"].split(":")
+        tmp_days, _ = tmp[0].split("-")
+        available_parameters_values["time_parameter_new"] = f"{tmp_days}-{available_parameters_values['hours']:02d}:{tmp[1]}:{tmp[2]}"
+
+    if available_parameters["days"]:
+        available_parameters_values["days"] = _ask_for_time_input(
+            unit = "days",
+            lower_lim = 0,
+            upper_lim = 4
+        )
+        tmp = available_parameters_values["time_parameter_new"].split(":")
+        _, tmp_hours = tmp[0].split("-")
+        available_parameters_values["time_parameter_new"] = f"{available_parameters_values['days']}-{tmp_hours}:{tmp[1]}:{tmp[2]}"
+
+    if available_parameters["quench"]:
+        while True:
+            try:
+                available_parameters_values["quench"] = float(input("quench: "))
+                break
+            except ValueError:
+                print("Only integers and floats are allowed!")
+                continue
 
 def _edit_and_queue_executables():
     """
@@ -52,7 +122,7 @@ def _edit_and_queue_executables():
 
     Currently hard-coded to the slurm system.
     """
-    available_parameters = {
+    available_parameters: dict[str, bool] = {
         "nodes": False,
         "seconds": False,
         "minutes": False,
@@ -64,7 +134,9 @@ def _edit_and_queue_executables():
         "apply same values to several or all .sh files": False,
         # "ask for confirmation per file": False,
     }
-    available_parameters_values = {key: "" for key in available_parameters.items()}
+    available_parameters_values: dict[str, str | int | float] = {key: "" for key in available_parameters.items()}
+    available_parameters_values["time_parameter_new"] = ""  # For storing the entire new formatted time parameter string.
+    prompt_user_input: bool = True
 
     print("Please choose what parameters you want to alter (y/n) (default n):")
     for parameter in available_parameters:
@@ -85,9 +157,6 @@ def _edit_and_queue_executables():
 
     content = [i for i in os.listdir() if i.endswith(".sh")]
     content.sort()
-
-    # if available_parameters["apply same values to several or all .sh files"]:
-
 
     for elem in content:
         """
@@ -123,76 +192,30 @@ def _edit_and_queue_executables():
         if (not content) or ((not time_parameter) and (not nodes_parameter) and (not job_name_parameter)):
             print(f"Could not extract info from {elem}. Skipping ...")
             continue
-
-        if available_parameters["job_name"]:
-            available_parameters_values["job_name"] = input("Job name: ")
-
-        if available_parameters["nodes"]:
-            while True:
-                """
-                Ask for new number of nodes.
-                """
-                try:
-                    available_parameters_values["nodes"] = int(input("Number of nodes: "))
-                    break
-                except ValueError:
-                    print("Only integers are allowed!")
-                    continue
         
-        time_parameter_new = time_parameter.split("=")[-1].strip()    # '0-00:00:00' d-hh:mm:ss
+        # time_parameter_new = time_parameter.split("=")[-1].strip()    # '0-00:00:00' d-hh:mm:ss
 
-        if available_parameters["seconds"]:
-            available_parameters_values["seconds"] = _ask_for_time_input(
-                unit = "seconds",
-                lower_lim = 0,
-                upper_lim = 59
+        if prompt_user_input:
+            if available_parameters["apply same values to several or all .sh files"]:
+                """
+                Ask the user only once and start with the same time
+                template for all .sh files.
+                """
+                prompt_user_input = False
+                available_parameters_values["time_parameter_new"] = '#SBATCH --time=0-00:00:00'.split("=")[-1].strip()    # '0-00:00:00' d-hh:mm:ss
+            else:
+                available_parameters_values["time_parameter_new"] = time_parameter.split("=")[-1].strip()    # '0-00:00:00' d-hh:mm:ss
+
+            _prompt_user_for_values(
+                available_parameters = available_parameters,
+                available_parameters_values = available_parameters_values
             )
-            tmp = time_parameter_new.split(":")
-            time_parameter_new = f"{tmp[0]}:{tmp[1]}:{available_parameters_values['seconds']:02d}"
-
-        if available_parameters["minutes"]:
-            available_parameters_values["minutes"] = _ask_for_time_input(
-                unit = "minutes",
-                lower_lim = 0,
-                upper_lim = 59
-            )
-            tmp = time_parameter_new.split(":")
-            time_parameter_new = f"{tmp[0]}:{available_parameters_values['minutes']:02d}:{tmp[2]}"
-
-        if available_parameters["hours"]:
-            available_parameters_values["hours"] = _ask_for_time_input(
-                unit = "hours",
-                lower_lim = 0,
-                upper_lim = 23
-            )
-            tmp = time_parameter_new.split(":")
-            tmp_days, _ = tmp[0].split("-")
-            time_parameter_new = f"{tmp_days}-{available_parameters_values['hours']:02d}:{tmp[1]}:{tmp[2]}"
-
-        if available_parameters["days"]:
-            available_parameters_values["days"] = _ask_for_time_input(
-                unit = "days",
-                lower_lim = 0,
-                upper_lim = 4
-            )
-            tmp = time_parameter_new.split(":")
-            _, tmp_hours = tmp[0].split("-")
-            time_parameter_new = f"{available_parameters_values['days']}-{tmp_hours}:{tmp[1]}:{tmp[2]}"
-
-        if available_parameters["quench"]:
-            while True:
-                try:
-                    available_parameters_values["quench"] = float(input("quench: "))
-                    break
-                except ValueError:
-                    print("Only integers and floats are allowed!")
-                    continue
   
         if time_parameter:
             """
             Insert new time parameter.
             """
-            content_tmp = content.replace(time_parameter, f"#SBATCH --time={time_parameter_new}\n")
+            content_tmp = content.replace(time_parameter, f"#SBATCH --time={available_parameters_values['time_parameter_new']}\n")
 
             if (content_tmp == content) and (available_parameters['seconds'] or available_parameters['minutes'] or available_parameters['hours'] or available_parameters['days']):
                 msg = "Time parameter is unchanged. Either str.replace could"
