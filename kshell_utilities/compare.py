@@ -1,4 +1,4 @@
-from typing import Union, Callable, Tuple, Iterable
+from typing import Union, Tuple
 from itertools import cycle, islice
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,26 +8,52 @@ from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average
 )
 
-
-class ComparisonPlots:
+class Compare:
     """
-    Plot levels, level density and gamma strength function for easy comparison
-    between multiple kshell outputs.
+    Plot levels, level density and gamma strength function for easy
+    comparison between multiple kshell outputs.
     """
-    def __init__(self, *kshell_outputs):
+    def __init__(self,
+            kshell_outputs: list[ReadKshellOutput],
+            legend_labels: Union[None, list[str]] = None,
+        ):
         """
-        Initialize instance with the given kshell outputs and a default color
-        palette.
+        Initialize instance with the given kshell outputs and a default
+        color palette.
 
         Parameters
         ----------
         kshell_outputs : list[ReadKshellOutput]
-            list of instances of the ReadKshellOutput class to be plotted 
-            together.
+            list of instances of the `ReadKshellOutput` class to be
+            plotted together.
+
+        legend_labels : Union[None, list[str]]
+            A list of labels for the legends of the plots. The number of
+            labels must equal the number of elements in
+            `kshell_outputs`.
         """
+        type_error_msg = 'kshell_outputs must be a list of ReadKshellOutput'
+        type_error_msg += ' instances (the return value of ksutil.loadtxt).'
+        type_error_msg += ' Eg: ksutil.Compare(kshell_outputs=[V50, V51]).'
+        if not isinstance(kshell_outputs, (list, tuple)):
+            raise TypeError(type_error_msg)
+        
+        else:
+            if not all(isinstance(i, ReadKshellOutput) for i in kshell_outputs):
+                raise TypeError(type_error_msg)
+            
+        if isinstance(legend_labels, list):
+            if len(legend_labels) != len(kshell_outputs):
+                msg = (
+                    "The number of labels must equal the number of"
+                    " ReadKshellOutput instances!"
+                )
+                raise RuntimeError(msg)
+
+        self._legend_labels = legend_labels
         self._kshell_outputs = kshell_outputs
         self._color_palette = sns.color_palette(
-            palette = "deep",
+            palette = "tab10",
             n_colors = len(self._kshell_outputs))
 
     def set_color_palette(
@@ -61,7 +87,8 @@ class ComparisonPlots:
         self,
         ax: Union[None, plt.Axes] = None,
         include_n_levels: int = 1_000,
-        filter_spins: Union[None, list] = None
+        filter_spins: Union[None, list] = None,
+        filter_parity: Union[None, str] = None,
         ):
         """
         Draw level plots for all kshell outputs. 
@@ -69,24 +96,65 @@ class ComparisonPlots:
         Parameters
         ----------
         ax : Union[None, plt.Axes]
-            matplotlib Axes on which to plot. If None, plt.Figure and plt.Axes 
-            is generated in this function.
+            matplotlib Axes on which to plot. If None, plt.Figure and
+            plt.Axes is generated in this function.
 
         See level_plot in general_utilities.py for details on the other
         parameters.
         """
         ax_input, fig, ax = self._get_fig_and_ax(ax)
+        xticks = {}
 
-        for color, kshell_output in zip(self._color_palette, 
-                                        self._kshell_outputs):
+        is_half_integer: bool = any(self._kshell_outputs[0].levels[:, 1]%2 == 1)
+        for kshell_output in self._kshell_outputs:
+            if is_half_integer != any(kshell_output.levels[:, 1]%2 == 1):
+                """
+                If both integer and half integer angular momentum
+                exsists in two or more kshell data sets, then the line
+                width must be halved to make room for both.
+                """
+                line_width = 0.2
+                x_offset_scale = 0.5
+                break
+
+        else:
+            """
+            In this case, the kshell outputs contain either integer or
+            half integer angular momenta, not both.
+            """
+            line_width = 0.4
+            x_offset_scale = 1
+
+        if self._legend_labels is None:
+            labels: list = [i.nucleus for i in self._kshell_outputs]
+        else:
+            labels: list = self._legend_labels
+
+        for color, kshell_output, label in zip(
+                self._color_palette, self._kshell_outputs, labels
+            ):
+
             level_plot(
                 levels = kshell_output.levels,
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
+                filter_parity = filter_parity,
                 ax = ax,
-                color = color)
+                color = color,
+                line_width = line_width,
+                x_offset_scale = x_offset_scale,
+            )
 
-            ax.plot([], [], label=kshell_output.nucleus, color=color)
+            for tick_position, tick_label in zip(
+                    ax.get_xticks(),
+                    [l.get_text() for l in ax.get_xticklabels()]
+                    ):
+
+                xticks[tick_position] = tick_label
+
+            ax.plot([], [], label=label, color=color)
+
+        ax.set_xticks(ticks=list(xticks.keys()), labels=list(xticks.values()))
 
         ax.legend(loc="lower right")
 
@@ -199,7 +267,7 @@ class ComparisonPlots:
                 filter_parities = filter_parities,
                 return_n_transitions = return_n_transitions
                 )
-            ax.plot(bins, gsf)
+            ax.plot(bins, gsf, color=color)
 
         if not ax_input:
             plt.show()

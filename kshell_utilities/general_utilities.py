@@ -628,8 +628,12 @@ def level_plot(
     levels: np.ndarray,
     include_n_levels: int = 1_000,
     filter_spins: Union[None, list] = None,
+    filter_parity: Union[None, str] = None,
     ax: Union[None, plt.Axes] = None,
-    color: Union[None, str] = None):
+    color: Union[None, str] = None,
+    line_width: float = 0.4,
+    x_offset_scale: float = 1.0,
+    ):
     """
     Generate a level plot for a single isotope. Spin on the x axis,
     energy on the y axis.
@@ -637,8 +641,8 @@ def level_plot(
     Parameters
     ----------
     levels : np.ndarray
-        NxM array of [[energy, spin, parity], ...]. This is the instance
-        attribute 'levels' of ReadKshellOutput.
+        NxM array of [[energy, spin, parity, index], ...]. This is the
+        instance attribute 'levels' of ReadKshellOutput.
     
     include_n_levels : int
         The maximum amount of states to plot for each spin. Default set
@@ -648,13 +652,28 @@ def level_plot(
         Which spins to include in the plot. If None, all spins are
         plotted.
 
+    filter_parity : Union[None, str]
+        A filter for parity. If None (default) then the parity of the
+        ground state will be used. `+` is positive, `-` is negative,
+        while `both` gives both parities.
+
     ax : Union[None, plt.Axes]
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
 
     color : Union[None, str]
-        Color to use for the levels. If None, the next color in the matplotlib
-        color_cycle iterator is used. 
+        Color to use for the levels. If None, the next color in the
+        matplotlib color_cycle iterator is used.
+    
+    line_width : float
+        The width of the level lines. Not really supposed to be changed
+        by the user. Set to 0.2 for comparison plots when both integer
+        and half integer angular momenta are included, 0.4 else.
+
+    x_offset_scale : float
+        To scale the x offset for the hlines. This is used to fit
+        columns for both integer and half integer angular momenta, as
+        well as both parities.
     """
     ax_input = False if (ax is None) else True
 
@@ -667,15 +686,43 @@ def level_plot(
         energies = levels[:, 0]
 
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
-    parity_symbol = "+" if levels[0, 2] == 1 else "-"
+    parities = levels[:, 2]
+
+    allowed_filter_parity = [None, "+", "-", "both"]
+    if filter_parity not in allowed_filter_parity:
+        msg = f"Allowed parity filters are: {allowed_filter_parity}."
+        raise ValueError(msg)
+
+    if filter_parity is None:
+        """
+        Default to the ground state parity.
+        """
+        parity_integer: int = [levels[0, 2]]
+        parity_symbol: str = "+" if (levels[0, 2] == 1) else "-"
+        x_offset = 0    # No offset needed for single parity plot.
+
+    elif filter_parity == "+":
+        parity_symbol: str = filter_parity
+        parity_integer: list = [1]
+        x_offset = 0
+
+    elif filter_parity == "-":
+        parity_symbol: str = filter_parity
+        parity_integer: list = [-1]
+        x_offset = 0
+
+    elif filter_parity == "both":
+        line_width /= 2 # Make room for both parities.
+        parity_symbol: str = r"-+"
+        parity_integer: list = [-1, 1]
+        x_offset = 1/4*x_offset_scale  # Offset for plots containing both parities.
     
     if filter_spins is not None:
         spin_scope = np.unique(filter_spins)    # x values for the plot.
     else:
         spin_scope = np.unique(spins)
     
-    counts = {} # Dict to keep tabs on how many states of each spin have been plotted.
-    line_width = np.abs(spins[0] - spins[1])/4*0.9
+    counts = {} # Dict to keep tabs on how many levels of each angular momentum have been plotted.
 
     if not ax_input:
         fig, ax = plt.subplots()
@@ -691,27 +738,32 @@ def level_plot(
                 """
                 continue
 
+        if parities[i] not in parity_integer:
+            continue
+
+        key: str = f"{spins[i]} + {parities[i]}"
         try:
-            counts[spins[i]] += 1
+            counts[key] += 1
         except KeyError:
-            counts[spins[i]] = 1
+            counts[key] = 1
         
-        if counts[spins[i]] > include_n_levels:
+        if counts[key] > include_n_levels:
             """
-            Include only the first 'include_n_levels' amount of states
+            Include only the first `include_n_levels` amount of states
             for any of the spins.
             """
             continue
 
         ax.hlines(
             y = energies[i],
-            xmin = spins[i] - line_width,
-            xmax = spins[i] + line_width,
-            color = color
+            xmin = spins[i] - line_width + x_offset*parities[i]*0.9,
+            xmax = spins[i] + line_width + x_offset*parities[i]*0.9,
+            color = color,
+            alpha = 0.5,
         )
 
     ax.set_xticks(spin_scope)
-    ax.set_xticklabels([f"{Fraction(i)}" + f"$^{parity_symbol}$" for i in spin_scope])
+    ax.set_xticklabels([f"{Fraction(i)}" + r"$^{" + f"{parity_symbol}" + r"}$" for i in spin_scope])
     ax.set_xlabel(r"$j^{\pi}$")
     ax.set_ylabel(r"$E$ [MeV]")
 
@@ -1399,5 +1451,3 @@ def nuclear_shell_model():
 
     fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
     plt.show()
-
-

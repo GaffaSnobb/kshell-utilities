@@ -11,8 +11,7 @@ def test_spin_parity_list():
         path = "summary_O19_sdpf-mu.txt",
         load_and_save_to_file = False,
         old_or_new = "old"
-    )[0]
-    
+    )
     n_transitions = len(res.transitions_BM1[:, 0])
     spins = res.levels[:, 1]
     parities = res.levels[:, 2]

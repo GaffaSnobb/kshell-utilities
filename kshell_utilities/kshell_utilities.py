@@ -202,11 +202,22 @@ class ReadKshellOutput:
         self._read_summary()
         
         self.ground_state_energy = self.levels[0, 0]
-        self.A = int("".join(filter(str.isdigit, self.nucleus)))
-        self.Z, self.N = isotope(
-            name = "".join(filter(str.isalpha, self.nucleus)).lower(),
-            A = self.A
-        )
+        
+        try:
+            self.A = int("".join(filter(str.isdigit, self.nucleus)))
+            self.Z, self.N = isotope(
+                name = "".join(filter(str.isalpha, self.nucleus)).lower(),
+                A = self.A
+            )
+        except ValueError:
+            """
+            Prob. because the summary filename does not contain the name
+            of the isotope.
+            """
+            self.A = None
+            self.Z = None
+            self.N = None
+        
         self.check_data()
 
     def _extract_info_from_ptn_fname(self):
@@ -481,12 +492,14 @@ class ReadKshellOutput:
 
     def level_plot(self,
         include_n_levels: int = 1000,
-        filter_spins: Union[None, list] = None
+        filter_spins: Union[None, list] = None,
+        filter_parity: Union[None, str] = None,
+        color: Union[None, str] = "black"
         ):
         """
         Wrapper method to include level plot as an attribute to this
-        class. Generate a level plot for a single isotope. Spin on the x
-        axis, energy on the y axis.
+        class. Generate a level plot for a single isotope. Angular
+        momentum on the x axis, energy on the y axis.
 
         Parameters
         ----------
@@ -497,11 +510,16 @@ class ReadKshellOutput:
         filter_spins : Union[None, list]
             Which spins to include in the plot. If `None`, all spins are
             plotted. Defaults to `None`
+
+        color : Union[None, str]
+            Set the color of the level lines.
         """
         level_plot(
             levels = self.levels,
             include_n_levels = include_n_levels,
-            filter_spins = filter_spins
+            filter_spins = filter_spins,
+            filter_parity = filter_parity,
+            color = color,
         )
 
     def level_density_plot(self,
