@@ -1,0 +1,29 @@
+! sdpfsdg-shell
+! index,    n,  l,  j, tz
+  12  12   8   8
+    1       0   2   5  -1    !   1 =   p 0d_5/2     nosc= 2
+    2       0   2   3  -1    !   2 =   p 0d_3/2     nosc= 2
+    3       1   0   1  -1    !   3 =   p 1s_1/2     nosc= 2
+    4       0   3   7  -1    !   4 =   p 0f_7/2     nosc= 3
+    5       0   3   5  -1    !   5 =   p 0f_5/2     nosc= 3
+    6       1   1   3  -1    !   6 =   p 1p_3/2     nosc= 3
+    7       1   1   1  -1    !   7 =   p 1p_1/2     nosc= 3
+    8       0   4   9  -1    !   8 =   p 0g_9/2     nosc= 4
+    9       0   4   7  -1    !   9 =   p 0g_7/2     nosc= 4
+   10       1   2   5  -1    !  10 =   p 1d_5/2     nosc= 4
+   11       1   2   3  -1    !  11 =   p 1d_3/2     nosc= 4
+   12       2   0   1  -1    !  12 =   p 2s_1/2     nosc= 4
+   13       0   2   5   1    !  13 =   n 0d_5/2     nosc= 2
+   14       0   2   3   1    !  14 =   n 0d_3/2     nosc= 2
+   15       1   0   1   1    !  15 =   n 1s_1/2     nosc= 2
+   16       0   3   7   1    !  16 =   n 0f_7/2     nosc= 3
+   17       0   3   5   1    !  17 =   n 0f_5/2     nosc= 3
+   18       1   1   3   1    !  18 =   n 1p_3/2     nosc= 3
+   19       1   1   1   1    !  19 =   n 1p_1/2     nosc= 3
+   20       0   4   9   1    !  20 =   n 0g_9/2     nosc= 4
+   21       0   4   7   1    !  21 =   n 0g_7/2     nosc= 4
+   22       1   2   5   1    !  22 =   n 1d_5/2     nosc= 4
+   23       1   2   3   1    !  23 =   n 1d_3/2     nosc= 4
+   24       2   0   1   1    !  24 =   n 2s_1/2     nosc= 4
+! interaction
+! NB: All SPE and TBME have been removed from this file because they are not needed for the testing.
