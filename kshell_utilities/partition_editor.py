@@ -1,13 +1,14 @@
-import time
+import time, os
 from typing import Callable
 from .data_structures import OrbitalParameters
 from .parameters import spectroscopic_conversion
 
 def partition_editor(
-    filename_interaction: str,
-    filename_partition: str,
+    filename_interaction: str | None = None,
+    filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
     input_wrapper: Callable = input,
+    is_interactive: bool = True,
 ):
     """
     Extract the model space orbitals from an interaction file. Extract
@@ -38,11 +39,66 @@ def partition_editor(
         Defaults to `input` which asks the user for input. This wrapper
         exists so that unit tests can be performed in which case
         `input_wrapper = input_wrapper_test`.
-
-    open_wrapper : Callable
-        Same story as `input_wrapper`, but it is only replacing writing
-        to file, not reading from file.
     """
+    if is_interactive:
+        filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
+        filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
+        if not filenames_interaction:
+            print(f"No interaction file present in {os.getcwd()}. Exiting...")
+            return
+        
+        if not filenames_partition:
+            print(f"No partition file present in {os.getcwd()}. Exiting...")
+            return
+
+        if len(filenames_interaction) == 1:
+            filename_interaction = filenames_interaction[0]
+            print(f"{filename_interaction} chosen")
+
+        elif len(filenames_interaction) > 1:
+            for i in range(len(filenames_interaction)):
+                print(f"{filenames_interaction[i]} ({i})", end=", ")
+            
+            print()
+            
+            while True:
+                ans = input("Several interaction files detected. Please make a choice: ")
+                try:
+                    ans = int(ans)
+                except ValueError:
+                    continue
+                
+                try:
+                    filename_interaction = filenames_interaction[ans]
+                except IndexError:
+                    continue
+
+                break
+
+        if len(filenames_partition) == 1:
+            filename_partition = filenames_partition[0]
+            print(f"{filename_partition} chosen")
+
+        elif len(filenames_partition) > 1:
+            for i in range(len(filenames_partition)):
+                print(f"{filenames_partition[i]} ({i})", end=", ")
+            
+            print()
+            
+            while True:
+                ans = input("Several partition files detected. Please make a choice: ")
+                try:
+                    ans = int(ans)
+                except ValueError:
+                    continue
+                
+                try:
+                    filename_partition = filenames_partition[ans]
+                except IndexError:
+                    continue
+
+                break
+
     header: str = ""
     proton_configurations: list[str] = []
     neutron_configurations: list[str] = []
