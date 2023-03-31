@@ -1,7 +1,7 @@
 import os
-from ..kshell_utilities.data_structures import OrbitalParameters
-from ..kshell_utilities.partition_editor import partition_editor
-from ..kshell_utilities.other_tools import HidePrint
+from kshell_utilities.data_structures import OrbitalParameters
+from kshell_utilities.partition_editor import partition_editor
+from kshell_utilities.other_tools import HidePrint
 
 def test_partition_editor():
     """
@@ -9,117 +9,6 @@ def test_partition_editor():
     a 1hw truncation and check that the new partition file is
     constructed correctly.
     """
-    model_space = {
-        0: OrbitalParameters(
-            idx = 0,
-            n = 0,
-            l = 2,
-            j = 5,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0d_5/2",
-        ),
-        1: OrbitalParameters(
-            idx = 1,
-            n = 0,
-            l = 2,
-            j = 3,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0d_3/2",
-        ),
-        2: OrbitalParameters(
-            idx = 2,
-            n = 1,
-            l = 0,
-            j = 1,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 1s_1/2",
-        ),
-        3: OrbitalParameters(
-            idx = 3,
-            n = 0,
-            l = 3,
-            j = 7,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0f_7/2",
-        ),
-        4: OrbitalParameters(
-            idx = 4,
-            n = 0,
-            l = 3,
-            j = 5,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0f_5/2",
-        ),
-        5: OrbitalParameters(
-            idx = 5,
-            n = 1,
-            l = 1,
-            j = 3,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 1p_3/2",
-        ),
-        6: OrbitalParameters(
-            idx = 6,
-            n = 1,
-            l = 1,
-            j = 1,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 1p_1/2",
-        ),
-        7: OrbitalParameters(
-            idx = 7,
-            n = 0,
-            l = 4,
-            j = 9,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0g_9/2",
-        ),
-        8: OrbitalParameters(
-            idx = 8,
-            n = 0,
-            l = 4,
-            j = 7,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 0g_7/2",
-        ),
-        9: OrbitalParameters(
-            idx = 9,
-            n = 1,
-            l = 2,
-            j = 5,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 1d_5/2",
-        ),
-        10: OrbitalParameters(
-            idx = 10,
-            n = 1,
-            l = 2,
-            j = 3,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 1d_3/2",
-        ),
-        11: OrbitalParameters(
-            idx = 11,
-            n = 2,
-            l = 0,
-            j = 1,
-            tz = -1,
-            nucleon = "proton",
-            name = "p 2s_1/2",
-        ),
-    }
-
     def input_wrapper_test(arg: str):
 
         if (arg == "Add new proton configuration? (y/n): "):
@@ -211,6 +100,7 @@ def test_partition_editor():
 
     filename_partition_edited = "tmp_partition_editor_output_can_be_deleted_anytime.ptn"
     filename_partition_original = "Ni67_gs8_n_test.ptn"
+    
     partition_editor(
         filename_interaction = "gs8_test.snt",
         filename_partition = filename_partition_original,
@@ -264,7 +154,7 @@ def test_partition_editor():
                 assert False, msg
 
         msg = "Incorrect proton-neutron indices: "
-        for proton_index in range(0, 87+1):
+        for proton_index in range(1, 87+1):
             """
             Check that the proton-neutron indices are calculated
             correctly.
