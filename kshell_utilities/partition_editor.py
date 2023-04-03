@@ -1,9 +1,40 @@
-import time, os
+import time, os, curses
 from typing import Callable
 from .data_structures import OrbitalParameters
 from .parameters import spectroscopic_conversion
+from .vum import Vum
 
 def partition_editor(
+    filename_interaction: str | None = None,
+    filename_partition: str | None = None,
+    filename_partition_edited: str | None = None,
+    input_wrapper: Callable = input,
+    is_interactive: bool = True,
+):  
+    """
+    Wrapper for error handling.
+    """
+    try:
+        msg = _partition_editor(
+            filename_interaction = filename_interaction,
+            filename_partition = filename_partition,
+            filename_partition_edited = filename_partition_edited,
+            input_wrapper = input_wrapper,
+            is_interactive = is_interactive
+        )
+    
+    except KeyboardInterrupt:
+        curses.endwin()
+
+    except curses.error as e:
+        curses.endwin()
+        raise(e)
+
+    else:
+        curses.endwin()
+        print(msg)
+
+def _partition_editor(
     filename_interaction: str | None = None,
     filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
@@ -40,29 +71,48 @@ def partition_editor(
         exists so that unit tests can be performed in which case
         `input_wrapper = input_wrapper_test`.
     """
+    DELAY: int = 1
+    # screen = curses.initscr()
+    # screen.keypad(True)
+    # screen.nodelay(True)
+    # curses.echo(False)
+    # n_rows, n_cols = screen.getmaxyx()
+    # command_prompt_icon: str = ": "
+    # x_offset: int = len(command_prompt_icon)
+    # screen.addstr(n_rows - 1, 0, command_prompt_icon)
+    # screen.move(n_rows - 1, x_offset)
+    # cursor_pos: list[int] = list(screen.getyx())
+    # blank_line: str = " "*(n_cols - 1)
+    # screen.refresh()
+    q = Vum()
+    screen = q.screen
+
     if is_interactive:
+
         filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
         filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
-        if not filenames_interaction:
-            print(f"No interaction file present in {os.getcwd()}. Exiting...")
-            return
         
+        if not filenames_interaction:
+            return f"No interaction file present in {os.getcwd()}. Exiting..."
         if not filenames_partition:
-            print(f"No partition file present in {os.getcwd()}. Exiting...")
-            return
+            return f"No partition file present in {os.getcwd()}. Exiting..."
 
         if len(filenames_interaction) == 1:
             filename_interaction = filenames_interaction[0]
-            print(f"{filename_interaction} chosen")
+            screen.addstr(0, 0, f"{filename_interaction} chosen")
+            screen.refresh()
 
         elif len(filenames_interaction) > 1:
+            interaction_choices: str = ""
             for i in range(len(filenames_interaction)):
-                print(f"{filenames_interaction[i]} ({i})", end=", ")
+                interaction_choices += f"{filenames_interaction[i]} ({i}), "
             
-            print()
+            screen.addstr(0, 0, "Several interaction files detected.")
+            screen.addstr(1, 0, interaction_choices)
+            screen.refresh()
             
             while True:
-                ans = input("Several interaction files detected. Please make a choice: ")
+                ans = q.input("Several interaction files detected. Please make a choice")
                 try:
                     ans = int(ans)
                 except ValueError:
@@ -75,18 +125,29 @@ def partition_editor(
 
                 break
 
+        screen.addstr(0, 0, q.blank_line)
+        screen.addstr(1, 0, q.blank_line)
+        screen.refresh()
+        
         if len(filenames_partition) == 1:
             filename_partition = filenames_partition[0]
-            print(f"{filename_partition} chosen")
+            # print(f"{filename_partition} chosen")
+            screen.addstr(0, 0, f"{filename_partition} chosen")
+            screen.refresh()
 
         elif len(filenames_partition) > 1:
+            # for i in range(len(filenames_partition)):
+            #     print(f"{filenames_partition[i]} ({i})", end=", ")
+            partition_choices: str = ""
             for i in range(len(filenames_partition)):
-                print(f"{filenames_partition[i]} ({i})", end=", ")
+                partition_choices += f"{filenames_partition[i]} ({i}), "
             
-            print()
+            screen.addstr(0, 0, "Several partition files detected.")
+            screen.addstr(1, 0, partition_choices)
+            screen.refresh()
             
             while True:
-                ans = input("Several partition files detected. Please make a choice: ")
+                ans = q.input("Several partition files detected. Please make a choice")
                 try:
                     ans = int(ans)
                 except ValueError:
@@ -98,6 +159,11 @@ def partition_editor(
                     continue
 
                 break
+        
+        screen.addstr(0, 0, q.blank_line)
+        screen.addstr(1, 0, q.blank_line)
+        screen.refresh()
+        return
 
     header: str = ""
     proton_configurations: list[str] = []
@@ -142,7 +208,6 @@ def partition_editor(
             idx, n, l, j, tz = [int(i) for i in line.split("!")[0].split()]
             idx -= 1
             nucleon = "p" if tz == -1 else "n"
-            # model_space[idx] = OrbitalParameters(
             model_space.append(OrbitalParameters(
                 idx = idx,
                 n = n,
@@ -169,8 +234,6 @@ def partition_editor(
             # proton partition
             ...
             """
-            # if "# proton partition" in line: break
-
             if "#" not in line:
                 tmp = [int(i) for i in line.split()]
 
