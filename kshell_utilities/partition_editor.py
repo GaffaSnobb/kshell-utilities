@@ -29,6 +29,10 @@ def partition_editor(
     except curses.error as e:
         curses.endwin()
         raise(e)
+    
+    except Exception as e:
+        curses.endwin()
+        raise(e)
 
     else:
         curses.endwin()
@@ -170,7 +174,7 @@ def _partition_editor(
     model_space: list[OrbitalParameters] = []
 
     if filename_partition_edited is None:
-        filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.snt"
+        filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
 
     with open(filename_interaction, "r") as infile:
         """
