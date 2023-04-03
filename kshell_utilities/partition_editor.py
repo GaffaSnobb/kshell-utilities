@@ -8,7 +8,7 @@ def partition_editor(
     filename_interaction: str | None = None,
     filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
-    input_wrapper: Callable = input,
+    input_wrapper: Callable | None = None,
     is_interactive: bool = True,
 ):  
     """
@@ -38,7 +38,7 @@ def _partition_editor(
     filename_interaction: str | None = None,
     filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
-    input_wrapper: Callable = input,
+    input_wrapper: Callable | None = None,
     is_interactive: bool = True,
 ):
     """
@@ -84,8 +84,11 @@ def _partition_editor(
     # cursor_pos: list[int] = list(screen.getyx())
     # blank_line: str = " "*(n_cols - 1)
     # screen.refresh()
+    
     q = Vum()
     screen = q.screen
+    if input_wrapper is None:
+        input_wrapper = q.input
 
     if is_interactive:
 
@@ -131,13 +134,10 @@ def _partition_editor(
         
         if len(filenames_partition) == 1:
             filename_partition = filenames_partition[0]
-            # print(f"{filename_partition} chosen")
             screen.addstr(0, 0, f"{filename_partition} chosen")
             screen.refresh()
 
         elif len(filenames_partition) > 1:
-            # for i in range(len(filenames_partition)):
-            #     print(f"{filenames_partition[i]} ({i})", end=", ")
             partition_choices: str = ""
             for i in range(len(filenames_partition)):
                 partition_choices += f"{filenames_partition[i]} ({i}), "
@@ -163,7 +163,6 @@ def _partition_editor(
         screen.addstr(0, 0, q.blank_line)
         screen.addstr(1, 0, q.blank_line)
         screen.refresh()
-        return
 
     header: str = ""
     proton_configurations: list[str] = []
@@ -276,6 +275,7 @@ def _partition_editor(
         if input_wrapper("Add new proton configuration? (y/n): ") == "y":
             while True:
                 occupation = _prompt_user_for_occupation(
+                    q = q,
                     nucleon = "proton",
                     model_space = model_space[:n_proton_orbitals],
                     n_orbitals = n_proton_orbitals,
@@ -301,6 +301,7 @@ def _partition_editor(
         if input_wrapper("Add new neutron configuration? (y/n): ") == "y":
             while True:
                 occupation = _prompt_user_for_occupation(
+                    q = q,
                     nucleon = "neutron",
                     model_space = model_space[n_neutron_orbitals:],
                     n_orbitals = n_neutron_orbitals,
@@ -365,6 +366,7 @@ def _partition_editor(
                     outfile.write(f"{p_idx + 1:5d}{n_idx + 1:6d}\n")    # The .ptn indices start at 1.
 
 def _prompt_user_for_occupation(
+    q: Vum,
     nucleon: str,
     model_space: list[OrbitalParameters],
     n_orbitals: int,
@@ -373,7 +375,8 @@ def _prompt_user_for_occupation(
 ) -> list | None:
         
         n_remaining_nucleons: int = n_valence_nucleons
-        print("Please enter proton orbital occupation (q to quit):")
+        # print("Please enter proton orbital occupation (q to quit):")
+        q.addstr(0, 0, "Please enter proton orbital occupation (q to quit):")
         occupation: list[int] = []
         for idx in range(n_orbitals):
             while True:
@@ -385,7 +388,8 @@ def _prompt_user_for_occupation(
                     continue
 
                 if (ans > (model_space[idx].j + 1)) or (ans < 0):
-                    print(f"Allowed occupation for this orbital is [0, 1, ..., {model_space[idx].j + 1}]")
+                    # print(f"Allowed occupation for this orbital is [0, 1, ..., {model_space[idx].j + 1}]")
+                    q.addstr(1, 0, f"Allowed occupation for this orbital is [0, 1, ..., {model_space[idx].j + 1}]")
                     continue
                 
                 n_remaining_nucleons -= ans
@@ -394,13 +398,15 @@ def _prompt_user_for_occupation(
             occupation.append(ans)
 
             if sum(occupation) > n_valence_nucleons:
-                print(f"INVALID: Total occupation ({sum(occupation)}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
-                time.sleep(1)
+                # print(f"INVALID: Total occupation ({sum(occupation)}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
+                q.addstr(1, 0, f"INVALID: Total occupation ({sum(occupation)}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
+                # time.sleep(1)
                 return []
             
         if sum(occupation) < n_valence_nucleons:
-            print(f"INVALID: Total occupation ({sum(occupation)}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
-            time.sleep(1)
+            # print(f"INVALID: Total occupation ({sum(occupation)}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
+            q.addstr(1, 0, f"INVALID: Total occupation ({sum(occupation)}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
+            # time.sleep(1)
             return []
 
         return occupation
