@@ -25,6 +25,8 @@ shell_model_order: dict[str, int] = {   # Standard shell order for spherical nuc
 def draw_shell_map(
     vum: Vum,
     model_space: list[OrbitalParameters],
+    is_proton: bool,
+    is_neutron: bool,
 ):
     """
     Draw a simple map of the model space orbitals of the current
@@ -36,27 +38,32 @@ def draw_shell_map(
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
         reverse = True
     )
-    model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
-    model_space_neutron = [orbital for orbital in model_space_copy if orbital.tz == 1]
-    
-    max_proton_j: int = max([orbital.j for orbital in model_space_proton])
-    max_neutron_j: int = max([orbital.j for orbital in model_space_neutron])
-    
-    for i in range(len(model_space_proton)):
-        string = (
-            f"{model_space_proton[i].idx + 1:2d}"
-            f" {model_space_proton[i].name} " +
-            " "*(max_proton_j - model_space_proton[i].j) + "-" + " -"*(model_space_proton[i].j + 1)
-        )
-        vum.addstr(i + 6, 0, string)
+    if is_proton:
+        model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
+        max_proton_j: int = max([orbital.j for orbital in model_space_proton])
+            
+        for i in range(len(model_space_proton)):
+            string = (
+                f"{model_space_proton[i].idx + 1:2d}"
+                f" {model_space_proton[i].name} " +
+                " "*(max_proton_j - model_space_proton[i].j) + "-" + " -"*(model_space_proton[i].j + 1)
+            )
+            vum.addstr(i + 6, 0, string)
 
-    for i in range(len(model_space_neutron)):        
-        string = (
-            f"{model_space_neutron[i].idx + 1:2d}"
-            f" {model_space_neutron[i].name} " +
-            " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
-        )
-        vum.addstr(i + 6, max_proton_j + 26, string, is_blank_line=False)
+    else:
+        max_proton_j: int = 0    # Used for placing the neutron map so it must be defined.
+
+    if is_neutron:
+        model_space_neutron = [orbital for orbital in model_space_copy if orbital.tz == 1]
+        max_neutron_j: int = max([orbital.j for orbital in model_space_neutron])
+
+        for i in range(len(model_space_neutron)):        
+            string = (
+                f"{model_space_neutron[i].idx + 1:2d}"
+                f" {model_space_neutron[i].name} " +
+                " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
+            )
+            vum.addstr(i + 6, max_proton_j + 26, string, is_blank_line=False)
 
 def partition_editor(
     filename_interaction: str | None = None,
@@ -128,8 +135,6 @@ def _partition_editor(
         exists so that unit tests can be performed in which case
         `input_wrapper = input_wrapper_test`.
     """
-    DELAY: int = 1
-    
     vum = Vum()
     screen = vum.screen
     if input_wrapper is None:
@@ -264,7 +269,7 @@ def _partition_editor(
 
     assert all(orb.idx == i for i, orb in enumerate(model_space))   # Make sure that the list indices are the same as the orbit indices.
 
-    draw_shell_map(vum=vum, model_space=model_space)
+    draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
 
     with open(filename_partition, "r") as infile:
         for line in infile:
@@ -316,141 +321,147 @@ def _partition_editor(
 
             neutron_configurations.append(line)
 
-        new_proton_configurations: list[list[int]] = []
-        new_neutron_configurations: list[list[int]] = []
+    new_proton_configurations: list[list[int]] = []
+    new_neutron_configurations: list[list[int]] = []
 
-        if input_wrapper("Add new proton configuration? (y/n): ") == "y":
-            while True:
-                occupation = _prompt_user_for_occupation(
-                    vum = vum,
-                    nucleon = "proton",
-                    model_space = model_space[:n_proton_orbitals],
-                    n_orbitals = n_proton_orbitals,
-                    n_valence_nucleons = n_protons,
-                    input_wrapper = input_wrapper,
-                )
-                if occupation:
-                    new_proton_configurations.append(occupation)
-                    
-                    if input_wrapper("Add another proton configuration? (y/n): ") == "y":
-                        continue
-                    else:
-                        break
-
-                elif occupation is None:
-                    """
-                    Quit signal. Do not keep the current configuration,
-                    but keep earlier defined new configurations and quit
-                    the prompt.
-                    """
+    if input_wrapper("Add new proton configuration? (y/n): ") == "y":
+        while True:
+            occupation = _prompt_user_for_occupation(
+                vum = vum,
+                nucleon = "proton",
+                model_space = model_space[:n_proton_orbitals],
+                n_valence_nucleons = n_protons,
+                input_wrapper = input_wrapper,
+            )
+            if occupation:
+                new_proton_configurations.append(occupation)
+                
+                if input_wrapper("Add another proton configuration? (y/n): ") == "y":
+                    continue
+                else:
                     break
 
-        if input_wrapper("Add new neutron configuration? (y/n): ") == "y":
-            while True:
-                occupation = _prompt_user_for_occupation(
-                    vum = vum,
-                    nucleon = "neutron",
-                    model_space = model_space[n_neutron_orbitals:],
-                    n_orbitals = n_neutron_orbitals,
-                    n_valence_nucleons = n_neutrons,
-                    input_wrapper = input_wrapper,
-                )
-                if occupation:
-                    new_neutron_configurations.append(occupation)
-                    if input_wrapper("Add another neutron configuration? (y/n): ") == "y":
-                        continue
-                    else:
-                        break
+            elif occupation is None:
+                """
+                Quit signal. Do not keep the current configuration,
+                but keep earlier defined new configurations and quit
+                the prompt.
+                """
+                break
 
-                elif occupation is None:
-                    """
-                    Quit signal. Do not keep the current configuration,
-                    but keep earlier defined new configurations and quit
-                    the prompt.
-                    """
+    if input_wrapper("Add new neutron configuration? (y/n): ") == "y":
+        while True:
+            occupation = _prompt_user_for_occupation(
+                vum = vum,
+                nucleon = "neutron",
+                model_space = model_space[n_neutron_orbitals:],
+                n_valence_nucleons = n_neutrons,
+                input_wrapper = input_wrapper,
+            )
+            if occupation:
+                new_neutron_configurations.append(occupation)
+                if input_wrapper("Add another neutron configuration? (y/n): ") == "y":
+                    continue
+                else:
                     break
 
-        n_new_proton_configurations = len(new_proton_configurations)
-        n_new_neutron_configurations = len(new_neutron_configurations)
-        n_total_proton_configurations = n_new_proton_configurations + n_proton_configurations
-        n_total_neutron_configurations = n_new_neutron_configurations + n_neutron_configurations
-
-        with open(filename_partition_edited, "w") as outfile:
-            """
-            Write edited data to new partition file.
-            """
-            outfile.write(header)
-            outfile.write(f" {n_total_proton_configurations} {n_total_neutron_configurations}\n")
-            outfile.write("# proton partition\n")
-            
-            for configuration in proton_configurations:
-                outfile.write(configuration)
-
-            for i in range(n_new_proton_configurations):
-                outfile.write(
-                    f"{i + n_proton_configurations + 1:6d}     "    # +1 because .ptn indices start at 1.
-                    f"{str(new_proton_configurations[i]).strip('[]').replace(',', ' ')}"
-                    "\n"
-                )
-            outfile.write("# neutron partition\n")
-
-            for configuration in neutron_configurations:
-                outfile.write(configuration)
-
-            for i in range(n_new_neutron_configurations):
-                outfile.write(
-                    f"{i + n_neutron_configurations + 1:6d}     "    # +1 because .ptn indices start at 1.
-                    f"{str(new_neutron_configurations[i]).strip('[]').replace(',', ' ')}"
-                    "\n"
-                )
-            outfile.write("# partition of proton and neutron\n")
-            outfile.write(f"{n_total_proton_configurations*n_total_neutron_configurations}\n")
-
-            for p_idx in range(n_total_proton_configurations):
+            elif occupation is None:
                 """
-                Write the proton-neutron configurations to file. This is
-                really just pairing up all proton configuration indices
-                with all neutron configuration indices.
+                Quit signal. Do not keep the current configuration,
+                but keep earlier defined new configurations and quit
+                the prompt.
                 """
-                for n_idx in range(n_total_neutron_configurations):
-                    outfile.write(f"{p_idx + 1:5d}{n_idx + 1:6d}\n")    # The .ptn indices start at 1.
+                break
+
+    n_new_proton_configurations = len(new_proton_configurations)
+    n_new_neutron_configurations = len(new_neutron_configurations)
+    n_total_proton_configurations = n_new_proton_configurations + n_proton_configurations
+    n_total_neutron_configurations = n_new_neutron_configurations + n_neutron_configurations
+
+    with open(filename_partition_edited, "w") as outfile:
+        """
+        Write edited data to new partition file.
+        """
+        outfile.write(header)
+        outfile.write(f" {n_total_proton_configurations} {n_total_neutron_configurations}\n")
+        outfile.write("# proton partition\n")
+        
+        for configuration in proton_configurations:
+            outfile.write(configuration)
+
+        for i in range(n_new_proton_configurations):
+            outfile.write(
+                f"{i + n_proton_configurations + 1:6d}     "    # +1 because .ptn indices start at 1.
+                f"{str(new_proton_configurations[i]).strip('[]').replace(',', ' ')}"
+                "\n"
+            )
+        outfile.write("# neutron partition\n")
+
+        for configuration in neutron_configurations:
+            outfile.write(configuration)
+
+        for i in range(n_new_neutron_configurations):
+            outfile.write(
+                f"{i + n_neutron_configurations + 1:6d}     "    # +1 because .ptn indices start at 1.
+                f"{str(new_neutron_configurations[i]).strip('[]').replace(',', ' ')}"
+                "\n"
+            )
+        outfile.write("# partition of proton and neutron\n")
+        outfile.write(f"{n_total_proton_configurations*n_total_neutron_configurations}\n")
+
+        for p_idx in range(n_total_proton_configurations):
+            """
+            Write the proton-neutron configurations to file. This is
+            really just pairing up all proton configuration indices
+            with all neutron configuration indices.
+            """
+            for n_idx in range(n_total_neutron_configurations):
+                outfile.write(f"{p_idx + 1:5d}{n_idx + 1:6d}\n")    # The .ptn indices start at 1.
 
 def _prompt_user_for_occupation(
     vum: Vum,
     nucleon: str,
     model_space: list[OrbitalParameters],
-    n_orbitals: int,
     n_valence_nucleons: int,
     input_wrapper: Callable,
 ) -> list | None:
         
+        model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
+            model_space,
+            key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
+            reverse = True
+        )
         n_remaining_nucleons: int = n_valence_nucleons
-        vum.addstr(0, 0, "Please enter proton orbital occupation (vum to quit):")
-        occupation: list[int] = []
-        for idx in range(n_orbitals):
+        vum.addstr(0, 0, "Please enter proton orbital occupation (q to quit):")
+        occupation: list[tuple[int, int]] = []
+        # for idx in range(n_orbitals):
+        for orbital in model_space_copy:
             while True:
-                ans = input_wrapper(f"{model_space[idx]} (remaining: {n_remaining_nucleons}): ")
-                if (ans == "vum") or (ans == "quit") or (ans == "exit"): return None
+                ans = input_wrapper(f"{orbital.idx + 1:2d} {orbital} (remaining: {n_remaining_nucleons}): ")
+                if (ans == "q") or (ans == "quit") or (ans == "exit"): return None
                 try:
                     ans = int(ans)
                 except ValueError:
                     continue
 
-                if (ans > (model_space[idx].j + 1)) or (ans < 0):
-                    vum.addstr(1, 0, f"Allowed occupation for this orbital is [0, 1, ..., {model_space[idx].j + 1}]")
+                if (ans > (orbital.j + 1)) or (ans < 0):
+                    vum.addstr(1, 0, f"Allowed occupation for this orbital is [0, 1, ..., {orbital.j + 1}]")
                     continue
                 
                 n_remaining_nucleons -= ans
                 break
 
-            occupation.append(ans)
+            occupation.append((orbital.idx, ans))
 
-            if sum(occupation) > n_valence_nucleons:
-                vum.addstr(1, 0, f"INVALID: Total occupation ({sum(occupation)}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
+            cum_occupation = sum(tup[1] for tup in occupation)
+            if cum_occupation > n_valence_nucleons:
+                vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
                 return []
-            
-        if sum(occupation) < n_valence_nucleons:
-            vum.addstr(1, 0, f"INVALID: Total occupation ({sum(occupation)}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
+        
+        cum_occupation = sum(tup[1] for tup in occupation)
+        if cum_occupation < n_valence_nucleons:
+            vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
             return []
 
-        return occupation
+        occupation.sort(key=lambda tup: tup[0]) # Sort list of tuples based on the orbital.idx.
+        return [tup[1] for tup in occupation]   # Return only the occupation numbers now sorted based on the orbital order of the .snt file.
