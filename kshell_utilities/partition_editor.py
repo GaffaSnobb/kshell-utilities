@@ -27,12 +27,14 @@ def draw_shell_map(
     model_space: list[OrbitalParameters],
     is_proton: bool,
     is_neutron: bool,
+    occupation: tuple[int, int] | None = None,
 ):
     """
     Draw a simple map of the model space orbitals of the current
     interaction file. Sort the orbitals based on the shell_model_order
     dict.
     """
+    y_offset: int = 6
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
         model_space,
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
@@ -41,14 +43,40 @@ def draw_shell_map(
     if is_proton:
         model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
         max_proton_j: int = max([orbital.j for orbital in model_space_proton])
+        
+        if occupation is None:
+            """
+            Draw the entire map with no occupation.
+            """
+            for i in range(len(model_space_proton)):
+                string = (
+                    f"{model_space_proton[i].idx + 1:2d}"
+                    f" {model_space_proton[i].name} " +
+                    " "*(max_proton_j - model_space_proton[i].j) + "-" + " -"*(model_space_proton[i].j + 1)
+                )
+                vum.addstr(i + y_offset, 0, string)
+        else:
+            """
+            Re-draw a single orbital with the user inputted occupation.
+            """
+            location: int = 0
+            for orbital in model_space_proton:
+                if orbital.idx == occupation[0]: break
+                location += 1
+            else:
+                msg = (
+                    f"Orbital index {occupation[0]} not found in the"
+                    " current model space!"
+                )
+                raise RuntimeError(msg)
             
-        for i in range(len(model_space_proton)):
             string = (
-                f"{model_space_proton[i].idx + 1:2d}"
-                f" {model_space_proton[i].name} " +
-                " "*(max_proton_j - model_space_proton[i].j) + "-" + " -"*(model_space_proton[i].j + 1)
+                f"{orbital.idx + 1:2d}"
+                f" {orbital.name} " +
+                " "*(max_proton_j - orbital.j) + "-"
             )
-            vum.addstr(i + 6, 0, string)
+            string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
+            vum.addstr(location + y_offset, 0, string)
 
     else:
         max_proton_j: int = 0    # Used for placing the neutron map so it must be defined.
@@ -63,7 +91,7 @@ def draw_shell_map(
                 f" {model_space_neutron[i].name} " +
                 " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
             )
-            vum.addstr(i + 6, max_proton_j + 26, string, is_blank_line=False)
+            vum.addstr(i + y_offset, max_proton_j + 26, string, is_blank_line=False)
 
 def partition_editor(
     filename_interaction: str | None = None,
@@ -426,19 +454,40 @@ def _prompt_user_for_occupation(
     input_wrapper: Callable,
 ) -> list | None:
         
+        if nucleon == "proton":
+            is_proton = True
+            is_neutron = False
+
+        elif nucleon == "neutron":
+            is_proton = False
+            is_neutron = True
+
+        else:
+            msg = f"Invalid nucleon parameter '{nucleon}'!"
+            raise ValueError(msg)
+
         model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
             model_space,
             key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
-            reverse = True
         )
         n_remaining_nucleons: int = n_valence_nucleons
-        vum.addstr(0, 0, "Please enter proton orbital occupation (q to quit):")
+        vum.addstr(0, 0, f"Please enter {nucleon} orbital occupation (f to fill, q to quit):")
         occupation: list[tuple[int, int]] = []
-        # for idx in range(n_orbitals):
+        
         for orbital in model_space_copy:
+            if n_remaining_nucleons == 0:
+                """
+                If there are no more valence nucleons to use, set the
+                remaining occupations to 0.
+                """
+                occupation.append((orbital.idx, 0))
+                vum.addstr(1, 0, "Occupation of remaining orbitals set to 0.")
+                continue
+
             while True:
                 ans = input_wrapper(f"{orbital.idx + 1:2d} {orbital} (remaining: {n_remaining_nucleons}): ")
                 if (ans == "q") or (ans == "quit") or (ans == "exit"): return None
+                if ans == "f": ans = orbital.j + 1  # Fill the orbital.
                 try:
                     ans = int(ans)
                 except ValueError:
@@ -449,6 +498,18 @@ def _prompt_user_for_occupation(
                     continue
                 
                 n_remaining_nucleons -= ans
+                if ans > 0:
+                    """
+                    No point in re-drawing the line if the occupation is
+                    unchanged.
+                    """
+                    draw_shell_map(
+                        vum = vum,
+                        model_space = model_space,
+                        is_proton = is_proton,
+                        is_neutron = is_neutron,
+                        occupation = (orbital.idx, ans)
+                    )
                 break
 
             occupation.append((orbital.idx, ans))
@@ -456,11 +517,23 @@ def _prompt_user_for_occupation(
             cum_occupation = sum(tup[1] for tup in occupation)
             if cum_occupation > n_valence_nucleons:
                 vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
+                draw_shell_map(
+                    vum = vum,
+                    model_space = model_space,
+                    is_proton = is_proton,
+                    is_neutron = is_neutron,
+                )
                 return []
         
         cum_occupation = sum(tup[1] for tup in occupation)
         if cum_occupation < n_valence_nucleons:
             vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
+            draw_shell_map(
+                vum = vum,
+                model_space = model_space,
+                is_proton = is_proton,
+                is_neutron = is_neutron,
+            )
             return []
 
         occupation.sort(key=lambda tup: tup[0]) # Sort list of tuples based on the orbital.idx.
