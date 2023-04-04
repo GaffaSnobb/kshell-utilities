@@ -71,12 +71,13 @@ class Vum:
         y: int = 0,
         x: int = 0,
         string: str = "",
+        is_blank_line: bool = True,
     ):
         """
         Wrapper for blanking a line, adding a new string to the same
         line and then refresh the screen.
         """
-        self.screen.addstr(y, x, self.blank_line)
+        if is_blank_line: self.screen.addstr(y, x, self.blank_line)
         self.screen.addstr(y, x, string)
         self.screen.refresh()
 
