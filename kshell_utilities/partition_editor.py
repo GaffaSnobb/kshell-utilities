@@ -40,7 +40,7 @@ def draw_shell_map(
     -------
     None
     """
-    y_offset: int = 6
+    y_offset: int = 7
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
         model_space,
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
@@ -219,6 +219,7 @@ def _partition_editor(
         the user will not be prompted and the program will exit if
         the interaction file or partition file are not provided.
     """
+    x_offset: int = 0
     vum = Vum()
     screen = vum.screen
     if input_wrapper is None:
@@ -243,8 +244,8 @@ def _partition_editor(
             for i in range(len(filenames_interaction)):
                 interaction_choices += f"{filenames_interaction[i]} ({i}), "
             
-            screen.addstr(0, 0, "Several interaction files detected.")
-            screen.addstr(1, 0, interaction_choices)
+            screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several interaction files detected.")
+            screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, interaction_choices)
             screen.refresh()
             
             while True:
@@ -275,8 +276,8 @@ def _partition_editor(
             for i in range(len(filenames_partition)):
                 partition_choices += f"{filenames_partition[i]} ({i}), "
             
-            screen.addstr(0, 0, "Several partition files detected.")
-            screen.addstr(1, 0, partition_choices)
+            screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
+            screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
             screen.refresh()
             
             while True:
@@ -293,8 +294,8 @@ def _partition_editor(
 
                 break
         
-        screen.addstr(0, 0, vum.blank_line)
-        screen.addstr(1, 0, vum.blank_line)
+        screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
+        screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, vum.blank_line)
         screen.refresh()
 
     elif not is_interactive:
@@ -302,20 +303,13 @@ def _partition_editor(
             return "No interaction file provided. Exiting..."
         if filename_partition is None:
             return "No partition file provided. Exiting..."
-    
-    # with HidePrint():
-    M, mdim, jdim = count_dim(
-        model_space_filename = filename_interaction,
-        partition_filename = filename_partition,
-        print_dimensions = False,
-        debug = False,
-    )
-    vum.addstr(3, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
-    vum.addstr(4, 0, f"{filename_interaction}, {filename_partition}")
 
     header: str = ""
     proton_configurations: list[str] = []
     neutron_configurations: list[str] = []
+    proton_configurations_formatted: list[list[int]] = []   # For calculating the dim without writing the data to file.
+    neutron_configurations_formatted: list[list[int]] = []
+    total_configurations_formatted: list[list[int]] = []
     model_space: list[OrbitalParameters] = []
 
     if filename_partition_edited is None:
@@ -367,7 +361,7 @@ def _partition_editor(
             ))
 
     assert all(orb.idx == i for i, orb in enumerate(model_space))   # Make sure that the list indices are the same as the orbit indices.
-
+    
     draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
     with open(filename_partition, "r") as infile:
@@ -392,7 +386,7 @@ def _partition_editor(
                     For example:
                     20 31 -1
                     """
-                    n_protons, n_neutrons, parity = tmp
+                    n_valence_protons, n_valence_neutrons, parity = tmp
                 except ValueError:
                     """
                     For example:
@@ -411,6 +405,7 @@ def _partition_editor(
             if "# neutron partition" in line: break
 
             proton_configurations.append(line)
+            proton_configurations_formatted.append([int(i) for i in line.split()[1:]])
 
         for line in infile:
             """
@@ -419,6 +414,29 @@ def _partition_editor(
             if "# partition of proton and neutron" in line: break
 
             neutron_configurations.append(line)
+            neutron_configurations_formatted.append([int(i) for i in line.split()[1:]])
+
+    for p_idx in range(len(proton_configurations_formatted)):
+        for n_idx in range(len(neutron_configurations_formatted)):
+            total_configurations_formatted.append([p_idx, n_idx])
+
+    M, mdim, jdim = count_dim(
+        model_space_filename = filename_interaction,
+        partition_filename = None,
+        print_dimensions = False,
+        debug = False,
+        parity = parity,
+        proton_partition = proton_configurations_formatted,
+        neutron_partition = neutron_configurations_formatted,
+        total_partition = total_configurations_formatted,
+    )
+    mdim_original: int = mdim[-1]
+    vum.addstr(x_offset, 0, f"{filename_interaction}, {filename_partition}")
+    vum.addstr(x_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
+    vum.addstr(x_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations}, {n_neutron_configurations}")
+    vum.addstr(x_offset + 3, 0, f"n valence protons, neutrons: {n_valence_protons}, {n_valence_neutrons}")
+    vum.addstr(x_offset + 4, 0, f"n core protons, neutrons: {n_core_protons}, {n_core_neutrons}")
+    vum.addstr(x_offset + 5, 0, f"{parity = }")
 
     new_proton_configurations: list[list[int]] = []
     new_neutron_configurations: list[list[int]] = []
@@ -430,11 +448,30 @@ def _partition_editor(
                 vum = vum,
                 nucleon = "proton",
                 model_space = model_space[:n_proton_orbitals],
-                n_valence_nucleons = n_protons,
+                n_valence_nucleons = n_valence_protons,
                 input_wrapper = input_wrapper,
             )
             if occupation:
                 new_proton_configurations.append(occupation)
+                proton_configurations_formatted.append(occupation)
+                
+                total_configurations_formatted.clear()
+                for p_idx in range(len(proton_configurations_formatted)):   # NOTE: Can make this more efficient.
+                    for n_idx in range(len(neutron_configurations_formatted)):
+                        total_configurations_formatted.append([p_idx, n_idx])
+                
+                M, mdim, jdim = count_dim(
+                    model_space_filename = filename_interaction,
+                    partition_filename = None,
+                    print_dimensions = False,
+                    debug = False,
+                    parity = parity,
+                    proton_partition = proton_configurations_formatted,
+                    neutron_partition = neutron_configurations_formatted,
+                    total_partition = total_configurations_formatted,
+                )
+                vum.addstr(x_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
+                vum.addstr(x_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
                 
                 if input_wrapper("Add another proton configuration? (y/n)") == "y":
                     continue
@@ -456,11 +493,31 @@ def _partition_editor(
                 vum = vum,
                 nucleon = "neutron",
                 model_space = model_space[n_neutron_orbitals:],
-                n_valence_nucleons = n_neutrons,
+                n_valence_nucleons = n_valence_neutrons,
                 input_wrapper = input_wrapper,
             )
             if occupation:
                 new_neutron_configurations.append(occupation)
+                neutron_configurations_formatted.append(occupation)
+                
+                total_configurations_formatted.clear()
+                for p_idx in range(len(proton_configurations_formatted)):   # NOTE: Can make this more efficient.
+                    for n_idx in range(len(neutron_configurations_formatted)):
+                        total_configurations_formatted.append([p_idx, n_idx])
+                
+                M, mdim, jdim = count_dim(
+                    model_space_filename = filename_interaction,
+                    partition_filename = None,
+                    print_dimensions = False,
+                    debug = False,
+                    parity = parity,
+                    proton_partition = proton_configurations_formatted,
+                    neutron_partition = neutron_configurations_formatted,
+                    total_partition = total_configurations_formatted,
+                )
+                vum.addstr(x_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original}) ({mdim_original:.2e}))")
+                vum.addstr(x_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
+
                 if input_wrapper("Add another neutron configuration? (y/n)") == "y":
                     continue
                 else:
@@ -550,7 +607,7 @@ def _prompt_user_for_occupation(
             key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
         )
         n_remaining_nucleons: int = n_valence_nucleons
-        vum.addstr(0, 0, f"Please enter {nucleon} orbital occupation (f to fill, q to quit):")
+        vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, f"Please enter {nucleon} orbital occupation (f to fill, q to quit):")
         occupation: list[tuple[int, int]] = []
         
         for orbital in model_space_copy:
@@ -614,6 +671,7 @@ def _prompt_user_for_occupation(
                 is_neutron = is_neutron,
             )
             return []
-
+        
+        vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, vum.blank_line)
         occupation.sort(key=lambda tup: tup[0]) # Sort list of tuples based on the orbital.idx.
         return [tup[1] for tup in occupation]   # Return only the occupation numbers now sorted based on the orbital order of the .snt file.
