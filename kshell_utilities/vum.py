@@ -25,7 +25,7 @@ COLOR_SUBHEADER: int = 7
 class Vum:
     def __init__(self,
         shared_dict: managers.DictProxy = {},
-        screen = curses.initscr(),
+        screen = None,
         command_prompt_icon: str = ">",
         action_interval: int | float = 0.5,
         is_command_log_enabled: bool = True,
@@ -44,9 +44,10 @@ class Vum:
             such parallelisation is required. NOTE: Currently not
             properly implemented.
 
-        screen : curses.initscr()
+        screen :
             The curses screen object. May be provided by the main
-            process if needed.
+            process if needed. Defaults to None which in turn creates
+            a new initscr.
 
         command_prompt_icon : str
             The icon that is displayed before the command prompt.
@@ -59,6 +60,9 @@ class Vum:
             If True, the command log is displayed in the bottom left
             corner of the screen.
         """
+        if screen is None:
+            screen = curses.initscr()
+        
         self.shared_dict = shared_dict
         self.screen = screen
         self.command_prompt_icon = f" {command_prompt_icon} "
