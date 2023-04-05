@@ -279,23 +279,23 @@ def count_dim(
     huge partition files.
     """
     timing_product_dimension = time.time()
-    dim_mp = {}
-    with multiprocessing.Pool() as pool:
-        list_of_dicts = pool.map(
-            _parallel,
-            # [(dim_idp_mp[idp], dim_idn_mp[idn]) for idp, idn in total_partition]
-            [(i, dim_idp_mp[idx[0]], dim_idn_mp[idx[1]]) for i, idx in enumerate(total_partition)]
-        )
-    for dict_ in list_of_dicts:
-        for key in dict_:
-            try:
-                dim_mp[key] += dict_[key]
-            except KeyError:
-                dim_mp[key] = dict_[key]
-    
     # dim_mp = {}
-    # for idp, idn in total_partition:
-    #     _mp_add( dim_mp, _mp_product(dim_idp_mp[idp], dim_idn_mp[idn]) )
+    # with multiprocessing.Pool() as pool:
+    #     list_of_dicts = pool.map(
+    #         _parallel,
+    #         # [(dim_idp_mp[idp], dim_idn_mp[idn]) for idp, idn in total_partition]
+    #         [(i, dim_idp_mp[idx[0]], dim_idn_mp[idx[1]]) for i, idx in enumerate(total_partition)]
+    #     )
+    # for dict_ in list_of_dicts:
+    #     for key in dict_:
+    #         try:
+    #             dim_mp[key] += dict_[key]
+    #         except KeyError:
+    #             dim_mp[key] = dict_[key]
+    
+    dim_mp = {}
+    for idp, idn in total_partition:
+        _mp_add( dim_mp, _mp_product(dim_idp_mp[idp], dim_idn_mp[idn]) )
     
     timing_product_dimension = time.time() - timing_product_dimension
     
