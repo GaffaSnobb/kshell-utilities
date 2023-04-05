@@ -1,26 +1,9 @@
 import time, os, curses
 from typing import Callable
 from .data_structures import OrbitalParameters
-from .parameters import spectroscopic_conversion
+from .parameters import spectroscopic_conversion, shell_model_order
 from .vum import Vum
-
-shell_model_order: dict[str, int] = {   # Standard shell order for spherical nuclei.
-    "0s1": 0,
-    "0p3": 1,
-    "0p1": 2,
-    "0d5": 3,
-    "1s1": 4,
-    "0d3": 5,
-    "0f7": 6,
-    "1p3": 7,
-    "0f5": 8,
-    "1p1": 9,
-    "0g9": 10,
-    "1d5": 11,
-    "0g7": 12,
-    "1d3": 13,
-    "2s1": 14,
-}
+from .count_dim import count_dim
 
 def draw_shell_map(
     vum: Vum,
@@ -28,11 +11,34 @@ def draw_shell_map(
     is_proton: bool,
     is_neutron: bool,
     occupation: tuple[int, int] | None = None,
-):
+) -> None:
     """
     Draw a simple map of the model space orbitals of the current
     interaction file. Sort the orbitals based on the shell_model_order
     dict.
+
+    Parameters
+    ----------
+    vum : Vum
+        The Vum object to draw the map with.
+
+    model_space : list[OrbitalParameters]
+        The model space orbitals to draw.
+
+    is_proton : bool
+        Whether to draw the proton map.
+
+    is_neutron : bool
+        Whether to draw the neutron map.
+
+    occupation : tuple[int, int] | None, optional
+        The occupation of the model space orbitals. The tuple contains
+        (orbital index, occupation). If None, draw the entire map with
+        no occupation, by default None.
+
+    Returns
+    -------
+    None
     """
     y_offset: int = 6
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
@@ -40,7 +46,6 @@ def draw_shell_map(
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
         reverse = True
     )
-    
     model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
     model_space_neutron = [orbital for orbital in model_space_copy if orbital.tz == 1]
 
@@ -48,7 +53,7 @@ def draw_shell_map(
     max_proton_j: int = max([orbital.j for orbital in model_space_proton], default=0)  # Use the max j value to center the drawn orbitals.
 
     if is_proton:
-        proton_offset: int = 14 + (max_proton_j + 1)*2
+        proton_offset: int = 14 + (max_proton_j + 1)*2  # The offset for the neutron map.
         is_blank_line: bool = False
         if occupation is None:
             """
@@ -186,10 +191,33 @@ def _partition_editor(
 
     Parameters
     ----------
+    filename_interaction : str | None
+        The name of the interaction file. If None, the user will be
+        prompted to select a file from the current directory. If only
+        one interaction file is present in the current directory, it
+        will be automatically selected.
+
+    filename_partition : str | None
+        The name of the partition file. If None, the user will be
+        prompted to select a file from the current directory. If only
+        one partition file is present in the current directory, it
+        will be automatically selected.
+
+    filename_partition_edited : str | None
+        The name of the edited partition file. If None, a name will be
+        generated automatically.
+
     input_wrapper : Callable
-        Defaults to `input` which asks the user for input. This wrapper
-        exists so that unit tests can be performed in which case
+        NOTE: CURRENTLY NOT FUNCTIONING FOR TESTS. Defaults to `input`
+        which asks the user for input. This wrapper exists so that unit
+        tests can be performed in which case
         `input_wrapper = input_wrapper_test`.
+
+    is_interactive : bool
+        If True, the user will be prompted to select an interaction
+        file and partition file if they are not provided. If False,
+        the user will not be prompted and the program will exit if
+        the interaction file or partition file are not provided.
     """
     vum = Vum()
     screen = vum.screen
@@ -197,7 +225,6 @@ def _partition_editor(
         input_wrapper = vum.input
 
     if is_interactive:
-
         filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
         filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
         
@@ -269,6 +296,22 @@ def _partition_editor(
         screen.addstr(0, 0, vum.blank_line)
         screen.addstr(1, 0, vum.blank_line)
         screen.refresh()
+
+    elif not is_interactive:
+        if filename_interaction is None:
+            return "No interaction file provided. Exiting..."
+        if filename_partition is None:
+            return "No partition file provided. Exiting..."
+    
+    # with HidePrint():
+    M, mdim, jdim = count_dim(
+        model_space_filename = filename_interaction,
+        partition_filename = filename_partition,
+        print_dimensions = False,
+        debug = False,
+    )
+    vum.addstr(3, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
+    vum.addstr(4, 0, f"{filename_interaction}, {filename_partition}")
 
     header: str = ""
     proton_configurations: list[str] = []
