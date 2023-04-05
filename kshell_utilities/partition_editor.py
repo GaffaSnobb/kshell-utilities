@@ -40,10 +40,16 @@ def draw_shell_map(
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
         reverse = True
     )
+    
+    model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
+    model_space_neutron = [orbital for orbital in model_space_copy if orbital.tz == 1]
+
+    max_neutron_j: int = max([orbital.j for orbital in model_space_neutron], default=0)
+    max_proton_j: int = max([orbital.j for orbital in model_space_proton], default=0)  # Use the max j value to center the drawn orbitals.
+
     if is_proton:
-        model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
-        max_proton_j: int = max([orbital.j for orbital in model_space_proton])
-        
+        proton_offset: int = 14 + (max_proton_j + 1)*2
+        is_blank_line: bool = False
         if occupation is None:
             """
             Draw the entire map with no occupation.
@@ -79,19 +85,41 @@ def draw_shell_map(
             vum.addstr(location + y_offset, 0, string)
 
     else:
-        max_proton_j: int = 0    # Used for placing the neutron map so it must be defined.
+        proton_offset: int = 0
+        is_blank_line: bool = True
 
     if is_neutron:
-        model_space_neutron = [orbital for orbital in model_space_copy if orbital.tz == 1]
-        max_neutron_j: int = max([orbital.j for orbital in model_space_neutron])
-
-        for i in range(len(model_space_neutron)):        
+        if occupation is None:
+            for i in range(len(model_space_neutron)):        
+                string = (
+                    f"{model_space_neutron[i].idx + 1:2d}"
+                    f" {model_space_neutron[i].name} " +
+                    " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
+                )
+                vum.addstr(i + y_offset, proton_offset, string, is_blank_line=is_blank_line)
+        
+        else:
+            """
+            Re-draw a single orbital with the user inputted occupation.
+            """
+            location: int = 0
+            for orbital in model_space_neutron:
+                if orbital.idx == occupation[0]: break
+                location += 1
+            else:
+                msg = (
+                    f"Orbital index {occupation[0]} not found in the"
+                    " current model space!"
+                )
+                raise RuntimeError(msg)
+            
             string = (
-                f"{model_space_neutron[i].idx + 1:2d}"
-                f" {model_space_neutron[i].name} " +
-                " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
+                f"{orbital.idx + 1:2d}"
+                f" {orbital.name} " +
+                " "*(max_neutron_j - orbital.j) + "-"
             )
-            vum.addstr(i + y_offset, max_proton_j + 26, string, is_blank_line=False)
+            string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
+            vum.addstr(location + y_offset, proton_offset, string)
 
 def partition_editor(
     filename_interaction: str | None = None,
@@ -297,7 +325,7 @@ def _partition_editor(
 
     assert all(orb.idx == i for i, orb in enumerate(model_space))   # Make sure that the list indices are the same as the orbit indices.
 
-    draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
+    draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
     with open(filename_partition, "r") as infile:
         for line in infile:
@@ -354,6 +382,7 @@ def _partition_editor(
 
     if input_wrapper("Add new proton configuration? (y/n)") == "y":
         while True:
+            draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
             occupation = _prompt_user_for_occupation(
                 vum = vum,
                 nucleon = "proton",
@@ -379,6 +408,7 @@ def _partition_editor(
 
     if input_wrapper("Add new neutron configuration? (y/n)") == "y":
         while True:
+            draw_shell_map(vum=vum, model_space=model_space, is_proton=False, is_neutron=True)
             occupation = _prompt_user_for_occupation(
                 vum = vum,
                 nucleon = "neutron",
@@ -445,6 +475,12 @@ def _partition_editor(
             """
             for n_idx in range(n_total_neutron_configurations):
                 outfile.write(f"{p_idx + 1:5d}{n_idx + 1:6d}\n")    # The .ptn indices start at 1.
+
+    return (
+        f"New configuration saved to {filename_partition_edited}"
+        f" with {n_new_proton_configurations} new proton configurations"
+        f" and {n_new_neutron_configurations} new neutron configurations"
+    )
 
 def _prompt_user_for_occupation(
     vum: Vum,
