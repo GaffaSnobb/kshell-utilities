@@ -177,9 +177,13 @@ def _parallel(args):
 # @lru_cache(maxsize=None, typed=False)
 def count_dim(
     model_space_filename: str,
-    partition_filename: str,
+    partition_filename: str | None = None,
     print_dimensions: bool = True,
-    debug: bool = False
+    debug: bool = False,
+    parity = None | int,
+    proton_partition = None | list[list[int]],
+    neutron_partition = None | list[list[int]],
+    total_partition = None | list[list[int]],
     ):
     """ 
     Product dimension calculation is parallelized. Some timing data for
@@ -227,6 +231,13 @@ def count_dim(
     debug : bool
         For toggling debug print on / off.
     """
+    if partition_filename is None and (proton_partition is None or neutron_partition is None or total_partition is None or parity is None):
+        msg = (
+            "If 'partition_filename' is not supplied then 'proton_partition',"
+            " 'neutron_partition', 'total_partition', and 'parity' must be defined."
+        )
+        raise ValueError(msg)
+
     timing_total = time.time()
     timing_read_snt = time.time()
     orbits_proton_neutron, core_protons_neutrons, norb, lorb, jorb, itorb = \
@@ -234,8 +245,10 @@ def count_dim(
     timing_read_snt = time.time() - timing_read_snt
     
     timing_read_ptn = time.time()
-    valence_protons_neutrons, parity, proton_partition, neutron_partition, total_partition = \
-        read_ptn(partition_filename)
+    if partition_filename is not None:
+        valence_protons_neutrons, parity, proton_partition, neutron_partition, total_partition = \
+            read_ptn(partition_filename)
+
     timing_read_ptn = time.time() - timing_read_ptn
 
     timing_set_dim_singlej = time.time()
