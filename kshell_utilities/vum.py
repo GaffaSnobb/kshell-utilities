@@ -61,6 +61,12 @@ class Vum:
             corner of the screen.
         """
         if screen is None:
+            """
+            Doing the initialisation `screen = curses.initscr()` in the
+            function signature causes a fuckup the terminal session
+            whenever kshell-utilities is loaded. Moving it down here
+            solved the problem.
+            """
             screen = curses.initscr()
         
         self.shared_dict = shared_dict
@@ -70,6 +76,7 @@ class Vum:
         self.is_command_log_enabled = is_command_log_enabled
 
         self.n_rows, self.n_cols = self.screen.getmaxyx()
+        self.blank_line: str = " "*(self.n_cols - 1)
         self.time_fmt: str = '%H:%M:%S'  # Formatter for strftime.
 
         self.command_log_length: int = 5
@@ -124,7 +131,7 @@ class Vum:
             If True, the line is first blanked before adding the
             string.
         """
-        if is_blank_line: self.screen.addstr(y, x, self.blank_line)
+        if is_blank_line: self.screen.addstr(y, 0, self.blank_line)
         self.screen.addstr(y, x, string)
         self.screen.refresh()
 
@@ -152,7 +159,6 @@ class Vum:
         x_offset: int = len(command_prompt_message) + len(self.command_prompt_icon) # x coord. for the command text field.
         cursor_pos: list[int] = [self.n_rows - 1, x_offset]
         msg: str = ""
-        self.blank_line: str = " "*(self.n_cols - 1)
         refresh_timer: float = 0.0
 
         current_attr = COLOR_DIM_PAIR   # For the blinking command prompt icon.
