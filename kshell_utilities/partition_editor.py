@@ -352,7 +352,7 @@ def _partition_editor(
     new_proton_configurations: list[list[int]] = []
     new_neutron_configurations: list[list[int]] = []
 
-    if input_wrapper("Add new proton configuration? (y/n): ") == "y":
+    if input_wrapper("Add new proton configuration? (y/n)") == "y":
         while True:
             occupation = _prompt_user_for_occupation(
                 vum = vum,
@@ -364,7 +364,7 @@ def _partition_editor(
             if occupation:
                 new_proton_configurations.append(occupation)
                 
-                if input_wrapper("Add another proton configuration? (y/n): ") == "y":
+                if input_wrapper("Add another proton configuration? (y/n)") == "y":
                     continue
                 else:
                     break
@@ -377,7 +377,7 @@ def _partition_editor(
                 """
                 break
 
-    if input_wrapper("Add new neutron configuration? (y/n): ") == "y":
+    if input_wrapper("Add new neutron configuration? (y/n)") == "y":
         while True:
             occupation = _prompt_user_for_occupation(
                 vum = vum,
@@ -388,7 +388,7 @@ def _partition_editor(
             )
             if occupation:
                 new_neutron_configurations.append(occupation)
-                if input_wrapper("Add another neutron configuration? (y/n): ") == "y":
+                if input_wrapper("Add another neutron configuration? (y/n)") == "y":
                     continue
                 else:
                     break
@@ -485,7 +485,7 @@ def _prompt_user_for_occupation(
                 continue
 
             while True:
-                ans = input_wrapper(f"{orbital.idx + 1:2d} {orbital} (remaining: {n_remaining_nucleons}): ")
+                ans = input_wrapper(f"{orbital.idx + 1:2d} {orbital} (remaining: {n_remaining_nucleons})")
                 if (ans == "q") or (ans == "quit") or (ans == "exit"): return None
                 if ans == "f": ans = orbital.j + 1  # Fill the orbital.
                 try:
