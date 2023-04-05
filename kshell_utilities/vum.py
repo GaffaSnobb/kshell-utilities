@@ -30,7 +30,35 @@ class Vum:
         action_interval: int | float = 0.5,
         is_command_log_enabled: bool = True,
     ) -> None:
+        """
+        Vum is the Vi-unimproved. It is a simple text-based user
+        interface for the kshell utilities. It is a wrapper for the
+        curses library.
 
+        Parameters
+        ----------
+        shared_dict : managers.DictProxy
+            A dictionary that is shared between processes. This is
+            used to communicate between the main process and the
+            subprocesses that are spawned for the user interface if
+            such parallelisation is required. NOTE: Currently not
+            properly implemented.
+
+        screen : curses.initscr()
+            The curses screen object. May be provided by the main
+            process if needed.
+
+        command_prompt_icon : str
+            The icon that is displayed before the command prompt.
+
+        action_interval : int | float
+            The curses getkey function is non-blocking and a custom
+            user provided function is called at regular intervals.
+
+        is_command_log_enabled : bool
+            If True, the command log is displayed in the bottom left
+            corner of the screen.
+        """
         self.shared_dict = shared_dict
         self.screen = screen
         self.command_prompt_icon = f" {command_prompt_icon} "
@@ -72,10 +100,25 @@ class Vum:
         x: int = 0,
         string: str = "",
         is_blank_line: bool = True,
-    ):
+    ) -> None:
         """
         Wrapper for blanking a line, adding a new string to the same
         line and then refresh the screen.
+
+        Parameters
+        ----------
+        y : int
+            The y coordinate of the string.
+        
+        x : int
+            The x coordinate of the string.
+        
+        string : str
+            The string to be added to the screen.
+
+        is_blank_line : bool
+            If True, the line is first blanked before adding the
+            string.
         """
         if is_blank_line: self.screen.addstr(y, x, self.blank_line)
         self.screen.addstr(y, x, string)
@@ -88,6 +131,19 @@ class Vum:
         """
         Prompt for user input. Return the user input as a string when
         the return key is pressed.
+
+        Parameters
+        ----------
+        command_prompt_message : str
+            The message to be displayed before the command prompt.
+
+        action : Callable
+            A function that is called at regular intervals.
+
+        Returns
+        -------
+        str
+            The user input after the return key is pressed.
         """
         x_offset: int = len(command_prompt_message) + len(self.command_prompt_icon) # x coord. for the command text field.
         cursor_pos: list[int] = [self.n_rows - 1, x_offset]
@@ -199,17 +255,12 @@ class Vum:
             cursor_pos[1] += 1
             self.screen.addstr(self.n_rows - 1, x_offset, msg)
 
-    def logger(self):
+    def logger(self) -> None:
+        """
+        Display the command log.
+        """
         for i in range(self.command_log_length):
-            """
-            Display the command log.
-            """
             self.screen.addstr(self.n_rows - self.command_log_length + i - 1, 0, self.blank_line)
             self.screen.addstr(self.n_rows - self.command_log_length + i - 1, 0, self.command_log[i])
 
         self.screen.refresh()
-
-if __name__ == "__main__":
-    q = Vum(shared_dict={})
-    q.input("lol")
-    # print(q.command_log)
