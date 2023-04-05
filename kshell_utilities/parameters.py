@@ -67,3 +67,21 @@ recommended_quenching_factors = {
     "sdpf-mu.snt": f"0.9*GS_FREE = {round(0.9*GS_FREE_PROTON, 3), round(0.9*GS_FREE_NEUTRON, 3)}",
     "sn100pn.snt": f"0.7*GS_FREE = {round(0.7*GS_FREE_PROTON, 3), round(0.7*GS_FREE_NEUTRON, 3)}"
 }
+
+shell_model_order: dict[str, int] = {   # Standard shell order for spherical nuclei.
+    "0s1": 0,
+    "0p3": 1,
+    "0p1": 2,
+    "0d5": 3,
+    "1s1": 4,
+    "0d3": 5,
+    "0f7": 6,
+    "1p3": 7,
+    "0f5": 8,
+    "1p1": 9,
+    "0g9": 10,
+    "1d5": 11,
+    "0g7": 12,
+    "1d3": 13,
+    "2s1": 14,
+}
