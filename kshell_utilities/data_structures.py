@@ -12,6 +12,13 @@ class OrbitalParameters:
     tz: int         # Isospin.
     nucleon: str    # Proton or neutron
     name: str       # Ex: p 0d5/2.
+    parity: int
 
     def __str__(self):
         return self.name
+    
+@dataclass
+class ConfigurationParameters:
+    idx: int
+    parity: int
+    configuration: list[int]
