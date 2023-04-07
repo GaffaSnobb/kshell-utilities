@@ -1,9 +1,84 @@
 import time, os, curses
 from typing import Callable
-from .data_structures import OrbitalParameters
+from .data_structures import OrbitalParameters, ConfigurationParameters
 from .parameters import spectroscopic_conversion, shell_model_order
 from .vum import Vum
 from .count_dim import count_dim
+
+def calculate_configuration_parity(
+    configuration: list[int],
+    model_space: list[OrbitalParameters]
+) -> int:
+    parity = 1
+    for i in range(len(configuration)):
+        if not configuration[i]: continue   # Empty orbitals do not count towards the total parity.
+        parity *= model_space[i].parity**configuration[i]
+
+    return parity
+
+def analyse_existing_configuration(
+    vum: Vum,
+    proton_configurations_formatted: list[ConfigurationParameters],
+    neutron_configurations_formatted: list[ConfigurationParameters],
+    input_wrapper: Callable,
+    model_space: list[OrbitalParameters],
+    x_offset: int,
+) -> None:
+    """
+    Prompt the user for an index of an existing configuration and show
+    an analysis of the configuration in question. This function is only
+    used once and exists simply to make the amount of code lines in
+    `_partition_editor` smaller.
+    """
+    pn_configuration_dict: dict[str, list[ConfigurationParameters]] = {
+        "p": proton_configurations_formatted,
+        "n": neutron_configurations_formatted,
+    }
+    while True:
+        if input_wrapper("Analyse existing configuration? (y/n)") == "y":
+            while True:
+                p_or_n = input_wrapper("Proton or neutron configuration? (p/n)")
+                if (p_or_n == "p"):
+                    is_proton = True
+                    is_neutron = False
+                    break
+                if (p_or_n == "n"):
+                    is_proton = False
+                    is_neutron = True
+                    break
+            
+            draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+            
+            while True:
+                configuration_idx = input_wrapper(f"Choose a {p_or_n} orbital index in 1, 2, ..., {len(pn_configuration_dict[p_or_n])} (q to quit)")
+                if configuration_idx == "q": break
+                
+                try:
+                    configuration_idx = int(configuration_idx)
+                except ValueError:
+                    continue
+                
+                configuration_idx -= 1    # List indices are from 0 while indices in .ptn are from 1.
+                if configuration_idx in range(len(pn_configuration_dict[p_or_n])):
+
+                    current_configuration = pn_configuration_dict[p_or_n][configuration_idx].configuration
+                    configuration_parity = 1
+                    for i in range(len(current_configuration)):
+                        orbital_parity = (-1)**model_space[i].l
+                        configuration_parity *= orbital_parity**current_configuration[i] if current_configuration[i] else 1  # Avoid multiplication by 0.
+                        draw_shell_map(
+                            vum = vum,
+                            model_space = model_space,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            occupation = (i, current_configuration[i]),
+                        )
+
+                    vum.addstr(x_offset + 6, 0, f"parity current configuration = {configuration_parity}")
+
+        else: break # If answer from user is not 'y'.
+
+    vum.addstr(x_offset + 6, 0, "parity current configuration = None")
 
 def draw_shell_map(
     vum: Vum,
@@ -40,7 +115,7 @@ def draw_shell_map(
     -------
     None
     """
-    y_offset: int = 7
+    y_offset: int = 9
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
         model_space,
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
@@ -53,7 +128,7 @@ def draw_shell_map(
     max_proton_j: int = max([orbital.j for orbital in model_space_proton], default=0)  # Use the max j value to center the drawn orbitals.
 
     if is_proton:
-        proton_offset: int = 14 + (max_proton_j + 1)*2  # The offset for the neutron map.
+        proton_offset: int = 17 + (max_proton_j + 1)*2  # The offset for the neutron map.
         is_blank_line: bool = False
         if occupation is None:
             """
@@ -62,7 +137,8 @@ def draw_shell_map(
             for i in range(len(model_space_proton)):
                 string = (
                     f"{model_space_proton[i].idx + 1:2d}"
-                    f" {model_space_proton[i].name} " +
+                    f" {model_space_proton[i].name}"
+                    f" {(-1)**model_space_proton[i].l:2d} " +
                     " "*(max_proton_j - model_space_proton[i].j) + "-" + " -"*(model_space_proton[i].j + 1)
                 )
                 vum.addstr(i + y_offset, 0, string)
@@ -83,7 +159,8 @@ def draw_shell_map(
             
             string = (
                 f"{orbital.idx + 1:2d}"
-                f" {orbital.name} " +
+                f" {orbital.name}"
+                f" {(-1)**orbital.l:2d} " +
                 " "*(max_proton_j - orbital.j) + "-"
             )
             string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
@@ -98,7 +175,8 @@ def draw_shell_map(
             for i in range(len(model_space_neutron)):        
                 string = (
                     f"{model_space_neutron[i].idx + 1:2d}"
-                    f" {model_space_neutron[i].name} " +
+                    f" {model_space_neutron[i].name}"
+                    f" {(-1)**model_space_proton[i].l:2d} " +
                     " "*(max_neutron_j - model_space_neutron[i].j) + "-" + " -"*(model_space_neutron[i].j + 1)
                 )
                 vum.addstr(i + y_offset, proton_offset, string, is_blank_line=is_blank_line)
@@ -120,7 +198,8 @@ def draw_shell_map(
             
             string = (
                 f"{orbital.idx + 1:2d}"
-                f" {orbital.name} " +
+                f" {orbital.name}"
+                f" {(-1)**orbital.l:2d} " +
                 " "*(max_neutron_j - orbital.j) + "-"
             )
             string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
@@ -307,8 +386,10 @@ def _partition_editor(
     header: str = ""
     proton_configurations: list[str] = []
     neutron_configurations: list[str] = []
-    proton_configurations_formatted: list[list[int]] = []   # For calculating the dim without writing the data to file.
-    neutron_configurations_formatted: list[list[int]] = []
+    # proton_configurations_formatted: list[list[int]] = []   # For calculating the dim without writing the data to file.
+    proton_configurations_formatted: list[ConfigurationParameters] = []
+    # neutron_configurations_formatted: list[list[int]] = []
+    neutron_configurations_formatted: list[ConfigurationParameters] = []
     total_configurations_formatted: list[list[int]] = []
     model_space: list[OrbitalParameters] = []
 
@@ -358,9 +439,12 @@ def _partition_editor(
                 tz = tz,
                 nucleon = nucleon,
                 name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
+                parity = (-1)**l,
             ))
 
     assert all(orb.idx == i for i, orb in enumerate(model_space))   # Make sure that the list indices are the same as the orbit indices.
+    model_space_proton = [orbital for orbital in model_space if orbital.tz == -1]   # These are practical to have in separate lists.
+    model_space_neutron = [orbital for orbital in model_space if orbital.tz == 1]
     
     draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
@@ -405,7 +489,19 @@ def _partition_editor(
             if "# neutron partition" in line: break
 
             proton_configurations.append(line)
-            proton_configurations_formatted.append([int(i) for i in line.split()[1:]])
+            # proton_configurations_formatted.append([int(i) for i in line.split()[1:]])
+            configuration = [int(i) for i in line.split()[1:]]
+
+            proton_configurations_formatted.append(
+                ConfigurationParameters(
+                    configuration = configuration,
+                    idx = int(line.split()[0]) - 1,
+                    parity = calculate_configuration_parity(
+                        configuration = configuration,
+                        model_space = model_space_proton
+                    ),
+                )
+            )
 
         for line in infile:
             """
@@ -414,20 +510,34 @@ def _partition_editor(
             if "# partition of proton and neutron" in line: break
 
             neutron_configurations.append(line)
-            neutron_configurations_formatted.append([int(i) for i in line.split()[1:]])
+            # neutron_configurations_formatted.append([int(i) for i in line.split()[1:]])
+            configuration = [int(i) for i in line.split()[1:]]
+            
+            neutron_configurations_formatted.append(
+                ConfigurationParameters(
+                    configuration = configuration,
+                    idx = int(line.split()[0]) - 1,
+                    parity = calculate_configuration_parity(
+                        configuration = configuration,
+                        model_space = model_space_neutron
+                    ),
+                )
+            )
 
     for p_idx in range(len(proton_configurations_formatted)):
         for n_idx in range(len(neutron_configurations_formatted)):
             total_configurations_formatted.append([p_idx, n_idx])
-
+        
     M, mdim, jdim = count_dim(
         model_space_filename = filename_interaction,
         partition_filename = None,
         print_dimensions = False,
         debug = False,
         parity = parity,
-        proton_partition = proton_configurations_formatted,
-        neutron_partition = neutron_configurations_formatted,
+        # proton_partition = proton_configurations_formatted,
+        # neutron_partition = neutron_configurations_formatted,
+        proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+        neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
         total_partition = total_configurations_formatted,
     )
     mdim_original: int = mdim[-1]
@@ -437,10 +547,19 @@ def _partition_editor(
     vum.addstr(x_offset + 3, 0, f"n valence protons, neutrons: {n_valence_protons}, {n_valence_neutrons}")
     vum.addstr(x_offset + 4, 0, f"n core protons, neutrons: {n_core_protons}, {n_core_neutrons}")
     vum.addstr(x_offset + 5, 0, f"{parity = }")
+    vum.addstr(x_offset + 6, 0, "parity current configuration = None")
 
     new_proton_configurations: list[list[int]] = []
     new_neutron_configurations: list[list[int]] = []
 
+    analyse_existing_configuration(
+        vum = vum,
+        proton_configurations_formatted = proton_configurations_formatted,
+        neutron_configurations_formatted = neutron_configurations_formatted,
+        input_wrapper = input_wrapper,
+        model_space = model_space,
+        x_offset = x_offset,
+    )
     if input_wrapper("Add new proton configuration? (y/n)") == "y":
         while True:
             draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
@@ -450,10 +569,20 @@ def _partition_editor(
                 model_space = model_space[:n_proton_orbitals],
                 n_valence_nucleons = n_valence_protons,
                 input_wrapper = input_wrapper,
+                parity = parity,
             )
             if occupation:
                 new_proton_configurations.append(occupation)
-                proton_configurations_formatted.append(occupation)
+                proton_configurations_formatted.append(
+                    ConfigurationParameters(
+                        idx = len(proton_configurations_formatted),
+                        configuration = occupation,
+                        parity = calculate_configuration_parity(
+                            configuration = occupation,
+                            model_space = model_space_proton
+                        )
+                    )
+                )
                 
                 total_configurations_formatted.clear()
                 for p_idx in range(len(proton_configurations_formatted)):   # NOTE: Can make this more efficient.
@@ -466,8 +595,10 @@ def _partition_editor(
                     print_dimensions = False,
                     debug = False,
                     parity = parity,
-                    proton_partition = proton_configurations_formatted,
-                    neutron_partition = neutron_configurations_formatted,
+                    # proton_partition = proton_configurations_formatted,
+                    # neutron_partition = neutron_configurations_formatted,
+                    proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+                    neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
                     total_partition = total_configurations_formatted,
                 )
                 vum.addstr(x_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
@@ -495,11 +626,22 @@ def _partition_editor(
                 model_space = model_space[n_neutron_orbitals:],
                 n_valence_nucleons = n_valence_neutrons,
                 input_wrapper = input_wrapper,
+                parity = parity,
             )
             if occupation:
                 new_neutron_configurations.append(occupation)
-                neutron_configurations_formatted.append(occupation)
-                
+                # neutron_configurations_formatted.append(occupation)
+                neutron_configurations_formatted.append(
+                    ConfigurationParameters(
+                        idx = len(neutron_configurations_formatted),
+                        configuration = occupation,
+                        parity = calculate_configuration_parity(
+                            configuration = occupation,
+                            model_space = model_space_neutron
+                        )
+                    )
+                )
+
                 total_configurations_formatted.clear()
                 for p_idx in range(len(proton_configurations_formatted)):   # NOTE: Can make this more efficient.
                     for n_idx in range(len(neutron_configurations_formatted)):
@@ -511,8 +653,10 @@ def _partition_editor(
                     print_dimensions = False,
                     debug = False,
                     parity = parity,
-                    proton_partition = proton_configurations_formatted,
-                    neutron_partition = neutron_configurations_formatted,
+                    # proton_partition = proton_configurations_formatted,
+                    proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+                    neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
+                    # neutron_partition = neutron_configurations_formatted,
                     total_partition = total_configurations_formatted,
                 )
                 vum.addstr(x_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original}) ({mdim_original:.2e}))")
@@ -588,6 +732,7 @@ def _prompt_user_for_occupation(
     model_space: list[OrbitalParameters],
     n_valence_nucleons: int,
     input_wrapper: Callable,
+    parity: int,
 ) -> list | None:
         
         if nucleon == "proton":
@@ -609,7 +754,8 @@ def _prompt_user_for_occupation(
         n_remaining_nucleons: int = n_valence_nucleons
         vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, f"Please enter {nucleon} orbital occupation (f to fill, q to quit):")
         occupation: list[tuple[int, int]] = []
-        
+        occupation_parity: int = 1
+
         for orbital in model_space_copy:
             if n_remaining_nucleons == 0:
                 """
@@ -617,7 +763,7 @@ def _prompt_user_for_occupation(
                 remaining occupations to 0.
                 """
                 occupation.append((orbital.idx, 0))
-                vum.addstr(1, 0, "Occupation of remaining orbitals set to 0.")
+                vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, "Occupation of remaining orbitals set to 0.")
                 continue
 
             while True:
@@ -630,8 +776,14 @@ def _prompt_user_for_occupation(
                     continue
 
                 if (ans > (orbital.j + 1)) or (ans < 0):
-                    vum.addstr(1, 0, f"Allowed occupation for this orbital is [0, 1, ..., {orbital.j + 1}]")
+                    vum.addstr(
+                        vum.n_rows - 3 - vum.command_log_length, 0,
+                        f"Allowed occupation for this orbital is [0, 1, ..., {orbital.j + 1}]"
+                    )
                     continue
+                
+                orbital_parity: int = (-1)**orbital.l
+                occupation_parity *= orbital_parity**ans
                 
                 n_remaining_nucleons -= ans
                 if ans > 0:
@@ -652,7 +804,10 @@ def _prompt_user_for_occupation(
 
             cum_occupation = sum(tup[1] for tup in occupation)
             if cum_occupation > n_valence_nucleons:
-                vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})")
+                vum.addstr(
+                    vum.n_rows - 3 - vum.command_log_length, 0,
+                    f"INVALID: Total occupation ({cum_occupation}) exceeds the number of valence {nucleon}s ({n_valence_nucleons})"
+                )
                 draw_shell_map(
                     vum = vum,
                     model_space = model_space,
@@ -663,7 +818,23 @@ def _prompt_user_for_occupation(
         
         cum_occupation = sum(tup[1] for tup in occupation)
         if cum_occupation < n_valence_nucleons:
-            vum.addstr(1, 0, f"INVALID: Total occupation ({cum_occupation}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})")
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                f"INVALID: Total occupation ({cum_occupation}) does not use the total number of valence {nucleon}s ({n_valence_nucleons})"
+            )
+            draw_shell_map(
+                vum = vum,
+                model_space = model_space,
+                is_proton = is_proton,
+                is_neutron = is_neutron,
+            )
+            return []
+        
+        if occupation_parity != parity:
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                f"INVALID: Parity of new occupation is {occupation_parity} while the parity of the current partition file is {parity}"
+            )
             draw_shell_map(
                 vum = vum,
                 model_space = model_space,
