@@ -10,7 +10,22 @@ def calculate_configuration_parity(
     configuration: list[int],
     model_space: list[OrbitalParameters]
 ) -> int:
-    parity = 1
+    """
+    Calculate the parity of a configuration.
+
+    Parameters
+    ----------
+    configuration : list[int]
+        The configuration to calculate the parity of.
+    
+    model_space : list[OrbitalParameters]
+        The model space orbitals to use for the calculation.
+    """
+    if not configuration:
+        msg = "Configuration is empty! Undefined behaviour."
+        raise ValueError(msg)
+
+    parity: int = 1
     for i in range(len(configuration)):
         if not configuration[i]: continue   # Empty orbitals do not count towards the total parity.
         parity *= model_space[i].parity**configuration[i]
@@ -30,6 +45,26 @@ def analyse_existing_configuration(
     an analysis of the configuration in question. This function is only
     used once and exists simply to make the amount of code lines in
     `_partition_editor` smaller.
+
+    Parameters
+    ----------
+    vum : Vum
+        The Vum object to draw the map with.
+    
+    proton_configurations_formatted : list[ConfigurationParameters]
+        The proton configurations to choose from.
+
+    neutron_configurations_formatted : list[ConfigurationParameters]
+        The neutron configurations to choose from.
+
+    input_wrapper : Callable
+        The input wrapper to use for user input.
+
+    model_space : list[OrbitalParameters]
+        The model space orbitals to use for the calculation.
+
+    y_offset : int
+        The y offset to use for drawing the map.
     """
     pn_configuration_dict: dict[str, list[ConfigurationParameters]] = {
         "p": proton_configurations_formatted,
@@ -854,7 +889,41 @@ def _prompt_user_for_configuration(
         Prompt the user for a new proton or neutron configuration,
         meaning that this function prompts the user for the occupation
         of all the orbitals in the model space and returns the
-        configuration as a list of occupation numbers.
+        configuration as a list of occupation numbers. Note that the
+        order of the orbitals that the user is prompted for is sorted
+        by the `shell_model_order` dictionary but the occupation number
+        list returned by this function is sorted by the order of the
+        orbitals as defined in the interaction file.
+
+        Parameters
+        ----------
+        vum : Vum
+            The Vum object to use for displaying information.
+
+        nucleon : str
+            The nucleon type to prompt the user for. Must be either
+            "proton" or "neutron".
+        
+        model_space : list[OrbitalParameters]
+            The model space to use for the prompt.
+
+        n_valence_nucleons : int
+            The number of valence protons or neutrons. Used for making
+            sure that the user does not enter more than this number of
+            nucleons in the configuration.
+
+        input_wrapper : Callable
+            The input wrapper to use for getting user input.
+
+        y_offset : int
+            The y-offset to use for displaying information.
+
+        Returns
+        -------
+        list | None
+            The occupation of each model space orbitals as a list of
+            occupation numbers. If the user enters "q" to quit, None is
+            returned.
         """
         if nucleon == "proton":
             is_proton = True
