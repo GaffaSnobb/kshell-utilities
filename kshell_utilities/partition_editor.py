@@ -519,7 +519,16 @@ def _partition_editor(
                 parity = (-1)**l,
             ))
 
-    assert all(orb.idx == i for i, orb in enumerate(model_space))   # Make sure that the list indices are the same as the orbit indices.
+    if not all(orb.idx == i for i, orb in enumerate(model_space)):
+        """
+        Make sure that the list indices are the same as the orbit
+        indices.
+        """
+        msg = (
+            "The orbitals in the model space are not indexed correctly!"
+        )
+        raise KshellDataStructureError(msg)
+
     model_space_proton = [orbital for orbital in model_space if orbital.tz == -1]   # These are practical to have in separate lists.
     model_space_neutron = [orbital for orbital in model_space if orbital.tz == 1]
     
