@@ -39,6 +39,7 @@ def analyse_existing_configuration(
     input_wrapper: Callable,
     model_space: list[OrbitalParameters],
     y_offset: int,
+    n_proton_orbitals: int,
 ) -> None:
     """
     Prompt the user for an index of an existing configuration and show
@@ -77,21 +78,24 @@ def analyse_existing_configuration(
                 if (p_or_n == "p"):
                     is_proton = True
                     is_neutron = False
+                    orbital_idx_offset: int = 0
                     break
                 if (p_or_n == "n"):
                     is_proton = False
                     is_neutron = True
+                    orbital_idx_offset: int = n_proton_orbitals # This is needed to index the neutron orbitals correctly when drawing the map.
                     break
             
             draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
             
             while True:
-                configuration_idx = input_wrapper(f"Choose a {p_or_n} orbital index in 1, 2, ..., {len(pn_configuration_dict[p_or_n])} (q to quit)")
+                configuration_idx = input_wrapper(f"Choose a {p_or_n} configuration index in 1, 2, ..., {len(pn_configuration_dict[p_or_n])} (q to quit)")
                 if configuration_idx == "q": break
                 
                 try:
                     configuration_idx = int(configuration_idx)
                 except ValueError:
+                    draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
                     continue
                 
                 configuration_idx -= 1    # List indices are from 0 while indices in .ptn are from 1.
@@ -100,21 +104,24 @@ def analyse_existing_configuration(
                     current_configuration = pn_configuration_dict[p_or_n][configuration_idx].configuration
                     configuration_parity = 1
                     for i in range(len(current_configuration)):
-                        orbital_parity = (-1)**model_space[i].l
-                        configuration_parity *= orbital_parity**current_configuration[i] if current_configuration[i] else 1  # Avoid multiplication by 0.
+                        configuration_parity *= model_space[i].parity**current_configuration[i] if current_configuration[i] else 1  # Avoid multiplication by 0.
                         draw_shell_map(
                             vum = vum,
                             model_space = model_space,
                             is_proton = is_proton,
                             is_neutron = is_neutron,
-                            occupation = (i, current_configuration[i]),
+                            occupation = (orbital_idx_offset + i, current_configuration[i]),
                         )
 
                     vum.addstr(y_offset + 6, 0, f"parity current configuration = {configuration_parity}")
+                
+                else:
+                    draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
 
         else: break # If answer from user is not 'y'.
 
     vum.addstr(y_offset + 6, 0, "parity current configuration = None")
+    draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
 def draw_shell_map(
     vum: Vum,
@@ -680,6 +687,7 @@ def _partition_editor(
         input_wrapper = input_wrapper,
         model_space = model_space,
         y_offset = y_offset,
+        n_proton_orbitals = n_proton_orbitals,
     )
     if input_wrapper("Add new proton configuration? (y/n)") == "y":
         while True:
