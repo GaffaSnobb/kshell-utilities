@@ -6,7 +6,7 @@ from .vum import Vum
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
 
-def calculate_configuration_parity(
+def _calculate_configuration_parity(
     configuration: list[int],
     model_space: list[OrbitalParameters]
 ) -> int:
@@ -32,7 +32,7 @@ def calculate_configuration_parity(
 
     return parity
 
-def analyse_existing_configuration(
+def _analyse_existing_configuration(
     vum: Vum,
     proton_configurations_formatted: list[ConfigurationParameters],
     neutron_configurations_formatted: list[ConfigurationParameters],
@@ -624,7 +624,7 @@ def _partition_editor(
                 ConfigurationParameters(
                     configuration = configuration,
                     idx = int(line.split()[0]) - 1,
-                    parity = calculate_configuration_parity(
+                    parity = _calculate_configuration_parity(
                         configuration = configuration,
                         model_space = model_space_proton
                     ),
@@ -644,7 +644,7 @@ def _partition_editor(
                 ConfigurationParameters(
                     configuration = configuration,
                     idx = int(line.split()[0]) - 1,
-                    parity = calculate_configuration_parity(
+                    parity = _calculate_configuration_parity(
                         configuration = configuration,
                         model_space = model_space_neutron
                     ),
@@ -680,7 +680,7 @@ def _partition_editor(
     new_proton_configurations: list[list[int]] = []
     new_neutron_configurations: list[list[int]] = []
 
-    analyse_existing_configuration(
+    _analyse_existing_configuration(
         vum = vum,
         proton_configurations_formatted = proton_configurations_formatted,
         neutron_configurations_formatted = neutron_configurations_formatted,
@@ -689,147 +689,98 @@ def _partition_editor(
         y_offset = y_offset,
         n_proton_orbitals = n_proton_orbitals,
     )
-    if input_wrapper("Add new proton configuration? (y/n)") == "y":
-        while True:
-            draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
-            occupation = _prompt_user_for_configuration(
-                vum = vum,
-                nucleon = "proton",
-                model_space = model_space[:n_proton_orbitals],
-                n_valence_nucleons = n_valence_protons,
-                input_wrapper = input_wrapper,
-                y_offset = y_offset,
-            )
-            if occupation:
-                new_proton_configurations.append(occupation)
-                proton_configurations_formatted.append(
-                    ConfigurationParameters(
-                        idx = len(proton_configurations_formatted),
+    while True:
+        configuration_choice = input_wrapper("Add configuration? (y/n)")
+        if configuration_choice == "y":
+            pass
+        elif configuration_choice in ["n", "q"]:
+            break
+        else: continue
+
+        nucleon_choice = input_wrapper("Proton or neutron? (p/n)")
+        if nucleon_choice == "p":
+            is_proton = True
+            is_neutron = False
+            nucleon = "proton"
+            model_space_slice = model_space_proton
+            new_configurations = new_proton_configurations
+            configurations_formatted = proton_configurations_formatted
+            n_valence_nucleons = n_valence_protons
+        
+        elif nucleon_choice == "n":
+            is_proton = False
+            is_neutron = True
+            nucleon = "neutron"
+            model_space_slice = model_space_neutron
+            new_configurations = new_neutron_configurations
+            configurations_formatted = neutron_configurations_formatted
+            n_valence_nucleons = n_valence_neutrons
+
+        else: continue
+
+        draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+
+        occupation = _prompt_user_for_configuration(
+            vum = vum,
+            nucleon = nucleon,
+            model_space = model_space_slice,
+            n_valence_nucleons = n_valence_nucleons,
+            input_wrapper = input_wrapper,
+            y_offset = y_offset,
+        )
+        if occupation:
+            new_configurations.append(occupation)
+            configurations_formatted.append(
+                ConfigurationParameters(
+                    idx = len(configurations_formatted),
+                    configuration = occupation,
+                    parity = _calculate_configuration_parity(
                         configuration = occupation,
-                        parity = calculate_configuration_parity(
-                            configuration = occupation,
-                            model_space = model_space_proton
-                        )
+                        model_space = model_space_slice
                     )
                 )
-                try:
-                    _generate_total_configurations(
-                        proton_configurations = proton_configurations_formatted,
-                        neutron_configurations = neutron_configurations_formatted,
-                        total_configurations = total_configurations_formatted,
-                        partition_file_parity = parity
-                    )
-                except KshellDataStructureError as e:
-                    msg = (
-                        "The parity of the new configuration cannot be"
-                        " matched with any neutron configurations to create"
-                        " the partition file parity."
-                    )
-                    screen.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, msg)
-                    new_proton_configurations.pop()
-                    proton_configurations_formatted.pop()
-                    continue
-
-                M, mdim, jdim = count_dim(
-                    model_space_filename = filename_interaction,
-                    partition_filename = None,
-                    print_dimensions = False,
-                    debug = False,
-                    parity = parity,
-                    proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
-                    neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
-                    total_partition = total_configurations_formatted,
-                )
-                vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
-                vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
-                
-                if input_wrapper("Add another proton configuration? (y/n)") == "y":
-                    continue
-                else:
-                    break
-
-            elif occupation is None:
-                """
-                Quit signal. Do not keep the current configuration,
-                but keep earlier defined new configurations and quit
-                the prompt.
-                """
-                draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=False)
-                if input_wrapper("Add another proton configuration? (y/n)") == "y":
-                    continue
-                else:
-                    break
-
-    if input_wrapper("Add new neutron configuration? (y/n)") == "y":
-        while True:
-            draw_shell_map(vum=vum, model_space=model_space, is_proton=False, is_neutron=True)
-            occupation = _prompt_user_for_configuration(
-                vum = vum,
-                nucleon = "neutron",
-                model_space = model_space[n_neutron_orbitals:],
-                n_valence_nucleons = n_valence_neutrons,
-                input_wrapper = input_wrapper,
-                y_offset = y_offset,
             )
-            if occupation:
-                new_neutron_configurations.append(occupation)
-                neutron_configurations_formatted.append(
-                    ConfigurationParameters(
-                        idx = len(neutron_configurations_formatted),
-                        configuration = occupation,
-                        parity = calculate_configuration_parity(
-                            configuration = occupation,
-                            model_space = model_space_neutron
-                        )
-                    )
+            try:
+                _generate_total_configurations(
+                    proton_configurations = proton_configurations_formatted,
+                    neutron_configurations = neutron_configurations_formatted,
+                    total_configurations = total_configurations_formatted,
+                    partition_file_parity = parity
                 )
-                try:
-                    _generate_total_configurations(
-                        proton_configurations = proton_configurations_formatted,
-                        neutron_configurations = neutron_configurations_formatted,
-                        total_configurations = total_configurations_formatted,
-                        partition_file_parity = parity
-                    )
-                except KshellDataStructureError as e:
-                    msg = (
-                        "The parity of the new configuration cannot be"
-                        " matched with any proton configurations to create"
-                        " the partition file parity."
-                    )
-                    screen.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, msg)
-                    new_neutron_configurations.pop()
-                    neutron_configurations_formatted.pop()
-                    continue
-
-                M, mdim, jdim = count_dim(
-                    model_space_filename = filename_interaction,
-                    partition_filename = None,
-                    print_dimensions = False,
-                    debug = False,
-                    parity = parity,
-                    proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
-                    neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
-                    total_partition = total_configurations_formatted,
+            except KshellDataStructureError:
+                msg = (
+                    "The parity of the new configuration cannot be"
+                    f" matched with any {'neutron' if is_proton else 'proton'} configurations to create"
+                    " the partition file parity."
                 )
-                vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original}) ({mdim_original:.2e}))")
-                vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
+                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "INVALID")
+                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
+                new_configurations.pop()
+                configurations_formatted.pop()
+                continue
 
-                if input_wrapper("Add another neutron configuration? (y/n)") == "y":
-                    continue
-                else:
-                    break
+            M, mdim, jdim = count_dim(
+                model_space_filename = filename_interaction,
+                partition_filename = None,
+                print_dimensions = False,
+                debug = False,
+                parity = parity,
+                proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+                neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
+                total_partition = total_configurations_formatted,
+            )
+            vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
+            vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
 
-            elif occupation is None:
-                """
-                Quit signal. Do not keep the current configuration,
-                but keep earlier defined new configurations and quit
-                the prompt.
-                """
-                draw_shell_map(vum=vum, model_space=model_space, is_proton=False, is_neutron=True)
-                if input_wrapper("Add another neutron configuration? (y/n)") == "y":
-                    continue
-                else:
-                    break
+        elif occupation is None:
+            """
+            Quit signal. Do not keep the current configuration,
+            but keep earlier defined new configurations and quit
+            the prompt.
+            """
+            draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+            vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
+            vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, "Current configuration discarded")
 
     n_new_proton_configurations = len(new_proton_configurations)
     n_new_neutron_configurations = len(new_neutron_configurations)
@@ -950,6 +901,7 @@ def _prompt_user_for_configuration(
             key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
         )
         n_remaining_nucleons: int = n_valence_nucleons
+        vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
         vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, f"Please enter {nucleon} orbital occupation (f to fill, q to quit):")
         occupation: list[tuple[int, int]] = []
         occupation_parity: int = 1
