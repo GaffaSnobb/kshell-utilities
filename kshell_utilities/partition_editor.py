@@ -630,7 +630,6 @@ def _partition_editor(
                     ),
                 )
             )
-
         for line in infile:
             """
             Extract neutron partitions.
@@ -650,14 +649,12 @@ def _partition_editor(
                     ),
                 )
             )
-
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
         neutron_configurations = neutron_configurations_formatted,
         total_configurations = total_configurations_formatted,
         partition_file_parity = parity
     )
-
     M, mdim, jdim = count_dim(
         model_space_filename = filename_interaction,
         partition_filename = None,
@@ -697,90 +694,113 @@ def _partition_editor(
             break
         else: continue
 
-        nucleon_choice = input_wrapper("Proton or neutron? (p/n)")
-        if nucleon_choice == "p":
-            is_proton = True
-            is_neutron = False
-            nucleon = "proton"
-            model_space_slice = model_space_proton
-            new_configurations = new_proton_configurations
-            configurations_formatted = proton_configurations_formatted
-            n_valence_nucleons = n_valence_protons
-        
-        elif nucleon_choice == "n":
-            is_proton = False
-            is_neutron = True
-            nucleon = "neutron"
-            model_space_slice = model_space_neutron
-            new_configurations = new_neutron_configurations
-            configurations_formatted = neutron_configurations_formatted
-            n_valence_nucleons = n_valence_neutrons
+        while True:
+            nucleon_choice = input_wrapper("Proton or neutron? (p/n)")
+            if nucleon_choice == "p":
+                is_proton = True
+                is_neutron = False
+                nucleon = "proton"
+                model_space_slice = model_space_proton
+                new_configurations = new_proton_configurations
+                configurations_formatted = proton_configurations_formatted
+                n_valence_nucleons = n_valence_protons
+                break
+            
+            elif nucleon_choice == "n":
+                is_proton = False
+                is_neutron = True
+                nucleon = "neutron"
+                model_space_slice = model_space_neutron
+                new_configurations = new_neutron_configurations
+                configurations_formatted = neutron_configurations_formatted
+                n_valence_nucleons = n_valence_neutrons
+                break
 
-        else: continue
+            else: continue
 
-        draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
-
-        occupation = _prompt_user_for_configuration(
-            vum = vum,
-            nucleon = nucleon,
-            model_space = model_space_slice,
-            n_valence_nucleons = n_valence_nucleons,
-            input_wrapper = input_wrapper,
-            y_offset = y_offset,
-        )
-        if occupation:
-            new_configurations.append(occupation)
-            configurations_formatted.append(
-                ConfigurationParameters(
-                    idx = len(configurations_formatted),
-                    configuration = occupation,
-                    parity = _calculate_configuration_parity(
-                        configuration = occupation,
-                        model_space = model_space_slice
-                    )
-                )
-            )
-            try:
-                _generate_total_configurations(
-                    proton_configurations = proton_configurations_formatted,
-                    neutron_configurations = neutron_configurations_formatted,
-                    total_configurations = total_configurations_formatted,
-                    partition_file_parity = parity
-                )
-            except KshellDataStructureError:
-                msg = (
-                    "The parity of the new configuration cannot be"
-                    f" matched with any {'neutron' if is_proton else 'proton'} configurations to create"
-                    " the partition file parity."
-                )
-                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "INVALID")
-                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
-                new_configurations.pop()
-                configurations_formatted.pop()
-                continue
-
-            M, mdim, jdim = count_dim(
-                model_space_filename = filename_interaction,
-                partition_filename = None,
-                print_dimensions = False,
-                debug = False,
-                parity = parity,
-                proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
-                neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
-                total_partition = total_configurations_formatted,
-            )
-            vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
-            vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
-
-        elif occupation is None:
-            """
-            Quit signal. Do not keep the current configuration,
-            but keep earlier defined new configurations and quit
-            the prompt.
-            """
+        while True:
             draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
-            vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
-            vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, "Current configuration discarded")
+            configuration_type_choice = input_wrapper("Single or range of configurations? (s/r)")
+            if configuration_type_choice == "s":
+                """
+                Prompt the user for single specific configurations.
+                """
+                while True:
+                    occupation = _prompt_user_for_configuration(
+                        vum = vum,
+                        nucleon = nucleon,
+                        model_space = model_space_slice,
+                        n_valence_nucleons = n_valence_nucleons,
+                        input_wrapper = input_wrapper,
+                        y_offset = y_offset,
+                    )
+                    if occupation:
+                        new_configurations.append(occupation)
+                        configurations_formatted.append(
+                            ConfigurationParameters(
+                                idx = len(configurations_formatted),
+                                configuration = occupation,
+                                parity = _calculate_configuration_parity(
+                                    configuration = occupation,
+                                    model_space = model_space_slice
+                                )
+                            )
+                        )
+                        try:
+                            _generate_total_configurations(
+                                proton_configurations = proton_configurations_formatted,
+                                neutron_configurations = neutron_configurations_formatted,
+                                total_configurations = total_configurations_formatted,
+                                partition_file_parity = parity
+                            )
+                        except KshellDataStructureError:
+                            msg = (
+                                "The parity of the new configuration cannot be"
+                                f" matched with any {'neutron' if is_proton else 'proton'} configurations to create"
+                                " the partition file parity."
+                            )
+                            vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "INVALID")
+                            vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
+                            new_configurations.pop()
+                            configurations_formatted.pop()
+                            continue
+
+                        M, mdim, jdim = count_dim(
+                            model_space_filename = filename_interaction,
+                            partition_filename = None,
+                            print_dimensions = False,
+                            debug = False,
+                            parity = parity,
+                            proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+                            neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
+                            total_partition = total_configurations_formatted,
+                        )
+                        vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
+                        vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
+
+                    elif occupation is None:
+                        """
+                        Quit signal. Do not keep the current configuration,
+                        but keep earlier defined new configurations and quit
+                        the prompt.
+                        """
+                        draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+                        vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
+                        # vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, "Current configuration discarded")
+                        vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, " ")
+                        break
+                break
+
+            elif configuration_type_choice == "r":
+                """
+                Prompt the user for a range of configurations.
+                """
+                break
+
+            elif configuration_type_choice == "q":
+                break
+
+            else: continue
 
     n_new_proton_configurations = len(new_proton_configurations)
     n_new_neutron_configurations = len(new_neutron_configurations)
@@ -884,6 +904,7 @@ def _prompt_user_for_configuration(
             occupation numbers. If the user enters "q" to quit, None is
             returned.
         """
+        is_blank_map: bool = True
         if nucleon == "proton":
             is_proton = True
             is_neutron = False
@@ -918,6 +939,15 @@ def _prompt_user_for_configuration(
 
             while True:
                 ans = input_wrapper(f"{orbital.idx + 1:2d} {orbital} (remaining: {n_remaining_nucleons})")
+                if is_blank_map:
+                    is_blank_map = False
+                    draw_shell_map(
+                        vum = vum,
+                        model_space = model_space,
+                        is_proton = is_proton,
+                        is_neutron = is_neutron,
+                    )
+
                 if (ans == "q") or (ans == "quit") or (ans == "exit"): return None
                 if ans == "f": ans = orbital.j + 1  # Fill the orbital.
                 try:
