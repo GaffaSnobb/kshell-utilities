@@ -1,3 +1,5 @@
+from .data_structures import OrbitalOrder
+
 GS_FREE_PROTON = 5.585
 GS_FREE_NEUTRON = -3.826
 flags = {"debug": False, "parallel": True}
@@ -68,20 +70,38 @@ recommended_quenching_factors = {
     "sn100pn.snt": f"0.7*GS_FREE = {round(0.7*GS_FREE_PROTON, 3), round(0.7*GS_FREE_NEUTRON, 3)}"
 }
 
-shell_model_order: dict[str, int] = {   # Standard shell order for spherical nuclei.
-    "0s1": 0,
-    "0p3": 1,
-    "0p1": 2,
-    "0d5": 3,
-    "1s1": 4,
-    "0d3": 5,
-    "0f7": 6,
-    "1p3": 7,
-    "0f5": 8,
-    "1p1": 9,
-    "0g9": 10,
-    "1d5": 11,
-    "0g7": 12,
-    "1d3": 13,
-    "2s1": 14,
+# shell_model_order: dict[str, int] = {   # Standard shell order for spherical nuclei.
+#     "0s1": 0,
+#     "0p3": 1,
+#     "0p1": 2,
+#     "0d5": 3,
+#     "1s1": 4,
+#     "0d3": 5,
+#     "0f7": 6,
+#     "1p3": 7,
+#     "0f5": 8,
+#     "1p1": 9,
+#     "0g9": 10,
+#     "1d5": 11,
+#     "0g7": 12,
+#     "1d3": 13,
+#     "2s1": 14,
+# }
+
+shell_model_order: dict[str, OrbitalOrder] = {   # Standard shell order for spherical nuclei.
+    "0s1": OrbitalOrder(idx=0,  major_shell_idx=0, major_shell_name="s"),
+    "0p3": OrbitalOrder(idx=1,  major_shell_idx=1, major_shell_name="p"),
+    "0p1": OrbitalOrder(idx=2,  major_shell_idx=1, major_shell_name="p"),
+    "0d5": OrbitalOrder(idx=3,  major_shell_idx=2, major_shell_name="sd"),
+    "1s1": OrbitalOrder(idx=4,  major_shell_idx=2, major_shell_name="sd"),
+    "0d3": OrbitalOrder(idx=5,  major_shell_idx=2, major_shell_name="sd"),
+    "0f7": OrbitalOrder(idx=6,  major_shell_idx=3, major_shell_name="pf"),
+    "1p3": OrbitalOrder(idx=7,  major_shell_idx=3, major_shell_name="pf"),
+    "0f5": OrbitalOrder(idx=8,  major_shell_idx=3, major_shell_name="pf"),
+    "1p1": OrbitalOrder(idx=9,  major_shell_idx=3, major_shell_name="pf"),
+    "0g9": OrbitalOrder(idx=10, major_shell_idx=4, major_shell_name="sdg"),
+    "1d5": OrbitalOrder(idx=11, major_shell_idx=4, major_shell_name="sdg"),
+    "0g7": OrbitalOrder(idx=12, major_shell_idx=4, major_shell_name="sdg"),
+    "1d3": OrbitalOrder(idx=13, major_shell_idx=4, major_shell_name="sdg"),
+    "2s1": OrbitalOrder(idx=14, major_shell_idx=4, major_shell_name="sdg"),
 }
