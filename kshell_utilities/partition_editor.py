@@ -163,7 +163,7 @@ def draw_shell_map(
     y_offset: int = 9
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
         model_space,
-        key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
+        key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"].idx,
         reverse = True
     )
     model_space_proton = [orbital for orbital in model_space_copy if orbital.tz == -1]
@@ -951,7 +951,7 @@ def _prompt_user_for_configuration(
 
         model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
             model_space,
-            key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"],
+            key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"].idx,
         )
         n_remaining_nucleons: int = n_valence_nucleons
         vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
