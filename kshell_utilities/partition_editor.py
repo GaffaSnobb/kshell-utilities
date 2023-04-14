@@ -590,6 +590,8 @@ def _partition_editor(
     draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
     with open(filename_partition, "r") as infile:
+        truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
+        hw_min, hw_max = [int(i.split("=")[1].strip()) for i in truncation_info.split(",")[1:]] # NOTE: No idea what happens if no hw trunc is specified.
         for line in infile:
             """
             Extract the information from the header before partitions
@@ -823,6 +825,8 @@ def _partition_editor(
                 """
                 Prompt the user for a range of configurations.
                 """
+                # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "DUPLICATE")
+                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, f"Truncation: {truncation_info}")
                 break
 
             elif configuration_type_choice == "q":
