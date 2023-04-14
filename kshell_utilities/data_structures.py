@@ -18,6 +18,12 @@ class OrbitalParameters:
         return self.name
     
 @dataclass
+class OrbitalOrder:
+    idx: int
+    major_shell_idx: int
+    major_shell_name: str
+    
+@dataclass
 class ConfigurationParameters:
     idx: int
     parity: int
