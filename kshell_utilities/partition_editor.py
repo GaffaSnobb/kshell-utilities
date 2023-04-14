@@ -6,6 +6,8 @@ from .vum import Vum
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
 
+DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
+
 def _calculate_configuration_parity(
     configuration: list[int],
     model_space: list[OrbitalParameters]
@@ -325,6 +327,16 @@ def _generate_total_configurations(
                 f" with the parity of this configuration ({neutron_configurations[n_idx].parity})."
             )
             raise KshellDataStructureError(msg)
+
+def _check_configuration_duplicate(
+    new_configuration: list[int],
+    existing_configurations: list[ConfigurationParameters],
+) -> bool:
+    for configuration in existing_configurations:
+        if new_configuration == configuration.configuration:
+            return True
+        
+    return False
 
 def partition_editor(
     filename_interaction: str | None = None,
@@ -735,6 +747,19 @@ def _partition_editor(
                         y_offset = y_offset,
                     )
                     if occupation:
+                        if _check_configuration_duplicate(
+                            new_configuration = occupation,
+                            existing_configurations = configurations_formatted
+                            ):
+                                msg = (
+                                    "This configuration already exists! Skipping..."
+                                )
+                                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "DUPLICATE")
+                                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
+                                time.sleep(DELAY)
+                                draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+                                continue
+
                         new_configurations.append(occupation)
                         configurations_formatted.append(
                             ConfigurationParameters(
@@ -763,6 +788,7 @@ def _partition_editor(
                             vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
                             new_configurations.pop()
                             configurations_formatted.pop()
+                            time.sleep(DELAY + 1)
                             continue
 
                         M, mdim, jdim = count_dim(
@@ -777,6 +803,8 @@ def _partition_editor(
                         )
                         vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
                         vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
+                        vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configuration added!")
+                        time.sleep(DELAY)
 
                     elif occupation is None:
                         """
