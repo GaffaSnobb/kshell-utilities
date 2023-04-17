@@ -1833,6 +1833,104 @@ class ReadKshellOutput:
         )
         plt.show()
 
+    def primary_matrix(self,
+        bin_width: Union[float, int] = 0.2,
+        Ex_min: Union[float, int] = 0,
+        Ex_max: Union[float, int] = 50,
+        multipole_type: Union[list, str] = ["M1"],
+        plot: bool = True,
+    ):
+        """
+        Create a Ex Eg primary matrix like the ones which are calculated
+        with the Oslo method.
+
+        Parameters
+        ----------
+        bin_width : float, optional
+            Width of the bins in MeV, by default 0.2
+        
+        Ex_min : float, optional
+            Minimum excitation energy of initial level in a transition,
+            by default 0 MeV.
+
+        Ex_max : float, optional
+            Maximum excitation energy of initial level in a transition,
+            by default 50 MeV.
+        
+        multipole_type : str, optional
+            Multipolarity of the transitions to be considered, by
+            default "M1".
+
+        plot : bool, optional
+            Whether to plot the matrix, by default True.
+
+        Returns
+        -------
+        Ex_range : np.ndarray
+            The range of the initial level energies.
+
+        Eg_range : np.ndarray
+            The range of the gamma energies.
+
+        B_matrix : np.ndarray
+            The primary matrix.
+        """
+        transitions_dict = {
+            "E1": self.transitions_BE1,
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+        }
+        if isinstance(multipole_type, str):
+            multipole_type = [multipole_type]
+
+        transitions = transitions_dict[multipole_type]
+        n_bins = int(np.ceil((Ex_max - Ex_min)/bin_width))
+        B_matrix = np.zeros((n_bins, n_bins), dtype=float)    # rows: Ei, cols: Eg
+        Ex_range = np.linspace(Ex_min, Ex_max, n_bins)
+        Eg_range = np.linspace(Ex_min, Ex_max, n_bins)
+        Ex_masks = []
+        Eg_masks = []
+        for i in range(n_bins-1):
+            """
+            Generate the masks once. It is not necessary to generate the
+            Eg masks over and over again while iterating over the Ex
+            masks.
+            """
+            Ex_masks.append(np.logical_and(
+                transitions[:, 3] >= Ex_range[i],
+                transitions[:, 3] < Ex_range[i+1],
+            ))
+        for i in range(n_bins-1):
+            """
+            Using separate loops allows using different bin widths for
+            Ex and Eg, however, that has not yet been implemented.
+            """
+            Eg_masks.append(np.logical_and(
+                transitions[:, 8] >= Eg_range[i],
+                transitions[:, 8] < Eg_range[i+1],
+            ))
+        for i in range(n_bins-1):
+            """
+            Loop over each Ex Eg mask pair and create a combined mask.
+            Take the mean of the B values for each combined mask.
+            """
+            for j in range(i+1):
+                mask = np.logical_and(
+                    Ex_masks[i],
+                    Eg_masks[j],
+                )
+                B_slice = transitions[mask][:, 9]
+                if B_slice.size == 0: continue  # Skip if there are no B values in the mask.
+                B_matrix[i, j] = np.mean(B_slice)
+
+        if plot:
+            fig, ax = plt.subplots()
+            im = ax.pcolormesh(Ex_range, Eg_range, B_matrix, cmap="jet", norm="log")
+            fig.colorbar(im)
+            plt.show()
+
+        return Ex_range, Eg_range, B_matrix
+
     @property
     def help(self):
         """
