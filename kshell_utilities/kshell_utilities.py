@@ -1883,49 +1883,67 @@ class ReadKshellOutput:
         if isinstance(multipole_type, str):
             multipole_type = [multipole_type]
 
-        transitions = transitions_dict[multipole_type]
         n_bins = int(np.ceil((Ex_max - Ex_min)/bin_width))
         B_matrix = np.zeros((n_bins, n_bins), dtype=float)    # rows: Ei, cols: Eg
         Ex_range = np.linspace(Ex_min, Ex_max, n_bins)
         Eg_range = np.linspace(Ex_min, Ex_max, n_bins)
-        Ex_masks = []
-        Eg_masks = []
-        for i in range(n_bins-1):
-            """
-            Generate the masks once. It is not necessary to generate the
-            Eg masks over and over again while iterating over the Ex
-            masks.
-            """
-            Ex_masks.append(np.logical_and(
-                transitions[:, 3] >= Ex_range[i],
-                transitions[:, 3] < Ex_range[i+1],
-            ))
-        for i in range(n_bins-1):
-            """
-            Using separate loops allows using different bin widths for
-            Ex and Eg, however, that has not yet been implemented.
-            """
-            Eg_masks.append(np.logical_and(
-                transitions[:, 8] >= Eg_range[i],
-                transitions[:, 8] < Eg_range[i+1],
-            ))
-        for i in range(n_bins-1):
-            """
-            Loop over each Ex Eg mask pair and create a combined mask.
-            Take the mean of the B values for each combined mask.
-            """
-            for j in range(i+1):
-                mask = np.logical_and(
-                    Ex_masks[i],
-                    Eg_masks[j],
-                )
-                B_slice = transitions[mask][:, 9]
-                if B_slice.size == 0: continue  # Skip if there are no B values in the mask.
-                B_matrix[i, j] = np.mean(B_slice)
+        
+        for multipolarity in multipole_type:
+            transitions = transitions_dict[multipolarity]
+            Ex_masks = []
+            Eg_masks = []
+            for i in range(n_bins-1):
+                """
+                Generate the masks once. It is not necessary to generate the
+                Eg masks over and over again while iterating over the Ex
+                masks.
+                """
+                Ex_masks.append(np.logical_and(
+                    transitions[:, 3] >= Ex_range[i],
+                    transitions[:, 3] < Ex_range[i+1],
+                ))
+            for i in range(n_bins-1):
+                """
+                Using separate loops allows using different bin widths for
+                Ex and Eg, however, that has not yet been implemented.
+                """
+                Eg_masks.append(np.logical_and(
+                    transitions[:, 8] >= Eg_range[i],
+                    transitions[:, 8] < Eg_range[i+1],
+                ))
+            for i in range(n_bins-1):
+                """
+                Loop over each Ex Eg mask pair and create a combined mask.
+                Take the mean of the B values for each combined mask.
+                """
+                for j in range(i+1):
+                    mask = np.logical_and(
+                        Ex_masks[i],
+                        Eg_masks[j],
+                    )
+                    B_slice = transitions[mask][:, 9]
+                    if B_slice.size == 0: continue  # Skip if there are no B values in the mask.
+                    
+                    if B_matrix[i, j] == 0:
+                        """
+                        We don't want to include the initial zero in the
+                        mean.
+                        """
+                        B_matrix[i, j] = np.mean(B_slice)
+                    else:
+                        """
+                        If multipole_type = ["M1", "E1"], then there
+                        might be a value in B_matrix[i, j] which must
+                        be included in the mean.
+                        """
+                        B_matrix[i, j] = np.mean([np.mean(B_matrix[i, j]), np.mean(B_slice)])
 
         if plot:
             fig, ax = plt.subplots()
             im = ax.pcolormesh(Ex_range, Eg_range, B_matrix, cmap="jet", norm="log")
+            ax.set_title(r"$\langle B($" + f"{multipole_type}" + r"$) \rangle$")
+            ax.set_xlabel(r"$E_{\gamma}$")
+            ax.set_ylabel(r"$E_{x}$")
             fig.colorbar(im)
             plt.show()
 
