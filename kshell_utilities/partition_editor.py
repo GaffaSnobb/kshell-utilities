@@ -1,10 +1,12 @@
 import time, os, curses
 from typing import Callable
-from .data_structures import OrbitalParameters, ConfigurationParameters
 from .parameters import spectroscopic_conversion, shell_model_order
 from .vum import Vum
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
+from .data_structures import (
+    OrbitalParameters, ConfigurationParameters, ModelSpace, Interaction
+)
 
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 
@@ -523,7 +525,30 @@ def _partition_editor(
     proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file.
     neutron_configurations_formatted: list[ConfigurationParameters] = []
     total_configurations_formatted: list[list[int]] = []
-    model_space: list[OrbitalParameters] = []
+    # model_space: list[OrbitalParameters] = []
+    interaction: Interaction = Interaction(
+        model_space = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+        ),
+        model_space_proton = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+        ),
+        model_space_neutron = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+        ),
+        name = filename_interaction,
+        n_core_protons = 0,
+        n_core_neutrons = 0,
+    )
 
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
@@ -552,10 +577,17 @@ def _partition_editor(
             """
             if line[0] != "!":
                 tmp = line.split()
-                n_proton_orbitals = int(tmp[0])
-                n_neutron_orbitals = int(tmp[1])
-                n_core_protons = int(tmp[2])
-                n_core_neutrons = int(tmp[3])
+                # n_proton_orbitals = int(tmp[0])
+                # n_neutron_orbitals = int(tmp[1])
+                # n_core_protons = int(tmp[2])
+                # n_core_neutrons = int(tmp[3])
+                interaction.model_space_proton.n_orbitals = int(tmp[0])
+                interaction.model_space_neutron.n_orbitals = int(tmp[1])
+                interaction.model_space.n_orbitals = (
+                    interaction.model_space_proton.n_orbitals + interaction.model_space_neutron.n_orbitals
+                )
+                interaction.n_core_protons = int(tmp[2])
+                interaction.n_core_neutrons = int(tmp[3])
                 break
 
         for line in infile:
@@ -563,18 +595,40 @@ def _partition_editor(
             idx, n, l, j, tz = [int(i) for i in line.split("!")[0].split()]
             idx -= 1
             nucleon = "p" if tz == -1 else "n"
-            model_space.append(OrbitalParameters(
+            # model_space.orbitals.append(OrbitalParameters(
+            #     idx = idx,
+            #     n = n,
+            #     l = l,
+            #     j = j,
+            #     tz = tz,
+            #     nucleon = nucleon,
+            #     name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
+            #     parity = (-1)**l,
+            # ))
+            name = f"{n}{spectroscopic_conversion[l]}{j}"
+            tmp_orbital = OrbitalParameters(
                 idx = idx,
                 n = n,
                 l = l,
                 j = j,
                 tz = tz,
                 nucleon = nucleon,
-                name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
+                # name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
+                name = f"{nucleon}{name}",
                 parity = (-1)**l,
-            ))
+                order = shell_model_order[name],
+            )
+            interaction.model_space.orbitals.append(tmp_orbital)
 
-    if not all(orb.idx == i for i, orb in enumerate(model_space)):
+            if tz == -1:
+                interaction.model_space_proton.orbitals.append(tmp_orbital)
+            elif tz == +1:
+                interaction.model_space_neutron.orbitals.append(tmp_orbital)
+            else:
+                msg = f"Valid values for tz are -1 and +1, got {tz=}"
+                raise ValueError(msg)
+
+    if not all(orb.idx == i for i, orb in enumerate(interaction.model_space.orbitals)):
         """
         Make sure that the list indices are the same as the orbit
         indices.
@@ -584,10 +638,10 @@ def _partition_editor(
         )
         raise KshellDataStructureError(msg)
 
-    model_space_proton = [orbital for orbital in model_space if orbital.tz == -1]   # These are practical to have in separate lists.
-    model_space_neutron = [orbital for orbital in model_space if orbital.tz == 1]
+    # model_space_proton = [orbital for orbital in model_space if orbital.tz == -1]   # These are practical to have in separate lists.
+    # model_space_neutron = [orbital for orbital in model_space if orbital.tz == 1]
     
-    draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
+    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
 
     with open(filename_partition, "r") as infile:
         truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
@@ -640,7 +694,7 @@ def _partition_editor(
                     idx = int(line.split()[0]) - 1,
                     parity = _calculate_configuration_parity(
                         configuration = configuration,
-                        model_space = model_space_proton
+                        model_space = interaction.model_space_proton.orbitals
                     ),
                 )
             )
@@ -659,7 +713,7 @@ def _partition_editor(
                     idx = int(line.split()[0]) - 1,
                     parity = _calculate_configuration_parity(
                         configuration = configuration,
-                        model_space = model_space_neutron
+                        model_space = interaction.model_space_neutron.orbitals
                     ),
                 )
             )
@@ -684,7 +738,7 @@ def _partition_editor(
     vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
     vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations}, {n_neutron_configurations}")
     vum.addstr(y_offset + 3, 0, f"n valence protons, neutrons: {n_valence_protons}, {n_valence_neutrons}")
-    vum.addstr(y_offset + 4, 0, f"n core protons, neutrons: {n_core_protons}, {n_core_neutrons}")
+    vum.addstr(y_offset + 4, 0, f"n core protons, neutrons: {interaction.n_core_protons}, {interaction.n_core_neutrons}")
     vum.addstr(y_offset + 5, 0, f"{parity = }")
     vum.addstr(y_offset + 6, 0, "parity current configuration = None")
 
@@ -696,9 +750,9 @@ def _partition_editor(
         proton_configurations_formatted = proton_configurations_formatted,
         neutron_configurations_formatted = neutron_configurations_formatted,
         input_wrapper = input_wrapper,
-        model_space = model_space,
+        model_space = interaction.model_space.orbitals,
         y_offset = y_offset,
-        n_proton_orbitals = n_proton_orbitals,
+        n_proton_orbitals = interaction.model_space_proton.n_orbitals,
     )
     while True:
         configuration_choice = input_wrapper("Add configuration? (y/n)")
@@ -714,7 +768,7 @@ def _partition_editor(
                 is_proton = True
                 is_neutron = False
                 nucleon = "proton"
-                model_space_slice = model_space_proton
+                model_space_slice = interaction.model_space_proton.orbitals
                 new_configurations = new_proton_configurations
                 configurations_formatted = proton_configurations_formatted
                 n_valence_nucleons = n_valence_protons
@@ -724,7 +778,7 @@ def _partition_editor(
                 is_proton = False
                 is_neutron = True
                 nucleon = "neutron"
-                model_space_slice = model_space_neutron
+                model_space_slice = interaction.model_space_neutron.orbitals
                 new_configurations = new_neutron_configurations
                 configurations_formatted = neutron_configurations_formatted
                 n_valence_nucleons = n_valence_neutrons
@@ -733,7 +787,7 @@ def _partition_editor(
             else: continue
 
         while True:
-            draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+            draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
             configuration_type_choice = input_wrapper("Single or range of configurations? (s/r)")
             if configuration_type_choice == "s":
                 """
@@ -759,7 +813,7 @@ def _partition_editor(
                                 vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "DUPLICATE")
                                 vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
                                 time.sleep(DELAY)
-                                draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+                                draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
                                 continue
 
                         new_configurations.append(occupation)
@@ -814,7 +868,7 @@ def _partition_editor(
                         but keep earlier defined new configurations and quit
                         the prompt.
                         """
-                        draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
+                        draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
                         vum.addstr(vum.n_rows - 3 - vum.command_log_length, 0, " ")
                         # vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, "Current configuration discarded")
                         vum.addstr(vum.n_rows - 2 - vum.command_log_length, 0, " ")
@@ -827,6 +881,7 @@ def _partition_editor(
                 """
                 # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "DUPLICATE")
                 vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, f"Truncation: {truncation_info}")
+                return interaction.model_space.orbitals
                 break
 
             elif configuration_type_choice == "q":
