@@ -525,7 +525,6 @@ def _partition_editor(
     proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file.
     neutron_configurations_formatted: list[ConfigurationParameters] = []
     total_configurations_formatted: list[list[int]] = []
-    # model_space: list[OrbitalParameters] = []
     interaction: Interaction = Interaction(
         model_space = ModelSpace(
             orbitals = [],
@@ -577,10 +576,6 @@ def _partition_editor(
             """
             if line[0] != "!":
                 tmp = line.split()
-                # n_proton_orbitals = int(tmp[0])
-                # n_neutron_orbitals = int(tmp[1])
-                # n_core_protons = int(tmp[2])
-                # n_core_neutrons = int(tmp[3])
                 interaction.model_space_proton.n_orbitals = int(tmp[0])
                 interaction.model_space_neutron.n_orbitals = int(tmp[1])
                 interaction.model_space.n_orbitals = (
@@ -595,16 +590,6 @@ def _partition_editor(
             idx, n, l, j, tz = [int(i) for i in line.split("!")[0].split()]
             idx -= 1
             nucleon = "p" if tz == -1 else "n"
-            # model_space.orbitals.append(OrbitalParameters(
-            #     idx = idx,
-            #     n = n,
-            #     l = l,
-            #     j = j,
-            #     tz = tz,
-            #     nucleon = nucleon,
-            #     name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
-            #     parity = (-1)**l,
-            # ))
             name = f"{n}{spectroscopic_conversion[l]}{j}"
             tmp_orbital = OrbitalParameters(
                 idx = idx,
@@ -613,7 +598,6 @@ def _partition_editor(
                 j = j,
                 tz = tz,
                 nucleon = nucleon,
-                # name = f"{nucleon} {n}{spectroscopic_conversion[l]}{j}/2",
                 name = f"{nucleon}{name}",
                 parity = (-1)**l,
                 order = shell_model_order[name],
@@ -637,9 +621,6 @@ def _partition_editor(
             "The orbitals in the model space are not indexed correctly!"
         )
         raise KshellDataStructureError(msg)
-
-    # model_space_proton = [orbital for orbital in model_space if orbital.tz == -1]   # These are practical to have in separate lists.
-    # model_space_neutron = [orbital for orbital in model_space if orbital.tz == 1]
     
     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
 
@@ -717,6 +698,7 @@ def _partition_editor(
                     ),
                 )
             )
+
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
         neutron_configurations = neutron_configurations_formatted,
@@ -879,9 +861,10 @@ def _partition_editor(
                 """
                 Prompt the user for a range of configurations.
                 """
-                # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "DUPLICATE")
+                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, f"{interaction.model_space.n_major_shells}")
                 vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, f"Truncation: {truncation_info}")
-                return interaction.model_space.orbitals
+                input_wrapper("Press any key to quit")
+                return interaction.model_space
                 break
 
             elif configuration_type_choice == "q":
