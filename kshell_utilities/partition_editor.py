@@ -1,7 +1,7 @@
 import time, os, curses
 from typing import Callable
 from .parameters import spectroscopic_conversion, shell_model_order
-from .vum import Vum
+from vum import Vum
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
 from .data_structures import (
