@@ -105,3 +105,10 @@ shell_model_order: dict[str, OrbitalOrder] = {   # Standard shell order for sphe
     "1d3": OrbitalOrder(idx=13, major_shell_idx=4, major_shell_name="sdg"),
     "2s1": OrbitalOrder(idx=14, major_shell_idx=4, major_shell_name="sdg"),
 }
+major_shell_order: dict[str, int] = {
+    "s"  : 0,
+    "p"  : 1,
+    "sd" : 2,
+    "pf" : 3,
+    "sdg": 4,
+}
