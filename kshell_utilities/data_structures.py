@@ -6,7 +6,8 @@ class OrbitalOrder:
     For storing information about the general classification of the
     shell model orbitals.
     """
-    idx: int
+    idx: int    # NOTE: Indices are in the "standard shell model order", not the order of the interaction file.
+    # idx_snt: None | int # Index of the orbital as listed in the interaction file.
     major_shell_idx: int
     major_shell_name: str
 
@@ -15,7 +16,7 @@ class OrbitalParameters:
     """
     For storing parameters of the model space orbitals.
     """
-    idx: int        # Index of the orbital.
+    idx: int        # Index of the orbital from the partition file.
     n: int
     l: int          # Orbital angular momentum.
     j: int          # Total angular momentum.
