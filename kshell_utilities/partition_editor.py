@@ -135,6 +135,7 @@ def draw_shell_map(
     is_proton: bool,
     is_neutron: bool,
     occupation: tuple[int, int] | None = None,
+    n_holes: int = 0,
 ) -> None:
     """
     Draw a simple map of the model space orbitals of the current
@@ -159,6 +160,9 @@ def draw_shell_map(
         The occupation of the model space orbitals. The tuple contains
         (orbital index, occupation). If None, draw the entire map with
         no occupation, by default None.
+
+    n_holes : int
+        For indicating the original position of excited particles.
 
     Returns
     -------
@@ -209,10 +213,13 @@ def draw_shell_map(
             string = (
                 f"{orbital.idx + 1:2d}"
                 f" {orbital.name}"
-                f" {(-1)**orbital.l:2d} " +
+                f" {orbital.parity:2d} " +
                 " "*(max_proton_j - orbital.j) + "-"
             )
-            string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
+            if not n_holes:
+                string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
+            else:
+                string += "o-"*(occupation[1] - n_holes) + "x-"*n_holes + " -"*(orbital.j + 1 - occupation[1])
             vum.addstr(location + y_offset, 0, string)
 
     else:
@@ -248,7 +255,7 @@ def draw_shell_map(
             string = (
                 f"{orbital.idx + 1:2d}"
                 f" {orbital.name}"
-                f" {(-1)**orbital.l:2d} " +
+                f" {orbital.parity:2d} " +
                 " "*(max_neutron_j - orbital.j) + "-"
             )
             string += "o-"*occupation[1] + " -"*(orbital.j + 1 - occupation[1])
@@ -335,10 +342,11 @@ def _generate_total_configurations(
 def _check_configuration_duplicate(
     new_configuration: list[int],
     existing_configurations: list[ConfigurationParameters],
-) -> bool:
-    for configuration in existing_configurations:
+) -> bool | list[int]:
+    
+    for i, configuration in enumerate(existing_configurations):
         if new_configuration == configuration.configuration:
-            return True
+            return [str(i), configuration]
         
     return False
 
@@ -375,6 +383,509 @@ def partition_editor(
     else:
         curses.endwin()
         print(msg)
+
+def _add_npnh_excitations(
+    vum: Vum,
+    input_wrapper: Callable,
+    model_space_slice: ModelSpace,
+    interaction: Interaction,
+    new_configurations: list[list[int]],
+    configurations_formatted: list[ConfigurationParameters],
+    nucleon_choice: str,
+    n_new_neg_pos_proton: list[int],
+    n_new_neg_pos_neutron: list[int],
+    is_proton: bool,
+    is_neutron: bool,
+):
+    while True:
+        """
+        Prompt user for the number of particles to excite.
+        """
+        n_particles_choice = input_wrapper("N-particle N-hole (N)")
+        if n_particles_choice == "q": break
+        
+        try:
+            n_particles_choice = int(n_particles_choice)
+        except ValueError:
+            continue
+
+        if n_particles_choice != 2:
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                "INVALID: Currently hard-coded for 2 particle excitation!"
+            )
+            continue
+
+        if n_particles_choice < 1:
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                "INVALID: The number of particles must be larger than 0."
+            )
+            continue
+
+        break
+    
+    if n_particles_choice == "q": return
+
+    while True:
+        """
+        Prompt user for the number of excitations to add.
+        """
+        n_excitations_choice = input_wrapper("How many excitations to add? (amount/all)")
+        if n_excitations_choice == "q": break
+        
+        try:
+            n_excitations_choice = int(n_excitations_choice)
+        except ValueError:
+            continue
+
+        if n_excitations_choice < 1:
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                "INVALID: The number of excitations must be larger than 0."
+            )
+            continue
+
+        break
+    
+    if n_excitations_choice == "q": return
+
+    while True:
+        """
+        Prompt the user for which major shells to include
+        in the N-particle N-hole excitation.
+        """
+        initial_major_shell_choice = input_wrapper(f"Initial major shell? ({model_space_slice.major_shell_names})")
+        if initial_major_shell_choice == "q": break
+
+        if initial_major_shell_choice in model_space_slice.major_shell_names: break
+    
+    if initial_major_shell_choice == "q": return
+
+    while True:
+        """
+        Prompt the user for which major shells to include
+        in the N-particle N-hole excitation.
+        """
+        final_major_shell_choice = input_wrapper(f"Final major shell? ({model_space_slice.major_shell_names})")
+        if final_major_shell_choice == "q": break
+
+        if final_major_shell_choice in model_space_slice.major_shell_names: break
+
+    if final_major_shell_choice == "q": return
+    
+    if initial_major_shell_choice == final_major_shell_choice:
+        vum.addstr(
+            vum.n_rows - 3 - vum.command_log_length, 0,
+            "INVALID: Initial and final major shell cannot be the same!"
+        )
+        return
+
+    if major_shell_order[initial_major_shell_choice] > major_shell_order[final_major_shell_choice]:
+        vum.addstr(
+            vum.n_rows - 3 - vum.command_log_length, 0,
+            "INVALID: Initial major shell cannot be higher energy than final major shell!"
+        )
+        return
+
+    vum.addstr( # Remove any error messages.
+        vum.n_rows - 3 - vum.command_log_length, 0, " "
+    )
+    initial_orbital_indices: list[int] = [] # Store the indices of the orbitals which are in the initial major shell.
+    final_orbital_indices: list[int] = [] # Store the indices of the orbitals which are in the final major shell.
+    final_orbital_degeneracy: dict[int, int] = {}    # Accompanying degeneracy of the orbital.
+    new_configurations_formatted: list[ConfigurationParameters] = []
+
+    for orb in model_space_slice.orbitals:
+        """
+        Extract indices and degeneracies of the initial and
+        final orbitals.
+        """
+        if orb.order.major_shell_name == initial_major_shell_choice:
+            initial_orbital_indices.append(orb.idx)
+        
+        elif orb.order.major_shell_name == final_major_shell_choice:
+            final_orbital_indices.append(orb.idx)
+            final_orbital_degeneracy[orb.idx] = orb.j + 1    # j is stored as j*2.
+
+    for configuration in configurations_formatted:
+        """
+        Loop over every existing configuration.
+        """
+        for init_orb_idx in initial_orbital_indices:
+            """
+            Case: N particles from from the same initial
+            orbital are excited to the same final orbital.
+            """
+            if configuration.configuration[init_orb_idx] < n_particles_choice: continue   # Cannot excite enough particles.
+            
+            for final_orb_idx in final_orbital_indices:
+                """
+                Both particles to the same final orbital.
+                """
+                max_additional_occupation = final_orbital_degeneracy[final_orb_idx] - configuration.configuration[final_orb_idx]
+                assert max_additional_occupation >= 0, "'max_additional_occupation' should never be negative!"  # Development sanity test.
+                
+                if max_additional_occupation < n_particles_choice: continue # Cannot excite enough particles.
+                
+                tmp_configuration = configuration.configuration.copy()
+                tmp_configuration[init_orb_idx] -= n_particles_choice
+                tmp_configuration[final_orb_idx] += n_particles_choice
+
+                if (duplicate_configuration := _check_configuration_duplicate(new_configuration=tmp_configuration, existing_configurations=configurations_formatted)):
+                    """
+                    Check that the newly generated configuration does
+                    not already exist.
+                    """
+                    vum.addstr(
+                        vum.n_rows - 3 - vum.command_log_length, 0,
+                        f"DUPLICATE: {tmp_configuration = }, {duplicate_configuration = }"
+                    )
+                    vum.addstr(
+                        vum.n_rows - 2 - vum.command_log_length, 0,
+                        f"{configurations_formatted[-1] = }"
+                    )
+                    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                    for i in range(len(tmp_configuration)):
+                        draw_shell_map(
+                            vum = vum,
+                            model_space = interaction.model_space.orbitals,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            occupation = (i, tmp_configuration[i]),
+                        )
+                    draw_shell_map(
+                        vum = vum,
+                        model_space = interaction.model_space.orbitals,
+                        is_proton = is_proton,
+                        is_neutron = is_neutron,
+                        occupation = (init_orb_idx, tmp_configuration[init_orb_idx] + n_particles_choice),
+                        n_holes = n_particles_choice,
+                    )
+                    input_wrapper("Enter any char to continue")
+
+                parity_tmp = _calculate_configuration_parity(
+                    configuration = tmp_configuration,
+                    model_space = model_space_slice.orbitals
+                )
+                if   (parity_tmp == -1) and (nucleon_choice == "p"): n_new_neg_pos_proton[0]  += 1
+                elif (parity_tmp == +1) and (nucleon_choice == "p"): n_new_neg_pos_proton[1]  += 1
+                elif (parity_tmp == -1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[0] += 1
+                elif (parity_tmp == +1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[1] += 1
+                
+                new_configurations.append(tmp_configuration.copy())
+                new_configurations_formatted.append(
+                    ConfigurationParameters(
+                        idx = len(configurations_formatted),
+                        configuration = tmp_configuration.copy(),
+                        parity = parity_tmp,
+                    )
+                )
+                # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                # for i in range(len(tmp_configuration)):
+                #     draw_shell_map(
+                #         vum = vum,
+                #         model_space = interaction.model_space.orbitals,
+                #         is_proton = is_proton,
+                #         is_neutron = is_neutron,
+                #         occupation = (i, tmp_configuration[i]),
+                #     )
+                # draw_shell_map(
+                #     vum = vum,
+                #     model_space = interaction.model_space.orbitals,
+                #     is_proton = is_proton,
+                #     is_neutron = is_neutron,
+                #     occupation = (init_orb_idx, tmp_configuration[init_orb_idx] + n_particles_choice),
+                #     n_holes = n_particles_choice,
+                # )
+                # time.sleep(0.5)
+
+    # configurations_formatted += new_configurations_formatted    # This can be at the very end, but is added here to be included in the duplicate check later.
+    # new_configurations_formatted.clear()
+    
+    for configuration in configurations_formatted:
+        """
+        NOTE: Currently hard-coded for 2 particle excitation. This loop
+        deals with the case where 1 particle from 2 different initial
+        orbitals are excited into the final major shell.
+        """
+        # for init_orb_idx in initial_orbital_indices:
+        for i1 in range(len(initial_orbital_indices)):
+            init_orb_idx_1 = initial_orbital_indices[i1]
+
+            if configuration.configuration[init_orb_idx_1] < 1: continue   # Cannot excite enough particles.
+
+            for i2 in range(i1+1, len(initial_orbital_indices)):
+                init_orb_idx_2 = initial_orbital_indices[i2]
+
+                if configuration.configuration[init_orb_idx_2] < 1: continue   # Cannot excite enough particles.
+
+
+                for f1 in range(len(final_orbital_indices)):
+                    final_orb_idx_1 = final_orbital_indices[f1]
+
+                    max_additional_occupation_1 = final_orbital_degeneracy[final_orb_idx_1] - configuration.configuration[final_orb_idx_1]
+                    assert max_additional_occupation_1 >= 0, "'max_additional_occupation' should never be negative!"  # Development sanity test.
+                    
+                    if max_additional_occupation_1 < 1: continue # Cannot excite enough particles.
+
+                    for f2 in range(f1+1, len(final_orbital_indices)):
+                        final_orb_idx_2 = final_orbital_indices[f2]
+
+                        max_additional_occupation_2 = final_orbital_degeneracy[final_orb_idx_2] - configuration.configuration[final_orb_idx_2]
+                        assert max_additional_occupation_2 >= 0, "'max_additional_occupation' should never be negative!"  # Development sanity test.
+                        
+                        if max_additional_occupation_2 < 1: continue # Cannot excite enough particles.
+
+                        tmp_configuration = configuration.configuration.copy()
+                        tmp_configuration[init_orb_idx_1]  -= 1
+                        tmp_configuration[init_orb_idx_2]  -= 1
+                        tmp_configuration[final_orb_idx_1] += 1
+                        tmp_configuration[final_orb_idx_2] += 1
+
+                        if (duplicate_configuration := _check_configuration_duplicate(new_configuration=tmp_configuration, existing_configurations=configurations_formatted)):
+                            """
+                            Check that the newly generated configuration does
+                            not already exist.
+                            """
+                            vum.addstr(
+                                vum.n_rows - 3 - vum.command_log_length, 0,
+                                f"DUPLICATE: {tmp_configuration = }, {duplicate_configuration = }"
+                            )
+                            vum.addstr(
+                                vum.n_rows - 2 - vum.command_log_length, 0,
+                                f"{configurations_formatted[-1] = }"
+                            )
+                            draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                            for i in range(len(tmp_configuration)):
+                                draw_shell_map(
+                                    vum = vum,
+                                    model_space = interaction.model_space.orbitals,
+                                    is_proton = is_proton,
+                                    is_neutron = is_neutron,
+                                    occupation = (i, tmp_configuration[i]),
+                                )
+                            draw_shell_map(
+                                vum = vum,
+                                model_space = interaction.model_space.orbitals,
+                                is_proton = is_proton,
+                                is_neutron = is_neutron,
+                                occupation = (init_orb_idx_1, tmp_configuration[init_orb_idx_1] + 1),
+                                n_holes = 1,
+                            )
+                            draw_shell_map(
+                                vum = vum,
+                                model_space = interaction.model_space.orbitals,
+                                is_proton = is_proton,
+                                is_neutron = is_neutron,
+                                occupation = (init_orb_idx_2, tmp_configuration[init_orb_idx_2] + 1),
+                                n_holes = 1,
+                            )
+                            input_wrapper("Enter any char to continue")
+
+                        parity_tmp = _calculate_configuration_parity(
+                            configuration = tmp_configuration,
+                            model_space = model_space_slice.orbitals
+                        )
+                        if   (parity_tmp == -1) and (nucleon_choice == "p"): n_new_neg_pos_proton[0]  += 1
+                        elif (parity_tmp == +1) and (nucleon_choice == "p"): n_new_neg_pos_proton[1]  += 1
+                        elif (parity_tmp == -1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[0] += 1
+                        elif (parity_tmp == +1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[1] += 1
+                        
+                        new_configurations.append(tmp_configuration.copy())
+                        new_configurations_formatted.append(
+                            ConfigurationParameters(
+                                idx = len(configurations_formatted),
+                                configuration = tmp_configuration.copy(),
+                                parity = parity_tmp,
+                            )
+                        )
+                        # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                        # for i in range(len(tmp_configuration)):
+                        #     draw_shell_map(
+                        #         vum = vum,
+                        #         model_space = interaction.model_space.orbitals,
+                        #         is_proton = is_proton,
+                        #         is_neutron = is_neutron,
+                        #         occupation = (i, tmp_configuration[i]),
+                        #     )
+                        # draw_shell_map(
+                        #     vum = vum,
+                        #     model_space = interaction.model_space.orbitals,
+                        #     is_proton = is_proton,
+                        #     is_neutron = is_neutron,
+                        #     occupation = (init_orb_idx_1, tmp_configuration[init_orb_idx_1] + 1),
+                        #     n_holes = 1,
+                        # )
+                        # draw_shell_map(
+                        #     vum = vum,
+                        #     model_space = interaction.model_space.orbitals,
+                        #     is_proton = is_proton,
+                        #     is_neutron = is_neutron,
+                        #     occupation = (init_orb_idx_2, tmp_configuration[init_orb_idx_2] + 1),
+                        #     n_holes = 1,
+                        # )
+                        # time.sleep(0.5)
+
+                for f1 in range(len(final_orbital_indices)):
+                    final_orb_idx_1 = final_orbital_indices[f1]
+
+                    max_additional_occupation_1 = final_orbital_degeneracy[final_orb_idx_1] - configuration.configuration[final_orb_idx_1]
+                    assert max_additional_occupation_1 >= 0, "'max_additional_occupation' should never be negative!"  # Development sanity test.
+                    
+                    if max_additional_occupation_1 < n_particles_choice: continue # Cannot excite enough particles.
+
+                    tmp_configuration = configuration.configuration.copy()
+                    tmp_configuration[init_orb_idx_1]  -= 1
+                    tmp_configuration[init_orb_idx_2]  -= 1
+                    tmp_configuration[final_orb_idx_1] += n_particles_choice
+
+                    if _check_configuration_duplicate(new_configuration=tmp_configuration, existing_configurations=new_configurations_formatted):
+                        """
+                        Check for duplicates to the new
+                        configurations which were created earlier in
+                        this function. There is some overlap so
+                        we'll just skip the duplicates here.
+                        """
+                        continue
+
+                    if (duplicate_configuration := _check_configuration_duplicate(new_configuration=tmp_configuration, existing_configurations=configurations_formatted)):
+                        """
+                        Check that the newly generated configuration does
+                        not already exist.
+                        """
+                        vum.addstr(
+                            vum.n_rows - 3 - vum.command_log_length, 0,
+                            f"DUPLICATE: {tmp_configuration = }, {duplicate_configuration = }"
+                        )
+                        vum.addstr(
+                            vum.n_rows - 2 - vum.command_log_length, 0,
+                            f"{configurations_formatted[-1] = }"
+                        )
+                        draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                        for i in range(len(tmp_configuration)):
+                            draw_shell_map(
+                                vum = vum,
+                                model_space = interaction.model_space.orbitals,
+                                is_proton = is_proton,
+                                is_neutron = is_neutron,
+                                occupation = (i, tmp_configuration[i]),
+                            )
+                        draw_shell_map(
+                            vum = vum,
+                            model_space = interaction.model_space.orbitals,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            occupation = (init_orb_idx_1, tmp_configuration[init_orb_idx_1] + 1),
+                            n_holes = 1,
+                        )
+                        draw_shell_map(
+                            vum = vum,
+                            model_space = interaction.model_space.orbitals,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            occupation = (init_orb_idx_2, tmp_configuration[init_orb_idx_2] + 1),
+                            n_holes = 1,
+                        )
+                        input_wrapper("Enter any char to continue")
+
+                    parity_tmp = _calculate_configuration_parity(
+                        configuration = tmp_configuration,
+                        model_space = model_space_slice.orbitals
+                    )
+                    if   (parity_tmp == -1) and (nucleon_choice == "p"): n_new_neg_pos_proton[0]  += 1
+                    elif (parity_tmp == +1) and (nucleon_choice == "p"): n_new_neg_pos_proton[1]  += 1
+                    elif (parity_tmp == -1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[0] += 1
+                    elif (parity_tmp == +1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[1] += 1
+                    
+                    new_configurations.append(tmp_configuration.copy())
+                    new_configurations_formatted.append(
+                        ConfigurationParameters(
+                            idx = len(configurations_formatted),
+                            configuration = tmp_configuration.copy(),
+                            parity = parity_tmp,
+                        )
+                    )
+                    # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+                    # for i in range(len(tmp_configuration)):
+                    #     draw_shell_map(
+                    #         vum = vum,
+                    #         model_space = interaction.model_space.orbitals,
+                    #         is_proton = is_proton,
+                    #         is_neutron = is_neutron,
+                    #         occupation = (i, tmp_configuration[i]),
+                    #     )
+                    # draw_shell_map(
+                    #     vum = vum,
+                    #     model_space = interaction.model_space.orbitals,
+                    #     is_proton = is_proton,
+                    #     is_neutron = is_neutron,
+                    #     occupation = (init_orb_idx_1, tmp_configuration[init_orb_idx_1] + 1),
+                    #     n_holes = 1,
+                    # )
+                    # draw_shell_map(
+                    #     vum = vum,
+                    #     model_space = interaction.model_space.orbitals,
+                    #     is_proton = is_proton,
+                    #     is_neutron = is_neutron,
+                    #     occupation = (init_orb_idx_2, tmp_configuration[init_orb_idx_2] + 1),
+                    #     n_holes = 1,
+                    # )
+                    # time.sleep(0.5)
+
+    configurations_formatted += new_configurations_formatted
+
+def _sanity_checks(
+    partition_file_parity: int,
+    n_negative_proton: int,
+    n_positive_proton: int,
+    n_negative_neutron: int,
+    n_positive_neutron: int,
+    n_new_neg_pos_proton: list[int],
+    n_new_neg_pos_neutron: list[int],
+    total_configurations_formatted: list[list[int]],
+):
+    """
+    A few different sanity checks to make sure that the new
+    configurations are physical.
+    """
+    if partition_file_parity == +1:
+        """
+        Double check that the number of calculated pn configuration
+        permutations is correct.
+        """
+        expected: int = (
+            (n_negative_proton + n_new_neg_pos_proton[0])*(n_negative_neutron + n_new_neg_pos_neutron[0]) +
+            (n_positive_proton + n_new_neg_pos_proton[1])*(n_positive_neutron + n_new_neg_pos_neutron[1])
+        )
+        calculated: int = len(total_configurations_formatted)
+        msg = (
+            "The number of calculated configuration permutations is wrong!"
+            f" {expected = }, {calculated = }"
+        )
+        assert expected == calculated, msg
+
+    elif partition_file_parity == -1:
+        """
+        Double check that the number of calculated pn configuration
+        permutations is correct.
+        """
+        expected: int = (
+            (n_negative_proton + n_new_neg_pos_proton[0])*(n_positive_neutron + n_new_neg_pos_neutron[1]) + 
+            (n_positive_proton + n_new_neg_pos_proton[1])*(n_negative_neutron + n_new_neg_pos_neutron[0])
+        )
+        calculated: int = len(total_configurations_formatted)
+        msg = (
+            "The number of calculated configuration permutations is wrong!"
+            f" {expected = }, {calculated = }"
+        )
+        assert expected == calculated, msg
 
 def _partition_editor(
     filename_interaction: str | None = None,
@@ -440,10 +951,12 @@ def _partition_editor(
     n_negative_proton = 0
     n_positive_neutron = 0
     n_negative_neutron = 0
-    n_new_positive_proton = 0
-    n_new_negative_proton = 0
-    n_new_positive_neutron = 0
-    n_new_negative_neutron = 0
+    n_new_neg_pos_proton = [0, 0]   # The number of new negative, positive parity proton configurations.
+    n_new_neg_pos_neutron = [0, 0]  # Dont like it so much, but using list so that it can be passed by reference.
+    # n_new_positive_proton = 0
+    # n_new_negative_proton = 0
+    # n_new_positive_neutron = 0
+    # n_new_negative_neutron = 0
     y_offset: int = 0
     
     vum = Vum()
@@ -533,9 +1046,11 @@ def _partition_editor(
             return "No partition file provided. Exiting..."
 
     header: str = ""
-    proton_configurations: list[str] = []
+    proton_configurations: list[str] = []   # For storing existing configs read from the .ptn file as raw strings.
     neutron_configurations: list[str] = []
-    proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file.
+    new_proton_configurations: list[list[int]] = []
+    new_neutron_configurations: list[list[int]] = []
+    proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file. Contains a copy of all existing and new configurations.
     neutron_configurations_formatted: list[ConfigurationParameters] = []
     total_configurations_formatted: list[list[int]] = []
     interaction: Interaction = Interaction(
@@ -561,7 +1076,6 @@ def _partition_editor(
         n_core_protons = 0,
         n_core_neutrons = 0,
     )
-
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
 
@@ -726,7 +1240,6 @@ def _partition_editor(
                     parity = parity_tmp,
                 )
             )
-
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
         neutron_configurations = neutron_configurations_formatted,
@@ -753,9 +1266,6 @@ def _partition_editor(
     vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton}, {n_negative_proton}")
     vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron}, {n_negative_neutron}")
     vum.addstr(y_offset + 8, 0, "parity current configuration = None")
-
-    new_proton_configurations: list[list[int]] = []
-    new_neutron_configurations: list[list[int]] = []
 
     _analyse_existing_configuration(
         vum = vum,
@@ -832,10 +1342,10 @@ def _partition_editor(
                             configuration = occupation,
                             model_space = model_space_slice.orbitals
                         )
-                        if   (parity_tmp == -1) and (nucleon_choice == "p"): n_new_negative_proton += 1
-                        elif (parity_tmp == +1) and (nucleon_choice == "p"): n_new_positive_proton += 1
-                        elif (parity_tmp == -1) and (nucleon_choice == "n"): n_new_negative_neutron += 1
-                        elif (parity_tmp == +1) and (nucleon_choice == "n"): n_new_positive_neutron += 1
+                        if   (parity_tmp == -1) and (nucleon_choice == "p"): n_new_neg_pos_proton[0] += 1
+                        elif (parity_tmp == +1) and (nucleon_choice == "p"): n_new_neg_pos_proton[1] += 1
+                        elif (parity_tmp == -1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[0] += 1
+                        elif (parity_tmp == +1) and (nucleon_choice == "n"): n_new_neg_pos_neutron[1] += 1
 
                         new_configurations.append(occupation)
                         configurations_formatted.append(
@@ -873,8 +1383,8 @@ def _partition_editor(
                         )
                         vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
                         vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
-                        vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton} + {n_new_positive_proton}, {n_negative_proton} + {n_new_negative_proton}")
-                        vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron} + {n_new_positive_neutron}, {n_negative_neutron} + {n_new_negative_neutron}")
+                        vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton} + {n_new_neg_pos_proton[1]}, {n_negative_proton} + {n_new_neg_pos_proton[0]}")
+                        vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron} + {n_new_neg_pos_neutron[1]}, {n_negative_neutron} + {n_new_neg_pos_neutron[0]}")
                         vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configuration added!")
                         time.sleep(DELAY)
 
@@ -893,185 +1403,64 @@ def _partition_editor(
 
             elif configuration_type_choice == "r":
                 """
-                Prompt the user for a range of configurations.
+                Prompt the user for a range of configurations. Currently
+                only supports 2p2h excitations.
                 """
-                # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, f"{interaction.model_space.n_major_shells}")
-                # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, f"Truncation: {truncation_info}")
-                # input_wrapper("Enter any char to quit")
-                while True:
-                    """
-                    Prompt user for the number of particles to excite.
-                    """
-                    n_particles_choice = input_wrapper("N-particle N-hole (N)")
-                    if n_particles_choice == "q": break
-                    
-                    try:
-                        n_particles_choice = int(n_particles_choice)
-                    except ValueError:
-                        continue
-
-                    if n_particles_choice < 1:
-                        vum.addstr(
-                            vum.n_rows - 3 - vum.command_log_length, 0,
-                            "INVALID: The number of particles must be larger than 0."
-                        )
-                        continue
-
-                    break
-                
-                if n_particles_choice == "q": continue
-
-                while True:
-                    """
-                    Prompt user for the number of excitations to add.
-                    """
-                    n_excitations_choice = input_wrapper("How many excitations to add? (amount/all)")
-                    if n_excitations_choice == "q": break
-                    
-                    try:
-                        n_excitations_choice = int(n_excitations_choice)
-                    except ValueError:
-                        continue
-
-                    if n_excitations_choice < 1:
-                        vum.addstr(
-                            vum.n_rows - 3 - vum.command_log_length, 0,
-                            "INVALID: The number of excitations must be larger than 0."
-                        )
-                        continue
-
-                    break
-                
-                if n_excitations_choice == "q": continue
-
-                while True:
-                    """
-                    Prompt the user for which major shells to include
-                    in the N-particle N-hole excitation.
-                    """
-                    initial_major_shell_choice = input_wrapper(f"Initial major shell? ({model_space_slice.major_shell_names})")
-                    if initial_major_shell_choice == "q": break
-
-                    if initial_major_shell_choice in model_space_slice.major_shell_names: break
-                
-                if initial_major_shell_choice == "q": continue
-
-                while True:
-                    """
-                    Prompt the user for which major shells to include
-                    in the N-particle N-hole excitation.
-                    """
-                    final_major_shell_choice = input_wrapper(f"Final major shell? ({model_space_slice.major_shell_names})")
-                    if final_major_shell_choice == "q": break
-
-                    if final_major_shell_choice in model_space_slice.major_shell_names: break
-
-                if final_major_shell_choice == "q": continue
-                
-                if initial_major_shell_choice == final_major_shell_choice:
-                    vum.addstr(
-                        vum.n_rows - 3 - vum.command_log_length, 0,
-                        "INVALID: Initial and final major shell cannot be the same!"
-                    )
-                    continue
-
-                if major_shell_order[initial_major_shell_choice] > major_shell_order[final_major_shell_choice]:
-                    vum.addstr(
-                        vum.n_rows - 3 - vum.command_log_length, 0,
-                        "INVALID: Initial major shell cannot be higher energy than final major shell!"
-                    )
-                    continue
-
-                vum.addstr( # Remove any error messages.
-                    vum.n_rows - 3 - vum.command_log_length, 0, " "
+                _add_npnh_excitations(
+                    vum = vum,
+                    input_wrapper = input_wrapper,
+                    model_space_slice = model_space_slice,
+                    interaction = interaction,
+                    new_configurations = new_configurations,
+                    configurations_formatted = configurations_formatted,
+                    nucleon_choice = nucleon_choice,
+                    n_new_neg_pos_proton = n_new_neg_pos_proton,
+                    n_new_neg_pos_neutron = n_new_neg_pos_neutron,
+                    is_proton = is_proton,
+                    is_neutron = is_neutron
                 )
-
-                # Finne config index for alle de unike kombinasjonene i initial
-
-                initial_orbital_indices: list[int] = [] # Store the indices of the orbitals which are in the initial major shell.
-                # initial_orbital_degeneracy: list[int] = []  # Accompanying degeneracy of the orbital.
-                final_orbital_indices: list[int] = [] # Store the indices of the orbitals which are in the final major shell.
-                final_orbital_degeneracy: dict[int, int] = {}    # Accompanying degeneracy of the orbital.
-                tmp_configuration: list[int] = [0]*model_space_slice.n_orbitals # tmp storage for new configurations.
-
-                for orb in model_space_slice.orbitals:
+                try:
+                    _generate_total_configurations(
+                        proton_configurations = proton_configurations_formatted,
+                        neutron_configurations = neutron_configurations_formatted,
+                        total_configurations = total_configurations_formatted,
+                        partition_file_parity = parity
+                    )
+                except KshellDataStructureError:
                     """
-                    Extract indices and degeneracies of the initial and
-                    final orbitals.
+                    Allow parity mismatch for now.
                     """
-                    if orb.order.major_shell_name == initial_major_shell_choice:
-                        initial_orbital_indices.append(orb.idx)
-                        # initial_orbital_degeneracy.append(orb.j + 1)    # j is stored as j*2.
-                    
-                    elif orb.order.major_shell_name == final_major_shell_choice:
-                        final_orbital_indices.append(orb.idx)
-                        final_orbital_degeneracy[orb.idx] = orb.j + 1    # j is stored as j*2.
+                    pass
 
-                for configuration in configurations_formatted:
-                    """
-                    Loop over every existing configuration.
-                    """
-                    for init_orb_idx in initial_orbital_indices:
-                        """
-                        Case: N particles from from the same initial
-                        orbital are excited to the same final orbital.
-                        """
-                        if configuration.configuration[init_orb_idx] < n_particles_choice: continue   # Cannot excite enough particles.
-                        
-                        for final_orb_idx in final_orbital_indices:
-                            """
-                            Both particles to the same final orbital.
-                            """
-                            max_additional_occupation = final_orbital_degeneracy[final_orb_idx] - configuration.configuration[final_orb_idx]
-                            assert max_additional_occupation >= 0, "'max_additional_occupation' should never be negative!"  # Development sanity test.
-                            
-                            if max_additional_occupation < n_particles_choice: continue # Cannot excite enough particles.
-                            
-                            tmp_configuration[:] = configuration.configuration
-                            tmp_configuration[init_orb_idx] -= n_particles_choice
-                            tmp_configuration[final_orb_idx] += n_particles_choice
-                            draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-                            draw_shell_map(
-                                vum = vum,
-                                model_space = interaction.model_space.orbitals,
-                                is_proton = is_proton,
-                                is_neutron = is_neutron,
-                                occupation = (init_orb_idx, tmp_configuration[init_orb_idx])
-                            )
-                            draw_shell_map(
-                                vum = vum,
-                                model_space = interaction.model_space.orbitals,
-                                is_proton = is_proton,
-                                is_neutron = is_neutron,
-                                occupation = (final_orb_idx, tmp_configuration[final_orb_idx])
-                            )
-                            time.sleep(0.5)
-
-
-                        # new_configurations.append([])
-                    # configuration.configuration
-
-                string = ""
-                for orb in model_space_slice.orbitals:
-                    # string += f"{orb.idx}, {orb.order.idx}\n"
-                    if orb.order.major_shell_name != initial_major_shell_choice: continue
-                    
-                    string += f"{orb.__repr__()}\n"
-                return string
-                new_configurations
-                configurations_formatted
+                M, mdim, jdim = count_dim(
+                    model_space_filename = filename_interaction,
+                    partition_filename = None,
+                    print_dimensions = False,
+                    debug = False,
+                    parity = parity,
+                    proton_partition = [configuration.configuration for configuration in proton_configurations_formatted],
+                    neutron_partition = [configuration.configuration for configuration in neutron_configurations_formatted],
+                    total_partition = total_configurations_formatted,
+                )
+                vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))")
+                vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
+                vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton} + {n_new_neg_pos_proton[1]}, {n_negative_proton} + {n_new_neg_pos_proton[0]}")
+                vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron} + {n_new_neg_pos_neutron[1]}, {n_negative_neutron} + {n_new_neg_pos_neutron[0]}")
+                vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configurations added!")
                 break
-
 
             elif configuration_type_choice == "q":
                 break
 
             else: continue
-
+    
     n_new_proton_configurations = len(new_proton_configurations)
     n_new_neutron_configurations = len(new_neutron_configurations)
     n_total_proton_configurations = n_new_proton_configurations + n_proton_configurations
     n_total_neutron_configurations = n_new_neutron_configurations + n_neutron_configurations
+    
+    if (not n_new_neutron_configurations) and (not n_new_proton_configurations):
+        return "No new configurations. Skipping creation of new .ptn file."
 
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
@@ -1079,34 +1468,19 @@ def _partition_editor(
         total_configurations = total_configurations_formatted,
         partition_file_parity = parity
     )
-
-    if parity == +1:
-        expected: int = (
-            (n_negative_proton + n_new_negative_proton)*(n_negative_neutron + n_new_negative_neutron) +
-            (n_positive_proton + n_new_positive_proton)*(n_positive_neutron + n_new_positive_neutron)
-        )
-        calculated: int = len(total_configurations_formatted)
-        msg = (
-            "The number of calculated configuration permutations is wrong!"
-            f" {expected = }, {calculated = }"
-        )
-        assert expected == calculated, msg
-
-    elif parity == -1:
-        expected: int = (
-            (n_negative_proton + n_new_negative_proton)*(n_positive_neutron + n_new_positive_neutron) + 
-            (n_positive_proton + n_new_positive_proton)*(n_negative_neutron + n_new_negative_neutron)
-        )
-        calculated: int = len(total_configurations_formatted)
-        msg = (
-            "The number of calculated configuration permutations is wrong!"
-            f" {expected = }, {calculated = }"
-        )
-        assert expected == calculated, msg
-
-    if (not n_new_neutron_configurations) and (not n_new_proton_configurations):
-        return "No new configurations. Skipping creation of new .ptn file."
-
+    _sanity_checks(
+        partition_file_parity = parity,
+        n_negative_proton = n_negative_proton,
+        n_positive_proton = n_positive_proton,
+        n_negative_neutron = n_negative_neutron,
+        n_positive_neutron = n_positive_neutron,
+        n_new_neg_pos_proton = n_new_neg_pos_proton,
+        n_new_neg_pos_neutron = n_new_neg_pos_neutron,
+        total_configurations_formatted = total_configurations_formatted,
+    )
+    
+    # for configuration in new_proton_configurations:
+    
     with open(filename_partition_edited, "w") as outfile:
         """
         Write edited data to new partition file.
