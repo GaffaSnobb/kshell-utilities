@@ -309,15 +309,20 @@ def _generate_total_configurations(
     
     for p_idx in range(n_proton_configurations):
         for n_idx in range(n_neutron_configurations):
-            if proton_configurations[p_idx].parity*neutron_configurations[n_idx].parity == partition_file_parity:
+            if proton_configurations[p_idx].parity*neutron_configurations[n_idx].parity != partition_file_parity:
                 """
                 Only combinations of proton and neutron orbitals with
                 the same parity as the parity of the partition file are
                 accepted.
+
+                NOTE: !!! DET ER HER FEILEN ER!! MÅ TENKE PÅ HVOR MANGE
+                HW SOM ER TILLATT NÅR PN-KOMBINASJONENE REGNES UT!!
                 """
-                total_configurations.append([p_idx, n_idx])
-                neutron_configurations_count[n_idx] += 1
-                proton_configurations_count[p_idx] += 1
+                continue
+
+            total_configurations.append([p_idx, n_idx])
+            neutron_configurations_count[n_idx] += 1
+            proton_configurations_count[p_idx] += 1
 
     for p_idx in range(n_proton_configurations):
         if proton_configurations_count[p_idx] == 0:
@@ -396,7 +401,7 @@ def _add_npnh_excitations(
     n_new_neg_pos_neutron: list[int],
     is_proton: bool,
     is_neutron: bool,
-):
+) -> bool:
     while True:
         """
         Prompt user for the number of particles to excite.
@@ -425,7 +430,7 @@ def _add_npnh_excitations(
 
         break
     
-    if n_particles_choice == "q": return
+    if n_particles_choice == "q": return False
 
     while True:
         """
@@ -448,7 +453,7 @@ def _add_npnh_excitations(
 
         break
     
-    if n_excitations_choice == "q": return
+    if n_excitations_choice == "q": return False
 
     while True:
         """
@@ -460,7 +465,7 @@ def _add_npnh_excitations(
 
         if initial_major_shell_choice in model_space_slice.major_shell_names: break
     
-    if initial_major_shell_choice == "q": return
+    if initial_major_shell_choice == "q": return False
 
     while True:
         """
@@ -472,21 +477,21 @@ def _add_npnh_excitations(
 
         if final_major_shell_choice in model_space_slice.major_shell_names: break
 
-    if final_major_shell_choice == "q": return
+    if final_major_shell_choice == "q": return False
     
     if initial_major_shell_choice == final_major_shell_choice:
         vum.addstr(
             vum.n_rows - 3 - vum.command_log_length, 0,
             "INVALID: Initial and final major shell cannot be the same!"
         )
-        return
+        return False
 
     if major_shell_order[initial_major_shell_choice] > major_shell_order[final_major_shell_choice]:
         vum.addstr(
             vum.n_rows - 3 - vum.command_log_length, 0,
             "INVALID: Initial major shell cannot be higher energy than final major shell!"
         )
-        return
+        return False
 
     vum.addstr( # Remove any error messages.
         vum.n_rows - 3 - vum.command_log_length, 0, " "
@@ -502,11 +507,24 @@ def _add_npnh_excitations(
         final orbitals.
         """
         if orb.order.major_shell_name == initial_major_shell_choice:
-            initial_orbital_indices.append(orb.idx)
+            if is_proton:
+                init_orb_idx = orb.idx
+            elif is_neutron:
+                init_orb_idx = orb.idx - interaction.model_space_proton.n_orbitals
+            else:
+                msg = "'is_proton' and 'is_neutron' should never both be True or False at the same time!"
+                raise ValueError(msg)
+            
+            initial_orbital_indices.append(init_orb_idx)
         
         elif orb.order.major_shell_name == final_major_shell_choice:
-            final_orbital_indices.append(orb.idx)
-            final_orbital_degeneracy[orb.idx] = orb.j + 1    # j is stored as j*2.
+            if is_proton:
+                final_orb_idx = orb.idx
+            elif is_neutron:
+                final_orb_idx = orb.idx - interaction.model_space_proton.n_orbitals
+
+            final_orbital_indices.append(final_orb_idx)
+            final_orbital_degeneracy[final_orb_idx] = orb.j + 1    # j is stored as j*2.
 
     for configuration in configurations_formatted:
         """
@@ -732,6 +750,10 @@ def _add_npnh_excitations(
                         # time.sleep(0.5)
 
                 for f1 in range(len(final_orbital_indices)):
+                    """
+                    Case: Both particles are excited to the same final
+                    orbital.
+                    """
                     final_orb_idx_1 = final_orbital_indices[f1]
 
                     max_additional_occupation_1 = final_orbital_degeneracy[final_orb_idx_1] - configuration.configuration[final_orb_idx_1]
@@ -840,6 +862,7 @@ def _add_npnh_excitations(
                     # time.sleep(0.5)
 
     configurations_formatted += new_configurations_formatted
+    return True
 
 def _sanity_checks(
     partition_file_parity: int,
@@ -850,6 +873,9 @@ def _sanity_checks(
     n_new_neg_pos_proton: list[int],
     n_new_neg_pos_neutron: list[int],
     total_configurations_formatted: list[list[int]],
+    new_proton_configurations: list[list[int]],
+    new_neutron_configurations: list[list[int]],
+    interaction: Interaction,
 ):
     """
     A few different sanity checks to make sure that the new
@@ -886,6 +912,14 @@ def _sanity_checks(
             f" {expected = }, {calculated = }"
         )
         assert expected == calculated, msg
+
+    for configuration in new_proton_configurations:
+        assert len(configuration) == interaction.model_space_proton.n_orbitals
+        assert sum(configuration) == interaction.model_space_proton.n_valence_nucleons
+
+    for configuration in new_neutron_configurations:
+        assert len(configuration) == interaction.model_space_neutron.n_orbitals
+        assert sum(configuration) == interaction.model_space_neutron.n_valence_nucleons
 
 def _partition_editor(
     filename_interaction: str | None = None,
@@ -953,10 +987,6 @@ def _partition_editor(
     n_negative_neutron = 0
     n_new_neg_pos_proton = [0, 0]   # The number of new negative, positive parity proton configurations.
     n_new_neg_pos_neutron = [0, 0]  # Dont like it so much, but using list so that it can be passed by reference.
-    # n_new_positive_proton = 0
-    # n_new_negative_proton = 0
-    # n_new_positive_neutron = 0
-    # n_new_negative_neutron = 0
     y_offset: int = 0
     
     vum = Vum()
@@ -1053,24 +1083,28 @@ def _partition_editor(
     proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file. Contains a copy of all existing and new configurations.
     neutron_configurations_formatted: list[ConfigurationParameters] = []
     total_configurations_formatted: list[list[int]] = []
+    total_configurations_formatted_initial: list[list[int]] = []    # For testing that 'total_configurations_formatted' is correctly calculated.
     interaction: Interaction = Interaction(
         model_space = ModelSpace(
             orbitals = [],
             n_major_shells = 0,
             major_shell_names = set(),
             n_orbitals = 0,
+            n_valence_nucleons = 0,
         ),
         model_space_proton = ModelSpace(
             orbitals = [],
             n_major_shells = 0,
             major_shell_names = set(),
             n_orbitals = 0,
+            n_valence_nucleons = 0,
         ),
         model_space_neutron = ModelSpace(
             orbitals = [],
             n_major_shells = 0,
             major_shell_names = set(),
             n_orbitals = 0,
+            n_valence_nucleons = 0,
         ),
         name = filename_interaction,
         n_core_protons = 0,
@@ -1159,8 +1193,8 @@ def _partition_editor(
     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
 
     with open(filename_partition, "r") as infile:
-        truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
-        hw_min, hw_max = [int(i.split("=")[1].strip()) for i in truncation_info.split(",")[1:]] # NOTE: No idea what happens if no hw trunc is specified.
+        # truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
+        # hw_min, hw_max = [int(i.split("=")[1].strip()) for i in truncation_info.split(",")[1:]] # NOTE: No idea what happens if no hw trunc is specified.
         for line in infile:
             """
             Extract the information from the header before partitions
@@ -1183,6 +1217,9 @@ def _partition_editor(
                     20 31 -1
                     """
                     n_valence_protons, n_valence_neutrons, parity = tmp
+                    interaction.model_space.n_valence_nucleons = n_valence_protons + n_valence_neutrons
+                    interaction.model_space_proton.n_valence_nucleons = n_valence_protons
+                    interaction.model_space_neutron.n_valence_nucleons = n_valence_neutrons
                 except ValueError:
                     """
                     For example:
@@ -1196,7 +1233,7 @@ def _partition_editor(
 
         for line in infile:
             """
-            Extract proton partitions.
+            Extract proton configurations.
             """
             if "# neutron partition" in line: break
 
@@ -1219,7 +1256,7 @@ def _partition_editor(
             )
         for line in infile:
             """
-            Extract neutron partitions.
+            Extract neutron configurations.
             """
             if "# partition of proton and neutron" in line: break
 
@@ -1240,12 +1277,48 @@ def _partition_editor(
                     parity = parity_tmp,
                 )
             )
+        n_total_configurations = int(infile.readline())
+
+        for line in infile:
+            """
+            Extract the combined pn configurations. Note that the values
+            extracted in this loop are only used for testing that the
+            function _generate_total_configurations perfectly replicates
+            said values.
+            """
+            proton_idx, neutron_idx = line.split()
+            proton_idx = int(proton_idx) - 1
+            neutron_idx = int(neutron_idx) - 1
+            total_configurations_formatted_initial.append([proton_idx, neutron_idx])
+    
+    assert len(proton_configurations_formatted) == n_proton_configurations
+    assert len(neutron_configurations_formatted) == n_neutron_configurations
+    
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
         neutron_configurations = neutron_configurations_formatted,
         total_configurations = total_configurations_formatted,
         partition_file_parity = parity
     )
+    msg = (
+        "The number of total configurations (combined pn configurations)"
+        " is not correct!"
+        f" Expected: {n_total_configurations}, calculated: {len(total_configurations_formatted)}"
+    )
+    assert len(total_configurations_formatted) == n_total_configurations, msg
+
+    for i in range(n_total_configurations):
+        if total_configurations_formatted[i] != total_configurations_formatted_initial[i]:
+            msg = (
+                f"Total config with index {i} is incorrectly calculated!"
+                f" Expected: {total_configurations_formatted_initial[i]}, calculated: {total_configurations_formatted[i]}"
+                f"\nproton_configurations_formatted [{total_configurations_formatted_initial[i][0]:5d}] = {proton_configurations_formatted[total_configurations_formatted_initial[i][0]].configuration}"
+                f"\nneutron_configurations_formatted[{total_configurations_formatted_initial[i][1]:5d}] = {neutron_configurations_formatted[total_configurations_formatted_initial[i][1]].configuration}"
+                f"\nproton_configurations_formatted [{total_configurations_formatted[i][0]:5d}] = {proton_configurations_formatted[total_configurations_formatted[i][0]].configuration}"
+                f"\nneutron_configurations_formatted[{total_configurations_formatted[i][1]:5d}] = {neutron_configurations_formatted[total_configurations_formatted[i][1]].configuration}"
+            )
+            raise KshellDataStructureError(msg)
+    
     M, mdim, jdim = count_dim(
         model_space_filename = filename_interaction,
         partition_filename = None,
@@ -1266,6 +1339,7 @@ def _partition_editor(
     vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton}, {n_negative_proton}")
     vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron}, {n_negative_neutron}")
     vum.addstr(y_offset + 8, 0, "parity current configuration = None")
+    vum.addstr(y_offset + 9, 0, f"n pn configuration combinations: {len(total_configurations_formatted)}")
 
     _analyse_existing_configuration(
         vum = vum,
@@ -1293,7 +1367,7 @@ def _partition_editor(
                 model_space_slice = interaction.model_space_proton
                 new_configurations = new_proton_configurations
                 configurations_formatted = proton_configurations_formatted
-                n_valence_nucleons = n_valence_protons
+                n_valence_nucleons = interaction.model_space_proton.n_valence_nucleons
                 break
             
             elif nucleon_choice == "n":
@@ -1303,7 +1377,7 @@ def _partition_editor(
                 model_space_slice = interaction.model_space_neutron
                 new_configurations = new_neutron_configurations
                 configurations_formatted = neutron_configurations_formatted
-                n_valence_nucleons = n_valence_neutrons
+                n_valence_nucleons = interaction.model_space_neutron.n_valence_nucleons
                 break
 
             else: continue
@@ -1385,6 +1459,7 @@ def _partition_editor(
                         vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
                         vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton} + {n_new_neg_pos_proton[1]}, {n_negative_proton} + {n_new_neg_pos_proton[0]}")
                         vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron} + {n_new_neg_pos_neutron[1]}, {n_negative_neutron} + {n_new_neg_pos_neutron[0]}")
+                        vum.addstr(y_offset + 9, 0, f"n pn configuration combinations: {len(total_configurations_formatted)}")
                         vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configuration added!")
                         time.sleep(DELAY)
 
@@ -1406,7 +1481,7 @@ def _partition_editor(
                 Prompt the user for a range of configurations. Currently
                 only supports 2p2h excitations.
                 """
-                _add_npnh_excitations(
+                if not _add_npnh_excitations(
                     vum = vum,
                     input_wrapper = input_wrapper,
                     model_space_slice = model_space_slice,
@@ -1418,7 +1493,8 @@ def _partition_editor(
                     n_new_neg_pos_neutron = n_new_neg_pos_neutron,
                     is_proton = is_proton,
                     is_neutron = is_neutron
-                )
+                ):
+                    continue
                 try:
                     _generate_total_configurations(
                         proton_configurations = proton_configurations_formatted,
@@ -1446,6 +1522,7 @@ def _partition_editor(
                 vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {n_proton_configurations} + {len(new_proton_configurations)}, {n_neutron_configurations} + {len(new_neutron_configurations)}")
                 vum.addstr(y_offset + 6, 0, f"n proton +, - : {n_positive_proton} + {n_new_neg_pos_proton[1]}, {n_negative_proton} + {n_new_neg_pos_proton[0]}")
                 vum.addstr(y_offset + 7, 0, f"n neutron +, - : {n_positive_neutron} + {n_new_neg_pos_neutron[1]}, {n_negative_neutron} + {n_new_neg_pos_neutron[0]}")
+                vum.addstr(y_offset + 9, 0, f"n pn configuration combinations: {len(total_configurations_formatted)}")
                 vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configurations added!")
                 break
 
@@ -1477,9 +1554,10 @@ def _partition_editor(
         n_new_neg_pos_proton = n_new_neg_pos_proton,
         n_new_neg_pos_neutron = n_new_neg_pos_neutron,
         total_configurations_formatted = total_configurations_formatted,
+        new_proton_configurations = new_proton_configurations,
+        new_neutron_configurations = new_neutron_configurations,
+        interaction = interaction,
     )
-    
-    # for configuration in new_proton_configurations:
     
     with open(filename_partition_edited, "w") as outfile:
         """
