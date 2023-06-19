@@ -35,6 +35,7 @@ class ModelSpace:
     n_major_shells: int
     major_shell_names: set[str]
     n_orbitals: int
+    n_valence_nucleons: int
     # n_proton_orbitals: int
     # n_neutron_orbitals: int
 
