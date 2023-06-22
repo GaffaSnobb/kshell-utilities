@@ -50,7 +50,7 @@ class Interaction:
     n_core_neutrons: int
 
 @dataclass
-class ConfigurationParameters:
+class Configuration:
     """
     Terminology:
         - "Occupation" refers to the number of particles occupying one
@@ -64,10 +64,7 @@ class ConfigurationParameters:
         is a partition.
 
     Parameters
-    ----------
-    idx : int
-        Index of the configuration.
-    
+    ----------    
     parity : int
         The parity of the configuration.
 
@@ -79,7 +76,64 @@ class ConfigurationParameters:
         in the configuration. Used to limit the possible combinations of
         pn configuration combinations when using hw truncation.
     """
-    idx: int
     parity: int
     configuration: list[int]
     ho_quanta: int
+
+@dataclass
+class Partition:
+    """
+    Parameters
+    ----------
+    parity : int
+        The parity of the partition file.
+
+    n_configurations : int
+        The number of configurations.
+    """
+    parity: int
+    # n_existing_configurations: int
+    # existing_configurations: list[Configuration]
+    # new_configurations: list[Configuration]
+    configurations: list[Configuration] 
+    n_existing_positive_configurations: int
+    n_existing_negative_configurations: int
+    n_new_positive_configurations: int
+    n_new_negative_configurations: int
+    ho_quanta_min: int
+    ho_quanta_max: int
+
+    @property
+    def n_configurations(self) -> int:
+        expected = (
+            self.n_existing_negative_configurations + self.n_existing_positive_configurations +
+            self.n_new_negative_configurations + self.n_new_positive_configurations
+        )
+        calculated = len(self.configurations)
+        assert expected == calculated
+        return calculated
+    
+    @property
+    def n_new_configurations(self) -> int:
+        return self.n_new_negative_configurations + self.n_new_positive_configurations
+    
+    @property
+    def n_existing_configurations(self) -> int:
+        return self.n_existing_negative_configurations + self.n_existing_positive_configurations
+    
+    def clear(self):
+        self.configurations.clear()
+        self.n_existing_positive_configurations = 0
+        self.n_existing_negative_configurations = 0
+        self.n_new_positive_configurations = 0
+        self.n_new_negative_configurations = 0
+        self.ho_quanta_min = +1000
+        self.ho_quanta_max = -1000
+
+    # @property
+    # def all_configurations(self) -> list[Configuration]:
+    #     return self.existing_configurations + self.new_configurations
+    
+    # @all_configurations.setter
+    # def all_configurations(self, configurations: list[Configuration]):
+    #     self.existing_configurations.extend(configurations)
