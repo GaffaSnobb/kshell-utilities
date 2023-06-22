@@ -1,6 +1,7 @@
 import time, os, curses
 from typing import Callable
 from vum import Vum
+import numpy as np
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
@@ -306,6 +307,9 @@ def _generate_total_configurations(
     n_neutron_configurations = len(neutron_configurations)
     neutron_configurations_count: list[int] = [0]*n_neutron_configurations
     proton_configurations_count: list[int] = [0]*n_proton_configurations
+
+    # ho_quanta_protons = [c.ho_quanta for c in proton_configurations]
+    # ho_quanta_neutrons = [c.ho_quanta for c in neutron_configurations]
     
     for p_idx in range(n_proton_configurations):
         for n_idx in range(n_neutron_configurations):
@@ -921,198 +925,85 @@ def _sanity_checks(
         assert len(configuration) == interaction.model_space_neutron.n_orbitals
         assert sum(configuration) == interaction.model_space_neutron.n_valence_nucleons
 
-def _partition_editor(
-    filename_interaction: str | None = None,
-    filename_partition: str | None = None,
-    filename_partition_edited: str | None = None,
-    input_wrapper: Callable | None = None,
-    is_interactive: bool = True,
-):
-    """
-    Extract the model space orbitals from an interaction file. Extract
-    proton and neutron partitions from an accompanying partition file.
-    Prompt the user for new proton and neutron configurations and 
-    regenerate the proton-neutron partition based on the existing and
-    new proton and neutron configurations.
-
-    Here, 'configuration' refers to a specific occupation of protons or
-    neutrons in the model space orbitals while 'partition' refers to the
-    set of all the configurations. Hence, a 'proton configuration' is
-    one specific configuration, like
-    ```
-    1     6  4  2  0  2  4  2  0  0  0  0  0
-    ```
-    while the 'proton partition' is the set of all the proton
-    configurations, like
-    ```
-    1     6  4  2  0  2  4  2  0  0  0  0  0
-    2     6  4  2  0  3  3  2  0  0  0  0  0
-    3     6  4  2  0  3  4  1  0  0  0  0  0
-    ...
-    ```
-
-    Parameters
-    ----------
-    filename_interaction : str | None
-        The name of the interaction file. If None, the user will be
-        prompted to select a file from the current directory. If only
-        one interaction file is present in the current directory, it
-        will be automatically selected.
-
-    filename_partition : str | None
-        The name of the partition file. If None, the user will be
-        prompted to select a file from the current directory. If only
-        one partition file is present in the current directory, it
-        will be automatically selected.
-
-    filename_partition_edited : str | None
-        The name of the edited partition file. If None, a name will be
-        generated automatically.
-
-    input_wrapper : Callable
-        NOTE: CURRENTLY NOT FUNCTIONING FOR TESTS. Defaults to `input`
-        which asks the user for input. This wrapper exists so that unit
-        tests can be performed in which case
-        `input_wrapper = input_wrapper_test`.
-
-    is_interactive : bool
-        If True, the user will be prompted to select an interaction
-        file and partition file if they are not provided. If False,
-        the user will not be prompted and the program will exit if
-        the interaction file or partition file are not provided.
-    """
-    n_positive_proton = 0   # The number of positive parity proton configurations.
-    n_negative_proton = 0
-    n_positive_neutron = 0
-    n_negative_neutron = 0
-    n_new_neg_pos_proton = [0, 0]   # The number of new negative, positive parity proton configurations.
-    n_new_neg_pos_neutron = [0, 0]  # Dont like it so much, but using list so that it can be passed by reference.
-    y_offset: int = 0
+def _prompt_user_for_interaction_and_partition(vum: Vum):
+    filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
+    filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
     
-    vum = Vum()
-    screen = vum.screen
-    if input_wrapper is None:
-        input_wrapper = vum.input
+    if not filenames_interaction:
+        return f"No interaction file present in {os.getcwd()}. Exiting..."
+    if not filenames_partition:
+        return f"No partition file present in {os.getcwd()}. Exiting..."
 
-    screen.clear()  # Clear the screen between interactive sessions.
+    if len(filenames_interaction) == 1:
+        filename_interaction = filenames_interaction[0]
+        vum.screen.addstr(0, 0, f"{filename_interaction} chosen")
+        vum.screen.refresh()
 
-    if is_interactive:
-        filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
-        filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
+    elif len(filenames_interaction) > 1:
+        interaction_choices: str = ""
+        for i in range(len(filenames_interaction)):
+            interaction_choices += f"{filenames_interaction[i]} ({i}), "
         
-        if not filenames_interaction:
-            return f"No interaction file present in {os.getcwd()}. Exiting..."
-        if not filenames_partition:
-            return f"No partition file present in {os.getcwd()}. Exiting..."
-
-        if len(filenames_interaction) == 1:
-            filename_interaction = filenames_interaction[0]
-            screen.addstr(0, 0, f"{filename_interaction} chosen")
-            screen.refresh()
-
-        elif len(filenames_interaction) > 1:
-            interaction_choices: str = ""
-            for i in range(len(filenames_interaction)):
-                interaction_choices += f"{filenames_interaction[i]} ({i}), "
-            
-            screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several interaction files detected.")
-            screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, interaction_choices)
-            screen.refresh()
-            
-            while True:
-                ans = vum.input("Several interaction files detected. Please make a choice")
-                try:
-                    ans = int(ans)
-                except ValueError:
-                    continue
-                
-                try:
-                    filename_interaction = filenames_interaction[ans]
-                except IndexError:
-                    continue
-
-                break
-
-        screen.addstr(0, 0, vum.blank_line)
-        screen.addstr(1, 0, vum.blank_line)
-        screen.refresh()
+        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several interaction files detected.")
+        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, interaction_choices)
+        vum.screen.refresh()
         
-        if len(filenames_partition) == 1:
-            filename_partition = filenames_partition[0]
-            screen.addstr(0, 0, f"{filename_partition} chosen")
-            screen.refresh()
-
-        elif len(filenames_partition) > 1:
-            partition_choices: str = ""
-            for i in range(len(filenames_partition)):
-                partition_choices += f"{filenames_partition[i]} ({i}), "
+        while True:
+            ans = vum.input("Several interaction files detected. Please make a choice")
+            try:
+                ans = int(ans)
+            except ValueError:
+                continue
             
-            screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
-            screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
-            screen.refresh()
-            
-            while True:
-                ans = vum.input("Several partition files detected. Please make a choice")
-                try:
-                    ans = int(ans)
-                except ValueError:
-                    continue
-                
-                try:
-                    filename_partition = filenames_partition[ans]
-                except IndexError:
-                    continue
+            try:
+                filename_interaction = filenames_interaction[ans]
+            except IndexError:
+                continue
 
-                break
+            break
+
+    vum.screen.addstr(0, 0, vum.blank_line)
+    vum.screen.addstr(1, 0, vum.blank_line)
+    vum.screen.refresh()
+    
+    if len(filenames_partition) == 1:
+        filename_partition = filenames_partition[0]
+        vum.screen.addstr(0, 0, f"{filename_partition} chosen")
+        vum.screen.refresh()
+
+    elif len(filenames_partition) > 1:
+        partition_choices: str = ""
+        for i in range(len(filenames_partition)):
+            partition_choices += f"{filenames_partition[i]} ({i}), "
         
-        screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
-        screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, vum.blank_line)
-        screen.refresh()
+        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
+        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
+        vum.screen.refresh()
+        
+        while True:
+            ans = vum.input("Several partition files detected. Please make a choice")
+            try:
+                ans = int(ans)
+            except ValueError:
+                continue
+            
+            try:
+                filename_partition = filenames_partition[ans]
+            except IndexError:
+                continue
 
-    elif not is_interactive:
-        if filename_interaction is None:
-            return "No interaction file provided. Exiting..."
-        if filename_partition is None:
-            return "No partition file provided. Exiting..."
+            break
+    
+    vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
+    vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, vum.blank_line)
+    vum.screen.refresh()
 
-    header: str = ""
-    proton_configurations: list[str] = []   # For storing existing configs read from the .ptn file as raw strings.
-    neutron_configurations: list[str] = []
-    new_proton_configurations: list[list[int]] = []
-    new_neutron_configurations: list[list[int]] = []
-    proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file. Contains a copy of all existing and new configurations.
-    neutron_configurations_formatted: list[ConfigurationParameters] = []
-    total_configurations_formatted: list[list[int]] = []
-    total_configurations_formatted_initial: list[list[int]] = []    # For testing that 'total_configurations_formatted' is correctly calculated.
-    interaction: Interaction = Interaction(
-        model_space = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        model_space_proton = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        model_space_neutron = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        name = filename_interaction,
-        n_core_protons = 0,
-        n_core_neutrons = 0,
-    )
-    if filename_partition_edited is None:
-        filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
+    return filename_interaction, filename_partition
 
+def _load_interaction(
+    filename_interaction: str,
+    interaction: Interaction
+):
     with open(filename_interaction, "r") as infile:
         """
         Extract information from the interaction file about the orbitals
@@ -1162,6 +1053,7 @@ def _partition_editor(
                 name = f"{nucleon}{name}",
                 parity = (-1)**l,
                 order = shell_model_order[name],
+                ho_quanta = 2*n + l
             )
             interaction.model_space.orbitals.append(tmp_orbital)
             interaction.model_space.major_shell_names.add(shell_model_order[name].major_shell_name)
@@ -1189,9 +1081,10 @@ def _partition_editor(
             "The orbitals in the model space are not indexed correctly!"
         )
         raise KshellDataStructureError(msg)
-    
-    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
 
+def _load_partition(
+    filename_partition: str,
+):
     with open(filename_partition, "r") as infile:
         # truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
         # hw_min, hw_max = [int(i.split("=")[1].strip()) for i in truncation_info.split(",")[1:]] # NOTE: No idea what happens if no hw trunc is specified.
@@ -1247,11 +1140,16 @@ def _partition_editor(
             if   parity_tmp == -1: n_negative_proton += 1
             elif parity_tmp == +1: n_positive_proton += 1
 
+            assert len(interaction.model_space_proton.orbitals) == len(configuration)
+            
             proton_configurations_formatted.append(
                 ConfigurationParameters(
                     configuration = configuration,
                     idx = int(line.split()[0]) - 1,
                     parity = parity_tmp,
+                    ho_quanta = sum([   # The number of harmonic oscillator quanta for each configuration.
+                        n*orb.ho_quanta for n, orb in zip(configuration, interaction.model_space_proton.orbitals)
+                    ]),
                 )
             )
         for line in infile:
@@ -1269,12 +1167,17 @@ def _partition_editor(
             )
             if   parity_tmp == -1: n_negative_neutron += 1
             elif parity_tmp == +1: n_positive_neutron += 1
+
+            assert len(interaction.model_space_neutron.orbitals) == len(configuration)
             
             neutron_configurations_formatted.append(
                 ConfigurationParameters(
                     configuration = configuration,
                     idx = int(line.split()[0]) - 1,
                     parity = parity_tmp,
+                    ho_quanta = sum([   # The number of harmonic oscillator quanta for each configuration.
+                        n*orb.ho_quanta for n, orb in zip(configuration, interaction.model_space_neutron.orbitals)
+                    ]),
                 )
             )
         n_total_configurations = int(infile.readline())
@@ -1293,6 +1196,118 @@ def _partition_editor(
     
     assert len(proton_configurations_formatted) == n_proton_configurations
     assert len(neutron_configurations_formatted) == n_neutron_configurations
+
+    ho_quanta_protons = [c.ho_quanta for c in proton_configurations_formatted]
+    ho_quanta_neutrons = [c.ho_quanta for c in neutron_configurations_formatted]
+
+    ho_quanta_total = [ho_quanta_protons[p_idx] + ho_quanta_neutrons[n_idx] for p_idx, n_idx in total_configurations_formatted_initial]
+
+def _partition_editor(
+    filename_partition_edited: str | None = None,
+    input_wrapper: Callable | None = None,
+):
+    """
+    Extract the model space orbitals from an interaction file. Extract
+    proton and neutron partitions from an accompanying partition file.
+    Prompt the user for new proton and neutron configurations and 
+    regenerate the proton-neutron partition based on the existing and
+    new proton and neutron configurations.
+
+    Here, 'configuration' refers to a specific occupation of protons or
+    neutrons in the model space orbitals while 'partition' refers to the
+    set of all the configurations. Hence, a 'proton configuration' is
+    one specific configuration, like
+    ```
+    1     6  4  2  0  2  4  2  0  0  0  0  0
+    ```
+    while the 'proton partition' is the set of all the proton
+    configurations, like
+    ```
+    1     6  4  2  0  2  4  2  0  0  0  0  0
+    2     6  4  2  0  3  3  2  0  0  0  0  0
+    3     6  4  2  0  3  4  1  0  0  0  0  0
+    ...
+    ```
+
+    Parameters
+    ----------
+    filename_partition_edited : str | None
+        The name of the edited partition file. If None, a name will be
+        generated automatically.
+
+    input_wrapper : Callable
+        NOTE: CURRENTLY NOT FUNCTIONING FOR TESTS. Defaults to `input`
+        which asks the user for input. This wrapper exists so that unit
+        tests can be performed in which case
+        `input_wrapper = input_wrapper_test`.
+    """
+    n_positive_proton = 0   # The number of positive parity proton configurations.
+    n_negative_proton = 0
+    n_positive_neutron = 0
+    n_negative_neutron = 0
+    n_new_neg_pos_proton = [0, 0]   # The number of new negative, positive parity proton configurations.
+    n_new_neg_pos_neutron = [0, 0]  # Dont like it so much, but using list so that it can be passed by reference.
+    y_offset: int = 0
+    
+    vum = Vum()
+    screen = vum.screen
+    if input_wrapper is None:
+        input_wrapper = vum.input
+
+    screen.clear()  # Clear the screen between interactive sessions.
+
+    filename_interaction, filename_partition = \
+        _prompt_user_for_interaction_and_partition(vum=vum)
+
+    header: str = ""
+    proton_configurations: list[str] = []   # For storing existing configs read from the .ptn file as raw strings.
+    neutron_configurations: list[str] = []
+    new_proton_configurations: list[list[int]] = []
+    new_neutron_configurations: list[list[int]] = []
+    proton_configurations_formatted: list[ConfigurationParameters] = [] # For calculating the dim without writing the data to file. Contains a copy of all existing and new configurations.
+    neutron_configurations_formatted: list[ConfigurationParameters] = []
+    total_configurations_formatted: list[list[int]] = []
+    total_configurations_formatted_initial: list[list[int]] = []    # For testing that 'total_configurations_formatted' is correctly calculated.
+    interaction: Interaction = Interaction(
+        model_space = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+            n_valence_nucleons = 0,
+        ),
+        model_space_proton = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+            n_valence_nucleons = 0,
+        ),
+        model_space_neutron = ModelSpace(
+            orbitals = [],
+            n_major_shells = 0,
+            major_shell_names = set(),
+            n_orbitals = 0,
+            n_valence_nucleons = 0,
+        ),
+        name = filename_interaction,
+        n_core_protons = 0,
+        n_core_neutrons = 0,
+    )
+    if filename_partition_edited is None:
+        filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
+    
+    _load_interaction(filename_interaction=filename_interaction, interaction=interaction)
+
+    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
+
+
+    # idx_1 = np.argmin(ho_quanta_protons)
+    # idx_2 = np.argmax(ho_quanta_protons)
+    # ho_quanta_min = min([c.ho_quanta for c in proton_configurations_formatted])
+    # ho_quanta_max = max([c.ho_quanta for c in proton_configurations_formatted])
+    # return f"{min(ho_quanta_total) = }, {max(ho_quanta_total) =  }"
+    # return f"{min(ho_quanta_protons) + min(ho_quanta_neutrons) = }, {max(ho_quanta_protons) + max(ho_quanta_neutrons) = }"
     
     _generate_total_configurations(
         proton_configurations = proton_configurations_formatted,
@@ -1300,12 +1315,12 @@ def _partition_editor(
         total_configurations = total_configurations_formatted,
         partition_file_parity = parity
     )
-    msg = (
-        "The number of total configurations (combined pn configurations)"
-        " is not correct!"
-        f" Expected: {n_total_configurations}, calculated: {len(total_configurations_formatted)}"
-    )
-    assert len(total_configurations_formatted) == n_total_configurations, msg
+    # msg = (
+    #     "The number of total configurations (combined pn configurations)"
+    #     " is not correct!"
+    #     f" Expected: {n_total_configurations}, calculated: {len(total_configurations_formatted)}"
+    # )
+    # assert len(total_configurations_formatted) == n_total_configurations, msg
 
     for i in range(n_total_configurations):
         if total_configurations_formatted[i] != total_configurations_formatted_initial[i]:
@@ -1317,6 +1332,9 @@ def _partition_editor(
                 f"\nproton_configurations_formatted [{total_configurations_formatted[i][0]:5d}] = {proton_configurations_formatted[total_configurations_formatted[i][0]].configuration}"
                 f"\nneutron_configurations_formatted[{total_configurations_formatted[i][1]:5d}] = {neutron_configurations_formatted[total_configurations_formatted[i][1]].configuration}"
             )
+            if total_configurations_formatted[i] not in total_configurations_formatted_initial:
+                msg += f"\n{total_configurations_formatted[i]} should never appear!"
+            
             raise KshellDataStructureError(msg)
     
     M, mdim, jdim = count_dim(
