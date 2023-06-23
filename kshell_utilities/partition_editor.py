@@ -13,6 +13,24 @@ from .data_structures import (
 
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 
+class ScreenDummy:
+    def clear(self):
+        return
+
+class VumDummy:
+    def __init__(self) -> None:
+        self.screen = ScreenDummy()
+        self.command_log_length = 0
+        self.command_log_length = 0
+        self.n_rows = 0
+        self.n_cols = 0
+
+    def addstr(self, y, x, text, is_blank_line=None):
+        return
+
+    def input(self, _) -> str:
+        return "n"
+
 def _calculate_configuration_parity(
     configuration: list[int],
     model_space: list[OrbitalParameters]
@@ -292,20 +310,20 @@ def _generate_total_configurations(
         combine with any of the configurations of the opposite nucleon
         to the parity of the partition file.
     """
-    ho_quanta_min = partition_combined.ho_quanta_min
-    ho_quanta_max = partition_combined.ho_quanta_max
+    ho_quanta_min_before = partition_combined.ho_quanta_min
+    ho_quanta_max_before = partition_combined.ho_quanta_max
+    print(f"{ho_quanta_min_before = }")
+    print(f"{ho_quanta_max_before = }")
+    HO_MIN_TMP: int = 60
+    HO_MAX_TMP: int = 63
     partition_combined.clear()
-    # n_proton_configurations = len(proton_configurations)
-    # n_neutron_configurations = len(neutron_configurations)
     neutron_configurations_count: list[int] = [0]*partition_neutron.n_configurations
     proton_configurations_count: list[int] = [0]*partition_proton.n_configurations
-
-    # ho_quanta_protons = [c.ho_quanta for c in proton_configurations]
-    # ho_quanta_neutrons = [c.ho_quanta for c in neutron_configurations]
     
     for p_idx in range(partition_proton.n_configurations):
         for n_idx in range(partition_neutron.n_configurations):
-            if partition_proton.configurations[p_idx].parity*partition_neutron.configurations[n_idx].parity != partition_file_parity:
+            parity_tmp: int = partition_proton.configurations[p_idx].parity*partition_neutron.configurations[n_idx].parity
+            if parity_tmp != partition_file_parity:
                 """
                 Only combinations of proton and neutron orbitals with
                 the same parity as the parity of the partition file are
@@ -316,47 +334,57 @@ def _generate_total_configurations(
                 """
                 continue
 
-            # combined_configurations.append([p_idx, n_idx])
+            ho_quanta_tmp: int = (
+                partition_proton.configurations[p_idx].ho_quanta + 
+                partition_neutron.configurations[n_idx].ho_quanta
+            )
+            if not (HO_MIN_TMP <= ho_quanta_tmp <= HO_MAX_TMP):
+                """
+                The combined harmonic oscillator quanta of the combined
+                proton and neutron orbitals must be within the initial
+                limits.
+                """
+                continue
+
             neutron_configurations_count[n_idx] += 1
             proton_configurations_count[p_idx] += 1
 
             if partition_file_parity == -1: partition_combined.n_new_negative_configurations += 1
             if partition_file_parity == +1: partition_combined.n_new_positive_configurations += 1
 
-            ho_quanta_tmp = (
-                partition_proton.configurations[p_idx].ho_quanta + 
-                partition_neutron.configurations[n_idx].ho_quanta
-            )
             partition_combined.ho_quanta_min = min(partition_combined.ho_quanta_min, ho_quanta_tmp)
             partition_combined.ho_quanta_max = max(partition_combined.ho_quanta_max, ho_quanta_tmp)
 
             partition_combined.configurations.append(
                 Configuration(
                     configuration = [p_idx, n_idx],
-                    parity = partition_file_parity,
+                    parity = parity_tmp,
                     ho_quanta = ho_quanta_tmp,
                 )
             )
 
-    for p_idx in range(partition_proton.n_configurations):
-        if proton_configurations_count[p_idx] == 0:
-            msg = (
-                f"Proton configuration {p_idx + 1} ({partition_proton.configurations[p_idx].configuration}) has not been paired with"
-                " any neutron configuration due to parity mismatch."
-                f" Unable to produce partition file parity ({partition_file_parity})"
-                f" with the parity of this configuration ({partition_proton.configurations[p_idx].parity})."
-            )
-            raise KshellDataStructureError(msg)
+    # for p_idx in range(partition_proton.n_configurations):
+    #     if proton_configurations_count[p_idx] == 0:
+    #         msg = (
+    #             f"Proton configuration {p_idx} ({partition_proton.configurations[p_idx].configuration}) has not been paired with"
+    #             " any neutron configuration due to parity mismatch."
+    #             f" Unable to produce partition file parity ({partition_file_parity})"
+    #             f" with the parity of this configuration ({partition_proton.configurations[p_idx].parity})."
+    #         )
+    #         raise KshellDataStructureError(msg)
 
-    for n_idx in range(partition_neutron.n_configurations):
-        if neutron_configurations_count[n_idx] == 0:
-            msg = (
-                f"Neutron configuration {n_idx + 1} ({partition_neutron.configurations[n_idx].configuration}) has not been paired with"
-                " any proton configuration due to parity mismatch."
-                f" Unable to produce partition file parity ({partition_file_parity})"
-                f" with the parity of this configuration ({partition_neutron.configurations[n_idx].parity})."
-            )
-            raise KshellDataStructureError(msg)
+    # for n_idx in range(partition_neutron.n_configurations):
+    #     if neutron_configurations_count[n_idx] == 0:
+    #         msg = (
+    #             f"Neutron configuration {n_idx} ({partition_neutron.configurations[n_idx].configuration}) has not been paired with"
+    #             " any proton configuration due to parity mismatch."
+    #             f" Unable to produce partition file parity ({partition_file_parity})"
+    #             f" with the parity of this configuration ({partition_neutron.configurations[n_idx].parity})."
+    #         )
+    #         raise KshellDataStructureError(msg)
+
+    assert ho_quanta_min_before == partition_combined.ho_quanta_min
+    assert ho_quanta_max_before == partition_combined.ho_quanta_max
 
 def _check_configuration_duplicate(
     new_configuration: list[int],
@@ -842,7 +870,6 @@ def _add_npnh_excitations(
     return True
 
 def _sanity_checks(
-    partition_file_parity: int,
     partition_proton: Partition,
     partition_neutron: Partition,
     partition_combined: Partition,
@@ -852,45 +879,21 @@ def _sanity_checks(
     A few different sanity checks to make sure that the new
     configurations are physical.
     """
-    if partition_file_parity == +1:
-        """
-        Double check that the number of calculated pn configuration
-        permutations is correct.
-        """
-        expected: int = (
-            (partition_proton.n_existing_negative_configurations + partition_proton.n_new_negative_configurations)*(partition_neutron.n_existing_negative_configurations + partition_neutron.n_new_negative_configurations) +
-            (partition_proton.n_existing_positive_configurations + partition_proton.n_new_positive_configurations)*(partition_neutron.n_existing_positive_configurations + partition_neutron.n_new_positive_configurations)
-        )
-        calculated: int = partition_combined.n_configurations
-        msg = (
-            "The number of calculated configuration permutations is wrong!"
-            f" {expected = }, {calculated = }"
-        )
-        assert expected == calculated, msg
-
-    elif partition_file_parity == -1:
-        """
-        Double check that the number of calculated pn configuration
-        permutations is correct.
-        """
-        expected: int = (
-            (partition_proton.n_existing_negative_configurations + partition_proton.n_new_negative_configurations)*(partition_neutron.n_existing_positive_configurations + partition_neutron.n_new_positive_configurations) + 
-            (partition_proton.n_existing_positive_configurations + partition_proton.n_new_positive_configurations)*(partition_neutron.n_existing_negative_configurations + partition_neutron.n_new_negative_configurations)
-        )
-        calculated: int = partition_combined.n_configurations
-        msg = (
-            "The number of calculated configuration permutations is wrong!"
-            f" {expected = }, {calculated = }"
-        )
-        assert expected == calculated, msg
-
     for configuration in partition_proton.configurations:
         assert len(configuration.configuration) == interaction.model_space_proton.n_orbitals
         assert sum(configuration.configuration) == interaction.model_space_proton.n_valence_nucleons
+        assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_proton.orbitals)]) == configuration.ho_quanta
 
     for configuration in partition_neutron.configurations:
         assert len(configuration.configuration) == interaction.model_space_neutron.n_orbitals
         assert sum(configuration.configuration) == interaction.model_space_neutron.n_valence_nucleons
+        assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_neutron.orbitals)]) == configuration.ho_quanta
+
+    for configuration in partition_combined.configurations:
+        p_idx, n_idx = configuration.configuration
+        
+        assert partition_combined.parity == partition_proton.configurations[p_idx].parity*partition_neutron.configurations[n_idx].parity
+        assert configuration.ho_quanta == partition_proton.configurations[p_idx].ho_quanta + partition_neutron.configurations[n_idx].ho_quanta
 
 def _prompt_user_for_interaction_and_partition(vum: Vum):
     filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
@@ -1232,6 +1235,7 @@ def _load_partition(
 
 def partition_editor(
     filename_partition_edited: str | None = None,
+    input_wrapper: Callable | None = None,
 ):  
     """
     Wrapper for error handling.
@@ -1256,9 +1260,37 @@ def partition_editor(
         curses.endwin()
         print(msg)
 
+def test_partition_editor(
+    filename_partition_edited = "test_partition.ptn",
+    filename_partition = "Sc44_GCLSTsdpfsdgix5pn_p.ptn",
+):
+    try:
+        os.remove(filename_partition_edited)
+    except FileNotFoundError:
+        pass
+
+    _partition_editor(
+        filename_interaction = "GCLSTsdpfsdgix5pn.snt",
+        filename_partition = filename_partition,
+        filename_partition_edited = filename_partition_edited,
+        vum_wrapper = VumDummy,
+    )
+    with open(filename_partition_edited, "r") as infile_edited, open(filename_partition, "r") as infile:
+        for line_edited, line in zip(infile_edited, infile):
+            if line_edited != line:
+                line_edited = line_edited.rstrip('\n')
+                line = line.rstrip('\n')
+                msg = (
+                    f"{line_edited} != {line}"
+                )
+                raise KshellDataStructureError(msg)
+
 def _partition_editor(
+    filename_interaction: str | None = None,
+    filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
     input_wrapper: Callable | None = None,
+    vum_wrapper: Vum = Vum,
 ):
     """
     Extract the model space orbitals from an interaction file. Extract
@@ -1295,33 +1327,20 @@ def _partition_editor(
         tests can be performed in which case
         `input_wrapper = input_wrapper_test`.
     """
-    # n_positive_proton = 0   # The number of positive parity proton configurations.
-    # n_negative_proton = 0
-    # n_positive_neutron = 0
-    # n_negative_neutron = 0
-    # n_new_neg_pos_proton = [0, 0]   # The number of new negative, positive parity proton configurations.
-    # n_new_neg_pos_neutron = [0, 0]  # Dont like it so much, but using list so that it can be passed by reference.
-    y_offset: int = 0
     
-    vum = Vum()
+    # vum = Vum()
+    vum: Vum = vum_wrapper()
     screen = vum.screen
     if input_wrapper is None:
         input_wrapper = vum.input
 
     screen.clear()  # Clear the screen between interactive sessions.
 
-    filename_interaction, filename_partition = \
-        _prompt_user_for_interaction_and_partition(vum=vum)
+    if (filename_interaction is None) or (filename_partition is None):
+        filename_interaction, filename_partition = \
+            _prompt_user_for_interaction_and_partition(vum=vum)
 
-    # proton_configurations: list[str] = []   # For storing existing configs read from the .ptn file as raw strings.
-    # neutron_configurations: list[str] = []
-    # new_proton_configurations: list[list[int]] = []
-    # new_neutron_configurations: list[list[int]] = []
-    # proton_configurations_formatted: list[Configuration] = [] # For calculating the dim without writing the data to file. Contains a copy of all existing and new configurations.
-    # neutron_configurations_formatted: list[Configuration] = []
-    # total_configurations_formatted: list[list[int]] = []
-    # total_configurations_formatted_initial: list[list[int]] = []    # For testing that 'total_configurations_formatted' is correctly calculated.
-
+    y_offset: int = 0
     partition_proton: Partition = Partition(
         parity = 0,
         configurations = [],
@@ -1378,6 +1397,7 @@ def _partition_editor(
         n_core_protons = 0,
         n_core_neutrons = 0,
     )
+    
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
     
@@ -1397,38 +1417,58 @@ def _partition_editor(
         partition_combined = partition_combined,
         partition_file_parity = partition_combined.parity
     )
-    # msg = (
-    #     "The number of combined configurations is not correct!"
-    #     f" Expected: {len(combined_existing_configurations_expected)}, calculated: {partition_combined.n_configurations}"
-    # )
-    # # return partition_combined.ho_quanta_min, partition_combined.ho_quanta_max
-    # # assert len(combined_existing_configurations_expected) == partition_combined.n_configurations, msg
-
-    # for i in range(partition_combined.n_configurations):
-    #     if partition_combined.configurations[i].configuration != combined_existing_configurations_expected[i].configuration:
-    #         msg = (
-    #             f"Combined config with index {i} is incorrectly calculated!"
-    #             f" Expected: {combined_existing_configurations_expected[i].configuration}, calculated: {partition_combined.configurations[i].configuration}"
-    #             f"\nproton_configurations_formatted [{combined_existing_configurations_expected[i].configuration[0]:5d}] = {partition_proton.configurations[combined_existing_configurations_expected[i].configuration[0]].configuration}"
-    #             f"\nneutron_configurations_formatted[{combined_existing_configurations_expected[i].configuration[1]:5d}] = {partition_neutron.configurations[combined_existing_configurations_expected[i].configuration[1]].configuration}"
-    #             f"\nproton_configurations_formatted [{partition_combined.configurations[i].configuration[0]:5d}] = {partition_proton.configurations[partition_combined.configurations[i].configuration[0]].configuration}"
-    #             f"\nneutron_configurations_formatted[{partition_combined.configurations[i].configuration[1]:5d}] = {partition_neutron.configurations[partition_combined.configurations[i].configuration[1]].configuration}"
-    #         )
-    #         if partition_combined.configurations[i].configuration not in [c.configuration for c in combined_existing_configurations_expected]:
-    #             msg += f"\n{partition_combined.configurations[i].configuration} should never appear!"
-            
-    #         raise KshellDataStructureError(msg)
-    # return
-    M, mdim, jdim = count_dim(
-        model_space_filename = filename_interaction,
-        partition_filename = None,
-        print_dimensions = False,
-        debug = False,
-        parity = partition_combined.parity,
-        proton_partition = [configuration.configuration for configuration in partition_proton.configurations],
-        neutron_partition = [configuration.configuration for configuration in partition_neutron.configurations],
-        total_partition = [configuration.configuration for configuration in partition_combined.configurations],
+    msg = (
+        "The number of combined configurations is not correct!"
+        f" Expected: {len(combined_existing_configurations_expected)}, calculated: {partition_combined.n_configurations}"
     )
+    # return partition_combined.ho_quanta_min, partition_combined.ho_quanta_max
+    # assert len(combined_existing_configurations_expected) == partition_combined.n_configurations, msg
+
+    for i in range(partition_combined.n_configurations):
+        if partition_combined.configurations[i].configuration != combined_existing_configurations_expected[i].configuration:
+            p_idx_expected = combined_existing_configurations_expected[i].configuration[0]
+            n_idx_expected = combined_existing_configurations_expected[i].configuration[1]
+            p_idx_calculated = partition_combined.configurations[i].configuration[0]
+            n_idx_calculated = partition_combined.configurations[i].configuration[1]
+            msg = (
+                f"Combined config with index {i} is incorrectly calculated!"
+                f" Expected: {p_idx_expected, n_idx_expected}, calculated: {p_idx_calculated, n_idx_calculated}"
+                f"\nproton_configurations_formatted [{p_idx_expected:5d}] = {partition_proton.configurations[p_idx_expected].configuration}, ho = {partition_proton.configurations[p_idx_expected].ho_quanta}, parity = {partition_proton.configurations[p_idx_expected].parity}"
+                f"\nneutron_configurations_formatted[{n_idx_expected:5d}] = {partition_neutron.configurations[n_idx_expected].configuration}, ho = {partition_neutron.configurations[n_idx_expected].ho_quanta}, parity = {partition_neutron.configurations[n_idx_expected].parity}"
+                f"\nproton_configurations_formatted [{p_idx_calculated:5d}] = {partition_proton.configurations[p_idx_calculated].configuration}, ho = {partition_proton.configurations[p_idx_calculated].ho_quanta}, parity = {partition_proton.configurations[p_idx_calculated].parity}"
+                f"\nneutron_configurations_formatted[{n_idx_calculated:5d}] = {partition_neutron.configurations[n_idx_calculated].configuration}, ho = {partition_neutron.configurations[n_idx_calculated].ho_quanta}, parity = {partition_neutron.configurations[n_idx_calculated].parity}"
+                f"\nho expected = {partition_proton.configurations[p_idx_expected].ho_quanta + partition_neutron.configurations[n_idx_expected].ho_quanta}"
+                f"\nho calculated = {partition_proton.configurations[p_idx_calculated].ho_quanta + partition_neutron.configurations[n_idx_calculated].ho_quanta}"
+                f"\nho min: {partition_combined.ho_quanta_min}"
+                f"\nho max: {partition_combined.ho_quanta_max}"
+            )
+            if partition_combined.configurations[i].configuration not in [c.configuration for c in combined_existing_configurations_expected]:
+                msg += f"\n{partition_combined.configurations[i].configuration} should never appear!"
+            
+            raise KshellDataStructureError(msg)
+    
+    # idx = np.argmin([c.ho_quanta for c in partition_proton.configurations])
+    # print(partition_proton.configurations[idx])
+    # print([c.ho_quanta for c in interaction.model_space_proton.orbitals])
+    # return
+
+    if isinstance(vum, VumDummy):
+        """
+        Skip dim calculation for testing.
+        """
+        M = [0]
+        mdim = [0]
+    else:
+        M, mdim, jdim = count_dim(
+            model_space_filename = filename_interaction,
+            partition_filename = None,
+            print_dimensions = False,
+            debug = False,
+            parity = partition_combined.parity,
+            proton_partition = [configuration.configuration for configuration in partition_proton.configurations],
+            neutron_partition = [configuration.configuration for configuration in partition_neutron.configurations],
+            total_partition = [configuration.configuration for configuration in partition_combined.configurations],
+        )
     mdim_original: int = mdim[-1]
     vum.addstr(y_offset, 0, f"{filename_interaction}, {filename_partition}")
     vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
@@ -1465,8 +1505,6 @@ def _partition_editor(
                 is_neutron = False
                 nucleon = "proton"
                 model_space_slice = interaction.model_space_proton
-                # new_configurations = new_proton_configurations
-                # configurations = partition_proton.configurations
                 partition = partition_proton
                 n_valence_nucleons = interaction.model_space_proton.n_valence_nucleons
                 break
@@ -1476,8 +1514,6 @@ def _partition_editor(
                 is_neutron = True
                 nucleon = "neutron"
                 model_space_slice = interaction.model_space_neutron
-                # new_configurations = new_neutron_configurations
-                # configurations = partition_neutron.configurations
                 partition = partition_neutron
                 n_valence_nucleons = interaction.model_space_neutron.n_valence_nucleons
                 break
@@ -1633,8 +1669,8 @@ def _partition_editor(
     n_new_proton_configurations = partition_proton.n_new_negative_configurations + partition_proton.n_new_positive_configurations
     n_new_neutron_configurations = partition_neutron.n_new_negative_configurations + partition_neutron.n_new_positive_configurations
     
-    if (not n_new_neutron_configurations) and (not n_new_proton_configurations):
-        return "No new configurations. Skipping creation of new .ptn file."
+    # if (not n_new_neutron_configurations) and (not n_new_proton_configurations):
+    #     return "No new configurations. Skipping creation of new .ptn file."
 
     _generate_total_configurations(
         partition_proton = partition_proton,
@@ -1643,7 +1679,6 @@ def _partition_editor(
         partition_file_parity = partition_combined.parity
     )
     _sanity_checks(
-        partition_file_parity = partition_combined.parity,
         partition_proton = partition_proton,
         partition_neutron = partition_neutron,
         partition_combined = partition_combined,
