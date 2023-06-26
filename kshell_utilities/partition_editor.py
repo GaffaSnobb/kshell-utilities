@@ -595,8 +595,8 @@ def _generate_total_configurations(
     #         )
     #         raise KshellDataStructureError(msg)
 
-    assert ho_quanta_min_before == partition_combined.ho_quanta_min_this_parity, f"{ho_quanta_min_before} != {partition_combined.ho_quanta_min_this_parity}"
-    assert ho_quanta_max_before == partition_combined.ho_quanta_max_this_parity, f"{ho_quanta_max_before} != {partition_combined.ho_quanta_max_this_parity}"
+    # assert ho_quanta_min_before == partition_combined.ho_quanta_min_this_parity, f"{ho_quanta_min_before} != {partition_combined.ho_quanta_min_this_parity}"
+    # assert ho_quanta_max_before == partition_combined.ho_quanta_max_this_parity, f"{ho_quanta_max_before} != {partition_combined.ho_quanta_max_this_parity}"
 
     return len([i for i in proton_configurations_count if i == 0]), len([i for i in neutron_configurations_count if i == 0])
 
@@ -676,28 +676,28 @@ def _add_npnh_excitations(
         
         if max_ho_quanta_choice == "q": return False
 
-    while True:
-        """
-        Prompt user for the number of excitations to add.
-        """
-        n_excitations_choice = input_wrapper("How many excitations to add? (amount/all)")
-        if n_excitations_choice == "q": break
+    # while True:
+    #     """
+    #     Prompt user for the number of excitations to add.
+    #     """
+    #     n_excitations_choice = input_wrapper("How many excitations to add? (amount/all)")
+    #     if n_excitations_choice == "q": break
         
-        try:
-            n_excitations_choice = int(n_excitations_choice)
-        except ValueError:
-            continue
+    #     try:
+    #         n_excitations_choice = int(n_excitations_choice)
+    #     except ValueError:
+    #         continue
 
-        if n_excitations_choice < 1:
-            vum.addstr(
-                vum.n_rows - 3 - vum.command_log_length, 0,
-                "INVALID: The number of excitations must be larger than 0."
-            )
-            continue
+    #     if n_excitations_choice < 1:
+    #         vum.addstr(
+    #             vum.n_rows - 3 - vum.command_log_length, 0,
+    #             "INVALID: The number of excitations must be larger than 0."
+    #         )
+    #         continue
 
-        break
+    #     break
     
-    if n_excitations_choice == "q": return False
+    # if n_excitations_choice == "q": return False
 
     while True:
         """
@@ -745,20 +745,6 @@ def _add_npnh_excitations(
     final_orbital_degeneracy: dict[int, int] = {}    # Accompanying degeneracy of the orbital.
     new_configurations: list[Configuration] = []    # Will be merged with partition.configurations at the end of this function.
 
-    # if nucleon_choice == "p":
-    #     partition_other_parity: Partition = partition_neutron
-    # elif nucleon_choice == "n":
-    #     partition_other_parity: Partition = partition_proton
-
-    # ho_quanta_range: list[int] = [
-    #     partition_combined.ho_quanta_max - partition_other_parity.ho_quanta_max,
-    #     partition_combined.ho_quanta_max - partition_other_parity.ho_quanta_min,
-    #     partition_combined.ho_quanta_min - partition_other_parity.ho_quanta_max,
-    #     partition_combined.ho_quanta_min - partition_other_parity.ho_quanta_min,
-    # ]
-    # ho_quanta_min_allowed: int = min(ho_quanta_range)
-    # ho_quanta_max_allowed: int = max(ho_quanta_range)
-
     for orb in model_space_slice.orbitals:
         """
         Extract indices and degeneracies of the initial and
@@ -783,6 +769,49 @@ def _add_npnh_excitations(
 
             final_orbital_indices.append(final_orb_idx)
             final_orbital_degeneracy[final_orb_idx] = orb.j + 1    # j is stored as j*2.
+
+    while True:
+        remove_initial_orbital_choice = input_wrapper(f"Remove any of the initial orbitals? ({initial_orbital_indices}/n)")
+        if remove_initial_orbital_choice == "n": break
+        if remove_initial_orbital_choice == "q": return
+
+        try:
+            remove_initial_orbital_choice = int(remove_initial_orbital_choice)
+        except ValueError:
+            continue
+
+        try:
+            initial_orbital_indices.remove(remove_initial_orbital_choice)
+        except ValueError:
+            continue
+
+        if not initial_orbital_indices: return
+
+    while True:
+        remove_final_orbital_choice = input_wrapper(f"Remove any of the final orbitals? ({final_orbital_indices}/n)")
+        if remove_final_orbital_choice == "n": break
+        if remove_final_orbital_choice == "q": return
+
+        try:
+            remove_final_orbital_choice = int(remove_final_orbital_choice)
+        except ValueError:
+            continue
+
+        try:
+            final_orbital_indices.remove(remove_final_orbital_choice)
+        except ValueError:
+            continue
+
+        if not final_orbital_indices: return
+            
+    """
+    NOTE: Gjøre slik at jeg kan velge å legge til n NpNh-eksitasjoner og
+    at de er de med n lavest energi. `init_orb_idx` og `final_orb_idx`
+    inneholder nok det jeg trenger for å gjøre dette valget. Et
+    alternativ er å begrense hele orbitaler i stedet for å velge antall
+    eksitasjoner. F.eks. å bare helt droppe den orbitalen med høyest
+    energi.
+    """
 
     for configuration in partition.configurations:
         """
