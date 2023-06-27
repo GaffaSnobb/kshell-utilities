@@ -1659,48 +1659,9 @@ def _partition_editor(
         if not tmp: return "Exiting without saving changes..."
         filename_interaction, filename_partition = tmp
 
-    partition_proton: Partition = Partition(
-        parity = 0,
-        configurations = [],
-        n_existing_positive_configurations = 0,
-        n_existing_negative_configurations = 0,
-        n_new_positive_configurations = 0,
-        n_new_negative_configurations = 0,
-        ho_quanta_min_opposite_parity = +1000,
-        ho_quanta_max_opposite_parity = -1000,
-        ho_quanta_min_this_parity = +1000,
-        ho_quanta_max_this_parity = -1000,
-        ho_quanta_min = +1000,
-        ho_quanta_max = -1000,
-    )
-    partition_neutron: Partition = Partition(
-        parity = 0,
-        configurations = [],
-        n_existing_positive_configurations = 0,
-        n_existing_negative_configurations = 0,
-        n_new_positive_configurations = 0,
-        n_new_negative_configurations = 0,
-        ho_quanta_min_opposite_parity = +1000,
-        ho_quanta_max_opposite_parity = -1000,
-        ho_quanta_min_this_parity = +1000,
-        ho_quanta_max_this_parity = -1000,
-        ho_quanta_min = +1000,
-        ho_quanta_max = -1000,
-    )
-    partition_combined: Partition = Partition(
-        parity = 0,
-        configurations = [],
-        n_existing_positive_configurations = 0,
-        n_existing_negative_configurations = 0,
-        n_new_positive_configurations = 0,
-        n_new_negative_configurations = 0,
-        ho_quanta_min_opposite_parity = +1000,
-        ho_quanta_max_opposite_parity = -1000,
-        ho_quanta_min_this_parity = +1000,
-        ho_quanta_max_this_parity = -1000,
-        ho_quanta_min = +1000,
-        ho_quanta_max = -1000,
-    )
+    partition_proton: Partition = Partition()
+    partition_neutron: Partition = Partition()
+    partition_combined: Partition = Partition()
     interaction: Interaction = Interaction(
         model_space = ModelSpace(
             orbitals = [],

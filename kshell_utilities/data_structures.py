@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class OrbitalOrder:
@@ -88,24 +88,23 @@ class Partition:
     parity : int
         The parity of the partition file.
 
+    Properties
+    ----------
     n_configurations : int
         The number of configurations.
     """
-    parity: int
-    # n_existing_configurations: int
-    # existing_configurations: list[Configuration]
-    # new_configurations: list[Configuration]
-    configurations: list[Configuration] 
-    n_existing_positive_configurations: int
-    n_existing_negative_configurations: int
-    n_new_positive_configurations: int
-    n_new_negative_configurations: int
-    ho_quanta_min_opposite_parity: int
-    ho_quanta_max_opposite_parity: int
-    ho_quanta_min_this_parity: int
-    ho_quanta_max_this_parity: int
-    ho_quanta_min: int
-    ho_quanta_max: int
+    configurations: list[Configuration] = field(default_factory=list)
+    parity: int = 0
+    n_existing_positive_configurations: int = 0
+    n_existing_negative_configurations: int = 0
+    n_new_positive_configurations: int = 0
+    n_new_negative_configurations: int = 0
+    ho_quanta_min_opposite_parity: int = +1000
+    ho_quanta_max_opposite_parity: int = -1000
+    ho_quanta_min_this_parity: int = +1000
+    ho_quanta_max_this_parity: int = -1000
+    ho_quanta_min: int = +1000
+    ho_quanta_max: int = -1000
 
     @property
     def n_configurations(self) -> int:
