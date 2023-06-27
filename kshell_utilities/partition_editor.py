@@ -11,6 +11,7 @@ from .data_structures import (
     OrbitalParameters, Configuration, ModelSpace, Interaction, Partition
 )
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
+PARITY_CURRENT_Y_COORD = 7
 y_offset: int = 0
 
 class ScreenDummy:
@@ -173,14 +174,14 @@ def _analyse_existing_configuration(
                             occupation = (orbital_idx_offset + i, current_configuration[i]),
                         )
 
-                    vum.addstr(y_offset + 6, 0, f"parity current configuration = {configuration_parity}")
+                    vum.addstr(y_offset + PARITY_CURRENT_Y_COORD, 0, f"parity current configuration = {configuration_parity}")
                 
                 else:
                     draw_shell_map(vum=vum, model_space=model_space, is_proton=is_proton, is_neutron=is_neutron)
 
         else: break # If answer from user is not 'y'.
 
-    vum.addstr(y_offset + 6, 0, "parity current configuration = None")
+    vum.addstr(y_offset + PARITY_CURRENT_Y_COORD, 0, "parity current configuration = None")
     draw_shell_map(vum=vum, model_space=model_space, is_proton=True, is_neutron=True)
 
 def draw_shell_map(
@@ -222,7 +223,7 @@ def draw_shell_map(
     -------
     None
     """
-    y_offset: int = 11
+    y_offset: int = 14
     model_space_copy = sorted(  # Sort the orbitals based on the shell_model_order dict.
         model_space,
         key = lambda orbital: shell_model_order[f"{orbital.n}{spectroscopic_conversion[orbital.l]}{orbital.j}"].idx,
@@ -327,6 +328,8 @@ def _summary_information(
     mdim: list[int],
     n_proton_skips: int,
     n_neutron_skips: int,
+    n_parity_skips: int,
+    n_ho_skips: int,
     y_offset: int,
     mdim_original: int | None = None,
 ):
@@ -361,32 +364,35 @@ def _summary_information(
     vum.addstr(
         y = y_offset + 4,
         x = 0,
-        # string = f"n proton +, - : {partition_proton.n_existing_positive_configurations}, {partition_proton.n_existing_negative_configurations}"
-        string = f"n proton +, -, sum : {partition_proton.n_existing_positive_configurations} + {partition_proton.n_new_positive_configurations}, {partition_proton.n_existing_negative_configurations} + {partition_proton.n_new_negative_configurations}, {partition_proton.n_existing_configurations} + {partition_proton.n_new_configurations}",
+        string = f"n proton +, -, sum : ({partition_proton.n_existing_positive_configurations} + {partition_proton.n_new_positive_configurations}), ({partition_proton.n_existing_negative_configurations} + {partition_proton.n_new_negative_configurations}), ({partition_proton.n_existing_configurations} + {partition_proton.n_new_configurations})",
     )
     vum.addstr(
         y = y_offset + 5,
         x = 0,
-        # string = f"n neutron +, - : {partition_neutron.n_existing_positive_configurations}, {partition_neutron.n_existing_negative_configurations}"
-        string = f"n neutron +, -, sum : {partition_neutron.n_existing_positive_configurations} + {partition_neutron.n_new_positive_configurations}, {partition_neutron.n_existing_negative_configurations} + {partition_neutron.n_new_negative_configurations}, {partition_neutron.n_existing_configurations} + {partition_neutron.n_new_configurations}"
+        string = f"n neutron +, -, sum : ({partition_neutron.n_existing_positive_configurations} + {partition_neutron.n_new_positive_configurations}), ({partition_neutron.n_existing_negative_configurations} + {partition_neutron.n_new_negative_configurations}), ({partition_neutron.n_existing_configurations} + {partition_neutron.n_new_configurations})"
     )
     vum.addstr(
         y = y_offset + 6,
         x = 0,
-        string = "parity current configuration = None"
+        string = f"n combined: {partition_combined.n_configurations}"
     )
     vum.addstr(
-        y = y_offset + 7,
+        y = y_offset + PARITY_CURRENT_Y_COORD,
         x = 0,
-        string = f"n pn configuration combinations: {partition_combined.n_configurations}"
+        string = "parity current configuration = None"
     )
     vum.addstr(
         y = y_offset + 8,
         x = 0,
-        string = f"n proton, neutron configurations will be skipped because of parity or H.O. mismatch: {n_proton_skips, n_neutron_skips}"
+        string = f"n proton, neutron configurations will be deleted because of parity or H.O. mismatch: {n_proton_skips, n_neutron_skips}"
     )
     vum.addstr(
         y = y_offset + 9,
+        x = 0,
+        string = f"n parity, H.O. skips: {n_parity_skips, n_ho_skips}"
+    )
+    vum.addstr(
+        y = y_offset + 10,
         x = 0,
         string = f"Min H.O.: {partition_combined.ho_quanta_min}, max H.O.: {partition_combined.ho_quanta_max}"
     )
@@ -427,16 +433,7 @@ def _generate_total_configurations(
     ho_quanta_max_before = partition_combined.ho_quanta_max_this_parity
     assert partition_combined.ho_quanta_min != +1000    # Check that they're not at the default values.
     assert partition_combined.ho_quanta_max != -1000
-    # print(f"{ho_quanta_min_before = }")
-    # print(f"{ho_quanta_max_before = }")
-    # print(f"{partition_combined.ho_quanta_min = }")
-    # print(f"{partition_combined.ho_quanta_max = }")
-    # print(f"{partition_combined.ho_quanta_min_this_parity = }")
-    # print(f"{partition_combined.ho_quanta_max_this_parity = }")
-    # print(f"{partition_combined.ho_quanta_min_opposite_parity = }")
-    # print(f"{partition_combined.ho_quanta_max_opposite_parity = }")
-    # HO_MIN_TMP: int = 60
-    # HO_MAX_TMP: int = 63
+
     partition_combined.clear()
     neutron_configurations_count: list[int] = [0]*partition_neutron.n_configurations
     neutron_configurations_parity_skips: list[int] = [0]*partition_neutron.n_configurations
@@ -444,9 +441,6 @@ def _generate_total_configurations(
     proton_configurations_count: list[int] = [0]*partition_proton.n_configurations
     proton_configurations_parity_skips: list[int] = [0]*partition_proton.n_configurations
     proton_configurations_ho_skips: list[int] = [0]*partition_proton.n_configurations
-    
-    # proton_configurations_is_in_use: list[bool] = [0]*partition_proton.n_configurations
-    # neutron_configurations_is_in_use: list[bool] = [0]*partition_neutron.n_configurations
     
     for p_idx in range(partition_proton.n_configurations):
         for n_idx in range(partition_neutron.n_configurations):
@@ -544,8 +538,7 @@ def _generate_total_configurations(
                 else:
                     raise KshellDataStructureError
                 
-                ans = partition_proton.configurations.pop(p_idx)
-                # print(f"\n{p_idx = }, {ans = } removed from proton configurations")
+                partition_proton.configurations.pop(p_idx)
 
         for n_idx in reversed(range(partition_neutron.n_configurations)):
             if neutron_configurations_count[n_idx] == 0:
@@ -597,8 +590,13 @@ def _generate_total_configurations(
 
     # assert ho_quanta_min_before == partition_combined.ho_quanta_min_this_parity, f"{ho_quanta_min_before} != {partition_combined.ho_quanta_min_this_parity}"
     # assert ho_quanta_max_before == partition_combined.ho_quanta_max_this_parity, f"{ho_quanta_max_before} != {partition_combined.ho_quanta_max_this_parity}"
-
-    return len([i for i in proton_configurations_count if i == 0]), len([i for i in neutron_configurations_count if i == 0])
+    
+    n_proton_skips = len([i for i in proton_configurations_count if i == 0])    # The number of proton configurations which will be removed at the end of this program.
+    n_neutron_skips = len([i for i in neutron_configurations_count if i == 0])  # The number of neutron configurations which will be removed at the end of this program.
+    n_parity_skips = sum(proton_configurations_parity_skips) + sum(neutron_configurations_parity_skips)
+    n_ho_skips = sum(proton_configurations_ho_skips) + sum(neutron_configurations_ho_skips)
+    
+    return n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips
 
 def _check_configuration_duplicate(
     new_configuration: list[int],
@@ -629,17 +627,17 @@ def _add_npnh_excitations(
         Prompt user for the number of particles to excite.
         """
         n_particles_choice = input_wrapper("N-particle N-hole (N)")
-        if n_particles_choice == "q": break
+        if n_particles_choice == "q": return False
         
         try:
             n_particles_choice = int(n_particles_choice)
         except ValueError:
             continue
 
-        if n_particles_choice != 2:
+        if n_particles_choice > 2:
             vum.addstr(
                 vum.n_rows - 3 - vum.command_log_length, 0,
-                "INVALID: Currently hard-coded for 2 particle excitation!"
+                "INVALID: Only supports 1 and 2 particle excitations!"
             )
             continue
 
@@ -651,53 +649,6 @@ def _add_npnh_excitations(
             continue
 
         break
-    
-    if n_particles_choice == "q": return False
-
-    if n_particles_choice > (partition_combined.ho_quanta_max - partition_combined.ho_quanta_min):
-        while True:
-            max_ho_quanta_choice = input_wrapper(f"This NpNh will exceed the max ho quanta ({partition_combined.ho_quanta_max}). New max?")
-            if max_ho_quanta_choice == "q": break
-
-            try:
-                max_ho_quanta_choice = int(max_ho_quanta_choice)
-            except ValueError:
-                continue
-
-            if max_ho_quanta_choice < partition_combined.ho_quanta_max:
-                vum.addstr(
-                    vum.n_rows - 3 - vum.command_log_length, 0,
-                    "INVALID: New max H.O. quanta must be larger than the old value!"
-                )
-                continue
-
-            partition_combined.ho_quanta_max = max_ho_quanta_choice # THIS IS THE PLACE WHERE I LEFT OF!!
-            break
-        
-        if max_ho_quanta_choice == "q": return False
-
-    # while True:
-    #     """
-    #     Prompt user for the number of excitations to add.
-    #     """
-    #     n_excitations_choice = input_wrapper("How many excitations to add? (amount/all)")
-    #     if n_excitations_choice == "q": break
-        
-    #     try:
-    #         n_excitations_choice = int(n_excitations_choice)
-    #     except ValueError:
-    #         continue
-
-    #     if n_excitations_choice < 1:
-    #         vum.addstr(
-    #             vum.n_rows - 3 - vum.command_log_length, 0,
-    #             "INVALID: The number of excitations must be larger than 0."
-    #         )
-    #         continue
-
-    #     break
-    
-    # if n_excitations_choice == "q": return False
 
     while True:
         """
@@ -705,11 +656,9 @@ def _add_npnh_excitations(
         in the N-particle N-hole excitation.
         """
         initial_major_shell_choice = input_wrapper(f"Initial major shell? ({model_space_slice.major_shell_names})")
-        if initial_major_shell_choice == "q": break
+        if initial_major_shell_choice == "q": return False
 
         if initial_major_shell_choice in model_space_slice.major_shell_names: break
-    
-    if initial_major_shell_choice == "q": return False
 
     while True:
         """
@@ -717,11 +666,9 @@ def _add_npnh_excitations(
         in the N-particle N-hole excitation.
         """
         final_major_shell_choice = input_wrapper(f"Final major shell? ({model_space_slice.major_shell_names})")
-        if final_major_shell_choice == "q": break
+        if final_major_shell_choice == "q": return False
 
         if final_major_shell_choice in model_space_slice.major_shell_names: break
-
-    if final_major_shell_choice == "q": return False
     
     if initial_major_shell_choice == final_major_shell_choice:
         vum.addstr(
@@ -744,6 +691,8 @@ def _add_npnh_excitations(
     final_orbital_indices: list[int] = [] # Store the indices of the orbitals which are in the final major shell.
     final_orbital_degeneracy: dict[int, int] = {}    # Accompanying degeneracy of the orbital.
     new_configurations: list[Configuration] = []    # Will be merged with partition.configurations at the end of this function.
+    is_duplicate_warning: bool = True
+    n_duplicate_skips: int = 0
 
     for orb in model_space_slice.orbitals:
         """
@@ -771,7 +720,7 @@ def _add_npnh_excitations(
             final_orbital_degeneracy[final_orb_idx] = orb.j + 1    # j is stored as j*2.
 
     while True:
-        remove_initial_orbital_choice = input_wrapper(f"Remove any of the initial orbitals? ({initial_orbital_indices}/n)")
+        remove_initial_orbital_choice = input_wrapper(f"Remove any of the initial orbitals? ({[idx + 1 for idx in initial_orbital_indices]}/n)")
         if remove_initial_orbital_choice == "n": break
         if remove_initial_orbital_choice == "q": return
 
@@ -779,6 +728,8 @@ def _add_npnh_excitations(
             remove_initial_orbital_choice = int(remove_initial_orbital_choice)
         except ValueError:
             continue
+
+        remove_initial_orbital_choice -= 1
 
         try:
             initial_orbital_indices.remove(remove_initial_orbital_choice)
@@ -788,7 +739,7 @@ def _add_npnh_excitations(
         if not initial_orbital_indices: return
 
     while True:
-        remove_final_orbital_choice = input_wrapper(f"Remove any of the final orbitals? ({final_orbital_indices}/n)")
+        remove_final_orbital_choice = input_wrapper(f"Remove any of the final orbitals? ({[idx + 1 for idx in final_orbital_indices]}/n)")
         if remove_final_orbital_choice == "n": break
         if remove_final_orbital_choice == "q": return
 
@@ -797,12 +748,44 @@ def _add_npnh_excitations(
         except ValueError:
             continue
 
+        remove_final_orbital_choice -= 1
+
         try:
             final_orbital_indices.remove(remove_final_orbital_choice)
         except ValueError:
             continue
 
         if not final_orbital_indices: return
+
+    if is_proton:
+        new_ho_quanta_max = partition_proton.ho_quanta_max_this_parity + partition_neutron.ho_quanta_max_this_parity
+        new_ho_quanta_max -= n_particles_choice*interaction.model_space_proton.orbitals[initial_orbital_indices[-1]].ho_quanta
+        new_ho_quanta_max += n_particles_choice*interaction.model_space_proton.orbitals[final_orbital_indices[-1]].ho_quanta
+
+    if is_neutron:
+        new_ho_quanta_max = partition_proton.ho_quanta_max_this_parity + partition_neutron.ho_quanta_max_this_parity
+        new_ho_quanta_max -= n_particles_choice*interaction.model_space_neutron.orbitals[initial_orbital_indices[-1]].ho_quanta
+        new_ho_quanta_max += n_particles_choice*interaction.model_space_neutron.orbitals[final_orbital_indices[-1]].ho_quanta
+
+    if new_ho_quanta_max > partition_combined.ho_quanta_max:
+        while True:
+            ho_quanta_max_choice = input_wrapper(f"This NpNh will exceed the max ho quanta ({partition_combined.ho_quanta_max}) with up to {new_ho_quanta_max - partition_combined.ho_quanta_max}. New max?")
+            if ho_quanta_max_choice == "q": return False
+
+            try:
+                ho_quanta_max_choice = int(ho_quanta_max_choice)
+            except ValueError:
+                continue
+
+            if ho_quanta_max_choice < partition_combined.ho_quanta_max:
+                vum.addstr(
+                    vum.n_rows - 3 - vum.command_log_length, 0,
+                    "INVALID: New max H.O. quanta must be larger than the old value!"
+                )
+                continue
+
+            partition_combined.ho_quanta_max = ho_quanta_max_choice
+            break
             
     """
     NOTE: Gjøre slik at jeg kan velge å legge til n NpNh-eksitasjoner og
@@ -812,7 +795,6 @@ def _add_npnh_excitations(
     eksitasjoner. F.eks. å bare helt droppe den orbitalen med høyest
     energi.
     """
-
     for configuration in partition.configurations:
         """
         Loop over every existing configuration.
@@ -836,19 +818,26 @@ def _add_npnh_excitations(
                 new_configuration = configuration.configuration.copy()
                 new_configuration[init_orb_idx] -= n_particles_choice
                 new_configuration[final_orb_idx] += n_particles_choice
-
-                if (duplicate_configuration := _check_configuration_duplicate(new_configuration=new_configuration, existing_configurations=partition.configurations)):
+                
+                duplicate_configuration = _check_configuration_duplicate(
+                    new_configuration = new_configuration,
+                    existing_configurations = partition.configurations,
+                )
+                if duplicate_configuration:
                     """
                     Check that the newly generated configuration does
                     not already exist.
                     """
+                    n_duplicate_skips += 1
+                    if not is_duplicate_warning:
+                        """
+                        Skip duplicates without showing them.
+                        """
+                        continue
+
                     vum.addstr(
                         vum.n_rows - 3 - vum.command_log_length, 0,
                         f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
-                    )
-                    vum.addstr(
-                        vum.n_rows - 2 - vum.command_log_length, 0,
-                        f"{partition.configurations[-1].configuration = }"
                     )
                     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
 
@@ -868,11 +857,13 @@ def _add_npnh_excitations(
                         occupation = (init_orb_idx, new_configuration[init_orb_idx] + n_particles_choice),
                         n_holes = n_particles_choice,
                     )
-                    input_wrapper("Enter any char to continue")
+                    duplicate_choice = input_wrapper("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
+                    if duplicate_choice == "i": is_duplicate_warning = False
+                    continue
 
                 parity_tmp = _calculate_configuration_parity(
                     configuration = new_configuration,
-                    model_space = model_space_slice.orbitals
+                    model_space = model_space_slice.orbitals,
                 )
                 if   parity_tmp == -1: partition.n_new_negative_configurations += 1
                 elif parity_tmp == +1: partition.n_new_positive_configurations += 1
@@ -880,10 +871,6 @@ def _add_npnh_excitations(
                 ho_quanta_tmp = sum([   # The number of harmonic oscillator quanta for each configuration.
                     n*orb.ho_quanta for n, orb in zip(new_configuration, model_space_slice.orbitals)
                 ])
-
-                # if (ho_quanta_tmp < ho_quanta_min_allowed) or (ho_quanta_tmp > ho_quanta_max_allowed):
-                #     continue
-
                 new_configurations.append(
                     Configuration(
                         configuration = new_configuration.copy(),
@@ -911,8 +898,18 @@ def _add_npnh_excitations(
                 # )
                 # time.sleep(0.5)
 
-    # configurations_formatted += new_configurations    # This can be at the very end, but is added here to be included in the duplicate check later.
-    # new_configurations.clear()
+    if n_particles_choice == 1:
+        """
+        The next loop of this function only applies for the 2 particle
+        excitation case.
+        """
+        partition.configurations.extend(new_configurations)
+        if n_duplicate_skips:
+            vum.addstr(
+                vum.n_rows - 3 - vum.command_log_length, 0,
+                f"DUPLICATE SKIPS: {n_duplicate_skips}"
+            )
+        return True
     
     for configuration in partition.configurations:
         """
@@ -959,6 +956,7 @@ def _add_npnh_excitations(
                             Check that the newly generated configuration does
                             not already exist.
                             """
+                            n_duplicate_skips += 1
                             vum.addstr(
                                 vum.n_rows - 3 - vum.command_log_length, 0,
                                 f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
@@ -1071,6 +1069,7 @@ def _add_npnh_excitations(
                         Check that the newly generated configuration does
                         not already exist.
                         """
+                        n_duplicate_skips += 1
                         vum.addstr(
                             vum.n_rows - 3 - vum.command_log_length, 0,
                             f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
@@ -1153,6 +1152,11 @@ def _add_npnh_excitations(
                     # time.sleep(0.5)
 
     partition.configurations.extend(new_configurations)
+    if n_duplicate_skips:
+        vum.addstr(
+            vum.n_rows - 3 - vum.command_log_length, 0,
+            f"DUPLICATE SKIPS: {n_duplicate_skips}"
+        )
     return True
 
 def _sanity_checks(
@@ -1206,6 +1210,7 @@ def _prompt_user_for_interaction_and_partition(vum: Vum):
         
         while True:
             ans = vum.input("Several interaction files detected. Please make a choice")
+            if ans == "q": return False
             try:
                 ans = int(ans)
             except ValueError:
@@ -1238,6 +1243,7 @@ def _prompt_user_for_interaction_and_partition(vum: Vum):
         
         while True:
             ans = vum.input("Several partition files detected. Please make a choice")
+            if ans == "q": return False
             try:
                 ans = int(ans)
             except ValueError:
@@ -1648,8 +1654,9 @@ def _partition_editor(
     screen.clear()  # Clear the screen between interactive sessions.
 
     if (filename_interaction is None) or (filename_partition is None):
-        filename_interaction, filename_partition = \
-            _prompt_user_for_interaction_and_partition(vum=vum)
+        tmp = _prompt_user_for_interaction_and_partition(vum=vum)
+        if not tmp: return "Exiting without saving changes..."
+        filename_interaction, filename_partition = tmp
 
     partition_proton: Partition = Partition(
         parity = 0,
@@ -1827,7 +1834,7 @@ def _partition_editor(
     # vum.addstr(y_offset + 5, 0, f"{partition_combined.parity = }")
     # vum.addstr(y_offset + 6, 0, f"n proton +, - : {partition_proton.n_existing_positive_configurations}, {partition_proton.n_existing_negative_configurations}")
     # vum.addstr(y_offset + 7, 0, f"n neutron +, - : {partition_neutron.n_existing_positive_configurations}, {partition_neutron.n_existing_negative_configurations}")
-    # vum.addstr(y_offset + 8, 0, "parity current configuration = None")
+    # vum.addstr(y_offset + PARITY_CURRENT_Y_COORD, 0, "parity current configuration = None")
     # vum.addstr(y_offset + 9, 0, f"n pn configuration combinations: {partition_combined.n_configurations}")
     _summary_information(
         vum = vum,
@@ -1843,6 +1850,8 @@ def _partition_editor(
         mdim_original = None,
         n_proton_skips = 0,
         n_neutron_skips = 0,
+        n_parity_skips = 0,
+        n_ho_skips = 0,
     )
     _analyse_existing_configuration(
         vum = vum,
@@ -1879,6 +1888,9 @@ def _partition_editor(
                 model_space_slice = interaction.model_space_neutron
                 partition = partition_neutron
                 n_valence_nucleons = interaction.model_space_neutron.n_valence_nucleons
+                break
+
+            elif nucleon_choice == "q":
                 break
 
             else: continue
@@ -1932,7 +1944,7 @@ def _partition_editor(
                             )
                         )
                         return_string += f"\n{len(partition_proton.configurations) = }, {len(partition_neutron.configurations) = }, {len(partition_combined.configurations) = }"
-                        n_proton_skips, n_neutron_skips = _generate_total_configurations(
+                        n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips = _generate_total_configurations(
                             partition_proton = partition_proton,
                             partition_neutron = partition_neutron,
                             partition_combined = partition_combined,
@@ -1988,6 +2000,8 @@ def _partition_editor(
                             mdim_original = mdim_original,
                             n_proton_skips = n_proton_skips,
                             n_neutron_skips = n_neutron_skips,
+                            n_parity_skips = n_parity_skips,
+                            n_ho_skips = n_ho_skips,
                         )
                         vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configuration added!")
                         time.sleep(DELAY)
@@ -2025,7 +2039,7 @@ def _partition_editor(
                 ):
                     continue
                 try:
-                    n_proton_skips, n_neutron_skips = _generate_total_configurations(
+                    n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips = _generate_total_configurations(
                         partition_proton = partition_proton,
                         partition_neutron = partition_neutron,
                         partition_combined = partition_combined,
@@ -2066,6 +2080,8 @@ def _partition_editor(
                     mdim_original = mdim_original,
                     n_proton_skips = n_proton_skips,
                     n_neutron_skips = n_neutron_skips,
+                    n_parity_skips = n_parity_skips,
+                    n_ho_skips = n_ho_skips,
                 )
                 # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configurations added!")
                 break
@@ -2075,6 +2091,13 @@ def _partition_editor(
 
             else: continue
 
+    _generate_total_configurations(
+        partition_proton = partition_proton,
+        partition_neutron = partition_neutron,
+        partition_combined = partition_combined,
+        partition_file_parity = partition_combined.parity,
+        allow_invalid = False,
+    )
     n_new_proton_configurations = partition_proton.n_new_negative_configurations + partition_proton.n_new_positive_configurations
     n_new_neutron_configurations = partition_neutron.n_new_negative_configurations + partition_neutron.n_new_positive_configurations
 
@@ -2086,14 +2109,7 @@ def _partition_editor(
         if (not n_new_neutron_configurations) and (not n_new_proton_configurations):
             return_string += "No new configurations. Skipping creation of new .ptn file."
             return return_string
-
-    _generate_total_configurations(
-        partition_proton = partition_proton,
-        partition_neutron = partition_neutron,
-        partition_combined = partition_combined,
-        partition_file_parity = partition_combined.parity,
-        allow_invalid = False,
-    )
+    
     _sanity_checks(
         partition_proton = partition_proton,
         partition_neutron = partition_neutron,
@@ -2249,7 +2265,7 @@ def _prompt_user_for_configuration(
                     continue
                 
                 occupation_parity *= orbital.parity**ans
-                vum.addstr(y_offset + 6, 0, f"parity current configuration = {occupation_parity}")
+                vum.addstr(y_offset + PARITY_CURRENT_Y_COORD, 0, f"parity current configuration = {occupation_parity}")
                 
                 n_remaining_nucleons -= ans
                 if ans > 0:
