@@ -20,4 +20,5 @@ from .parameters import *
 from .compare import Compare
 from .collect_logs import collect_logs, check_multipolarities
 from .script_editing import edit_and_queue_executables
-from .partition_editor import partition_editor, test_partition_editor, test_partition_editor_2
+from .partition_editor import partition_editor, test_partition_editor, test_partition_editor_2, load_interaction, load_partition
+from . import data_structures
