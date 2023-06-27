@@ -1,7 +1,6 @@
 import time, os, curses
 from typing import Callable
 from vum import Vum
-import numpy as np
 from .count_dim import count_dim
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
@@ -11,7 +10,7 @@ from .data_structures import (
     OrbitalParameters, Configuration, ModelSpace, Interaction, Partition
 )
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
-PARITY_CURRENT_Y_COORD = 7
+PARITY_CURRENT_Y_COORD = 5
 y_offset: int = 0
 
 class ScreenDummy:
@@ -27,7 +26,7 @@ class VumDummy:
         self.n_cols = 0
         self.blank_line = ""
 
-    def addstr(self, y, x, text, is_blank_line=None):
+    def addstr(self, y, x, string, is_blank_line=None):
         return
 
     def input(self, _) -> str:
@@ -336,7 +335,7 @@ def _summary_information(
     vum.addstr(
         y = y_offset,
         x = 0,
-        string = f"{filename_interaction}, {filename_partition}, parity: {partition_combined.parity}"
+        string = f"{filename_interaction} -- {filename_partition} -- parity: {partition_combined.parity} -- core pn: ({interaction.n_core_protons}, {interaction.n_core_neutrons}) -- valence pn: ({interaction.model_space_proton.n_valence_nucleons}, {interaction.model_space_neutron.n_valence_nucleons})"
     )
     
     if mdim_original is None:
@@ -351,28 +350,28 @@ def _summary_information(
             x = 0,
             string = f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e}) (original {mdim_original:d} ({mdim_original:.2e}))"
         )
+    # vum.addstr(
+    #     y = y_offset + 2,
+    #     x = 0,
+    #     string = f"n valence protons, neutrons: {interaction.model_space_proton.n_valence_nucleons}, {interaction.model_space_neutron.n_valence_nucleons}"
+    # )
+    # vum.addstr(
+    #     y = y_offset + 3,
+    #     x = 0,
+    #     string = f"n core protons, neutrons: {interaction.n_core_protons}, {interaction.n_core_neutrons}"
+    # )
     vum.addstr(
         y = y_offset + 2,
-        x = 0,
-        string = f"n valence protons, neutrons: {interaction.model_space_proton.n_valence_nucleons}, {interaction.model_space_neutron.n_valence_nucleons}"
-    )
-    vum.addstr(
-        y = y_offset + 3,
-        x = 0,
-        string = f"n core protons, neutrons: {interaction.n_core_protons}, {interaction.n_core_neutrons}"
-    )
-    vum.addstr(
-        y = y_offset + 4,
         x = 0,
         string = f"n proton +, -, sum : ({partition_proton.n_existing_positive_configurations} + {partition_proton.n_new_positive_configurations}), ({partition_proton.n_existing_negative_configurations} + {partition_proton.n_new_negative_configurations}), ({partition_proton.n_existing_configurations} + {partition_proton.n_new_configurations})",
     )
     vum.addstr(
-        y = y_offset + 5,
+        y = y_offset + 3,
         x = 0,
         string = f"n neutron +, -, sum : ({partition_neutron.n_existing_positive_configurations} + {partition_neutron.n_new_positive_configurations}), ({partition_neutron.n_existing_negative_configurations} + {partition_neutron.n_new_negative_configurations}), ({partition_neutron.n_existing_configurations} + {partition_neutron.n_new_configurations})"
     )
     vum.addstr(
-        y = y_offset + 6,
+        y = y_offset + 4,
         x = 0,
         string = f"n combined: {partition_combined.n_configurations}"
     )
@@ -382,17 +381,17 @@ def _summary_information(
         string = "parity current configuration = None"
     )
     vum.addstr(
-        y = y_offset + 8,
+        y = y_offset + 6,
         x = 0,
         string = f"n proton, neutron configurations will be deleted because of parity or H.O. mismatch: {n_proton_skips, n_neutron_skips}"
     )
     vum.addstr(
-        y = y_offset + 9,
+        y = y_offset + 7,
         x = 0,
         string = f"n parity, H.O. skips: {n_parity_skips, n_ho_skips}"
     )
     vum.addstr(
-        y = y_offset + 10,
+        y = y_offset + 8,
         x = 0,
         string = f"Min H.O.: {partition_combined.ho_quanta_min}, max H.O.: {partition_combined.ho_quanta_max}"
     )
@@ -1262,7 +1261,7 @@ def _prompt_user_for_interaction_and_partition(vum: Vum):
 
     return filename_interaction, filename_partition
 
-def _load_interaction(
+def load_interaction(
     filename_interaction: str,
     interaction: Interaction
 ):
@@ -1344,7 +1343,7 @@ def _load_interaction(
         )
         raise KshellDataStructureError(msg)
 
-def _load_partition(
+def load_partition(
     filename_partition: str,
     interaction: Interaction,
     partition_proton: Partition,
@@ -1522,7 +1521,6 @@ def _load_partition(
 
 def partition_editor(
     filename_partition_edited: str | None = None,
-    input_wrapper: Callable | None = None,
 ):  
     """
     Wrapper for error handling.
@@ -1548,8 +1546,9 @@ def partition_editor(
         print(msg)
 
 def test_partition_editor(
-    filename_partition_edited = "test_partition.ptn",
-    filename_partition = "Sc44_GCLSTsdpfsdgix5pn_p.ptn",
+    filename_partition: str,
+    filename_interaction: str,
+    filename_partition_edited: str = "test_partition.ptn",
 ):
     try:
         os.remove(filename_partition_edited)
@@ -1557,13 +1556,15 @@ def test_partition_editor(
         pass
 
     _partition_editor(
-        filename_interaction = "GCLSTsdpfsdgix5pn.snt",
+        filename_interaction = filename_interaction,
         filename_partition = filename_partition,
         filename_partition_edited = filename_partition_edited,
         vum_wrapper = VumDummy,
     )
+    n_lines: int = 0
     with open(filename_partition_edited, "r") as infile_edited, open(filename_partition, "r") as infile:
         for line_edited, line in zip(infile_edited, infile):
+            n_lines += 1
             if line_edited != line:
                 line_edited = line_edited.rstrip('\n')
                 line = line.rstrip('\n')
@@ -1571,6 +1572,8 @@ def test_partition_editor(
                     f"{line_edited} != {line}"
                 )
                 raise KshellDataStructureError(msg)
+        else:
+            print(f"All {n_lines} lines are identical in the files {filename_partition} and {filename_partition_edited}!")
 
     try:
         os.remove(filename_partition_edited)
@@ -1604,7 +1607,6 @@ def _partition_editor(
     filename_interaction: str | None = None,
     filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
-    input_wrapper: Callable | None = None,
     vum_wrapper: Vum = Vum,
     is_recursive = False,
 ) -> tuple[int, int] | None:
@@ -1648,8 +1650,7 @@ def _partition_editor(
     
     vum: Vum = vum_wrapper()
     screen = vum.screen
-    if input_wrapper is None:
-        input_wrapper = vum.input
+    input_wrapper = vum.input
 
     screen.clear()  # Clear the screen between interactive sessions.
 
@@ -1756,9 +1757,9 @@ def _partition_editor(
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
     
-    _load_interaction(filename_interaction=filename_interaction, interaction=interaction)
+    load_interaction(filename_interaction=filename_interaction, interaction=interaction)
     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
-    header = _load_partition(
+    header = load_partition(
         filename_partition = filename_partition,
         interaction = interaction,
         partition_proton = partition_proton,
