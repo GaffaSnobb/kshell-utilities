@@ -125,14 +125,6 @@ class Partition:
     def n_existing_configurations(self) -> int:
         return self.n_existing_negative_configurations + self.n_existing_positive_configurations
     
-    # @property
-    # def ho_quanta_min(self):
-    #     return min(self.ho_quanta_min_this_parity, self.ho_quanta_min_opposite_parity)
-    
-    # @property
-    # def ho_quanta_max(self):
-    #     return max(self.ho_quanta_max_this_parity, self.ho_quanta_max_opposite_parity)
-    
     def clear(self):
         self.configurations.clear()
         self.n_existing_positive_configurations = 0
@@ -141,11 +133,3 @@ class Partition:
         self.n_new_negative_configurations = 0
         self.ho_quanta_min_this_parity = +1000
         self.ho_quanta_max_this_parity = -1000
-
-    # @property
-    # def all_configurations(self) -> list[Configuration]:
-    #     return self.existing_configurations + self.new_configurations
-    
-    # @all_configurations.setter
-    # def all_configurations(self, configurations: list[Configuration]):
-    #     self.existing_configurations.extend(configurations)
