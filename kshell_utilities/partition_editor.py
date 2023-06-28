@@ -1658,39 +1658,15 @@ def _partition_editor(
         tmp = _prompt_user_for_interaction_and_partition(vum=vum)
         if not tmp: return "Exiting without saving changes..."
         filename_interaction, filename_partition = tmp
+    
+    filename_partition_opposite_parity: str = \
+        filename_partition[0:-5] + ("n" if (filename_partition[-5] == "p") else "p") + filename_partition[-4:]
 
     partition_proton: Partition = Partition()
     partition_neutron: Partition = Partition()
     partition_combined: Partition = Partition()
-    interaction: Interaction = Interaction(
-        model_space = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        model_space_proton = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        model_space_neutron = ModelSpace(
-            orbitals = [],
-            n_major_shells = 0,
-            major_shell_names = set(),
-            n_orbitals = 0,
-            n_valence_nucleons = 0,
-        ),
-        name = filename_interaction,
-        n_core_protons = 0,
-        n_core_neutrons = 0,
-    )
-    
-    filename_partition_opposite_parity: str = \
-        filename_partition[0:-5] + ("n" if (filename_partition[-5] == "p") else "p") + filename_partition[-4:]
+    interaction: Interaction = Interaction()
+    interaction.name = filename_interaction
     
     if os.path.isfile(filename_partition_opposite_parity) and not is_recursive:
         """
