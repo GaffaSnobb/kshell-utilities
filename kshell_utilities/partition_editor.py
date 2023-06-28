@@ -9,6 +9,7 @@ from .parameters import (
 from .data_structures import (
     OrbitalParameters, Configuration, ModelSpace, Interaction, Partition
 )
+from .partition_tools import _prompt_user_for_interaction_and_partition
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 PARITY_CURRENT_Y_COORD = 5
 # is_duplicate_warning = True
@@ -1159,83 +1160,6 @@ def _sanity_checks(
         assert partition_combined.parity == partition_proton.configurations[p_idx].parity*partition_neutron.configurations[n_idx].parity
         assert configuration.ho_quanta == partition_proton.configurations[p_idx].ho_quanta + partition_neutron.configurations[n_idx].ho_quanta
 
-def _prompt_user_for_interaction_and_partition(vum: Vum):
-    filenames_interaction = sorted([i for i in os.listdir() if i.endswith(".snt")])
-    filenames_partition = sorted([i for i in os.listdir() if i.endswith(".ptn")])
-    
-    if not filenames_interaction:
-        return f"No interaction file present in {os.getcwd()}. Exiting..."
-    if not filenames_partition:
-        return f"No partition file present in {os.getcwd()}. Exiting..."
-
-    if len(filenames_interaction) == 1:
-        filename_interaction = filenames_interaction[0]
-        vum.screen.addstr(0, 0, f"{filename_interaction} chosen")
-        vum.screen.refresh()
-
-    elif len(filenames_interaction) > 1:
-        interaction_choices: str = ""
-        for i in range(len(filenames_interaction)):
-            interaction_choices += f"{filenames_interaction[i]} ({i}), "
-        
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several interaction files detected.")
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, interaction_choices)
-        vum.screen.refresh()
-        
-        while True:
-            ans = vum.input("Several interaction files detected. Please make a choice")
-            if ans == "q": return False
-            try:
-                ans = int(ans)
-            except ValueError:
-                continue
-            
-            try:
-                filename_interaction = filenames_interaction[ans]
-            except IndexError:
-                continue
-
-            break
-
-    vum.screen.addstr(0, 0, vum.blank_line)
-    vum.screen.addstr(1, 0, vum.blank_line)
-    vum.screen.refresh()
-    
-    if len(filenames_partition) == 1:
-        filename_partition = filenames_partition[0]
-        vum.screen.addstr(0, 0, f"{filename_partition} chosen")
-        vum.screen.refresh()
-
-    elif len(filenames_partition) > 1:
-        partition_choices: str = ""
-        for i in range(len(filenames_partition)):
-            partition_choices += f"{filenames_partition[i]} ({i}), "
-        
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
-        vum.screen.refresh()
-        
-        while True:
-            ans = vum.input("Several partition files detected. Please make a choice")
-            if ans == "q": return False
-            try:
-                ans = int(ans)
-            except ValueError:
-                continue
-            
-            try:
-                filename_partition = filenames_partition[ans]
-            except IndexError:
-                continue
-
-            break
-    
-    vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
-    vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, vum.blank_line)
-    vum.screen.refresh()
-
-    return filename_interaction, filename_partition
-
 def load_interaction(
     filename_interaction: str,
     interaction: Interaction,
@@ -1554,8 +1478,8 @@ def test_partition_editor(
                     f"{line_edited} != {line}"
                 )
                 raise KshellDataStructureError(msg)
-        else:
-            print(f"All {n_lines} lines are identical in the files {filename_partition} and {filename_partition_edited}!")
+        # else:
+        #     print(f"All {n_lines} lines are identical in the files {filename_partition} and {filename_partition_edited}!")
 
     try:
         os.remove(filename_partition_edited)
@@ -1631,7 +1555,7 @@ def _partition_editor(
     screen.clear()  # Clear the screen between interactive sessions.
 
     if (filename_interaction is None) or (filename_partition is None):
-        tmp = _prompt_user_for_interaction_and_partition(vum=vum)
+        tmp = _prompt_user_for_interaction_and_partition(vum=vum, is_compare_mode=False)
         if not tmp: return "Exiting without saving changes..."
         filename_interaction, filename_partition = tmp
     
