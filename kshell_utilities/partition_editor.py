@@ -11,6 +11,7 @@ from .data_structures import (
 )
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 PARITY_CURRENT_Y_COORD = 5
+# is_duplicate_warning = True
 y_offset: int = 0
 
 class ScreenDummy:
@@ -600,13 +601,56 @@ def _generate_total_configurations(
 def _check_configuration_duplicate(
     new_configuration: list[int],
     existing_configurations: list[Configuration],
-) -> bool | list[int]:
+    vum: Vum,
+    interaction: Interaction,
+    is_proton: bool,
+    is_neutron: bool,
+    init_orb_idx: int,
+    n_particles_choice: int,
+    is_duplicate_warning: bool,
+) -> bool:
+    """
+    allow_duplicate_warning : bool
+        The duplicate warnings should just be displayed if the user
+        requested configurations have duplicates in the existing
+        configurations. This program might have some overlap in the
+        configuration generation algorithms and in these cases no
+        duplicate warning should be displayed.
+    """
     
     for i, configuration in enumerate(existing_configurations):
         if new_configuration == configuration.configuration:
-            return [str(i), configuration]
+            duplicate_configuration =  [str(i), configuration]
+            break
+    else:
+        return False
+    
+    if not is_duplicate_warning: return True
+    
+    vum.addstr(
+        vum.n_rows - 3 - vum.command_log_length, 0,
+        f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
+    )
+    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
+
+    for i in range(len(new_configuration)):
+        draw_shell_map(
+            vum = vum,
+            model_space = interaction.model_space.orbitals,
+            is_proton = is_proton,
+            is_neutron = is_neutron,
+            occupation = (i, new_configuration[i]),
+        )
+    draw_shell_map(
+        vum = vum,
+        model_space = interaction.model_space.orbitals,
+        is_proton = is_proton,
+        is_neutron = is_neutron,
+        occupation = (init_orb_idx, new_configuration[init_orb_idx] + n_particles_choice),
+        n_holes = n_particles_choice,
+    )
         
-    return False
+    return True
 
 def _add_npnh_excitations(
     vum: Vum,
@@ -817,46 +861,43 @@ def _add_npnh_excitations(
                 new_configuration = configuration.configuration.copy()
                 new_configuration[init_orb_idx] -= n_particles_choice
                 new_configuration[final_orb_idx] += n_particles_choice
+
+                is_duplicate_configuration = _check_configuration_duplicate(
+                    new_configuration = new_configuration,
+                    existing_configurations = new_configurations,
+                    vum = vum,
+                    interaction = interaction,
+                    is_proton = is_proton,
+                    is_neutron = is_neutron,
+                    init_orb_idx = init_orb_idx,
+                    n_particles_choice = n_particles_choice,
+                    is_duplicate_warning = False
+                )
+
+                if is_duplicate_configuration:
+                    """
+                    Checking against the newly generated configuraions.
+                    """
+                    continue
                 
-                duplicate_configuration = _check_configuration_duplicate(
+                is_duplicate_configuration = _check_configuration_duplicate(
                     new_configuration = new_configuration,
                     existing_configurations = partition.configurations,
+                    vum = vum,
+                    interaction = interaction,
+                    is_proton = is_proton,
+                    is_neutron = is_neutron,
+                    init_orb_idx = init_orb_idx,
+                    n_particles_choice = n_particles_choice,
+                    is_duplicate_warning = is_duplicate_warning,
                 )
-                if duplicate_configuration:
+                if is_duplicate_configuration:
                     """
                     Check that the newly generated configuration does
                     not already exist.
                     """
                     n_duplicate_skips += 1
-                    if not is_duplicate_warning:
-                        """
-                        Skip duplicates without showing them.
-                        """
-                        continue
-
-                    vum.addstr(
-                        vum.n_rows - 3 - vum.command_log_length, 0,
-                        f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
-                    )
-                    draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                    for i in range(len(new_configuration)):
-                        draw_shell_map(
-                            vum = vum,
-                            model_space = interaction.model_space.orbitals,
-                            is_proton = is_proton,
-                            is_neutron = is_neutron,
-                            occupation = (i, new_configuration[i]),
-                        )
-                    draw_shell_map(
-                        vum = vum,
-                        model_space = interaction.model_space.orbitals,
-                        is_proton = is_proton,
-                        is_neutron = is_neutron,
-                        occupation = (init_orb_idx, new_configuration[init_orb_idx] + n_particles_choice),
-                        n_holes = n_particles_choice,
-                    )
-                    duplicate_choice = input_wrapper("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
+                    duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
                     if duplicate_choice == "i": is_duplicate_warning = False
                     continue
 
@@ -877,25 +918,6 @@ def _add_npnh_excitations(
                         ho_quanta = ho_quanta_tmp
                     )
                 )
-                # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                # for i in range(len(new_configuration)):
-                #     draw_shell_map(
-                #         vum = vum,
-                #         model_space = interaction.model_space.orbitals,
-                #         is_proton = is_proton,
-                #         is_neutron = is_neutron,
-                #         occupation = (i, new_configuration[i]),
-                #     )
-                # draw_shell_map(
-                #     vum = vum,
-                #     model_space = interaction.model_space.orbitals,
-                #     is_proton = is_proton,
-                #     is_neutron = is_neutron,
-                #     occupation = (init_orb_idx, new_configuration[init_orb_idx] + n_particles_choice),
-                #     n_holes = n_particles_choice,
-                # )
-                # time.sleep(0.5)
 
     if n_particles_choice == 1:
         """
@@ -949,48 +971,45 @@ def _add_npnh_excitations(
                         new_configuration[init_orb_idx_2]  -= 1
                         new_configuration[final_orb_idx_1] += 1
                         new_configuration[final_orb_idx_2] += 1
+                        
+                        is_duplicate_configuration = _check_configuration_duplicate(
+                            new_configuration = new_configuration,
+                            existing_configurations = new_configurations,
+                            vum = vum,
+                            interaction = interaction,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            init_orb_idx = init_orb_idx,
+                            n_particles_choice = n_particles_choice,
+                            is_duplicate_warning = False
+                        )
 
-                        if (duplicate_configuration := _check_configuration_duplicate(new_configuration=new_configuration, existing_configurations=partition.configurations)):
+                        if is_duplicate_configuration:
+                            """
+                            Checking against the newly generated configuraions.
+                            """
+                            continue
+                        
+                        is_duplicate_configuration = _check_configuration_duplicate(
+                            new_configuration = new_configuration,
+                            existing_configurations = partition.configurations,
+                            vum = vum,
+                            interaction = interaction,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            init_orb_idx = init_orb_idx,
+                            n_particles_choice = n_particles_choice,
+                            is_duplicate_warning = is_duplicate_warning,
+                        )
+                        if is_duplicate_configuration:
                             """
                             Check that the newly generated configuration does
                             not already exist.
                             """
                             n_duplicate_skips += 1
-                            vum.addstr(
-                                vum.n_rows - 3 - vum.command_log_length, 0,
-                                f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
-                            )
-                            vum.addstr(
-                                vum.n_rows - 2 - vum.command_log_length, 0,
-                                f"{partition.configurations[-1] = }"
-                            )
-                            draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                            for i in range(len(new_configuration)):
-                                draw_shell_map(
-                                    vum = vum,
-                                    model_space = interaction.model_space.orbitals,
-                                    is_proton = is_proton,
-                                    is_neutron = is_neutron,
-                                    occupation = (i, new_configuration[i]),
-                                )
-                            draw_shell_map(
-                                vum = vum,
-                                model_space = interaction.model_space.orbitals,
-                                is_proton = is_proton,
-                                is_neutron = is_neutron,
-                                occupation = (init_orb_idx_1, new_configuration[init_orb_idx_1] + 1),
-                                n_holes = 1,
-                            )
-                            draw_shell_map(
-                                vum = vum,
-                                model_space = interaction.model_space.orbitals,
-                                is_proton = is_proton,
-                                is_neutron = is_neutron,
-                                occupation = (init_orb_idx_2, new_configuration[init_orb_idx_2] + 1),
-                                n_holes = 1,
-                            )
-                            input_wrapper("Enter any char to continue")
+                            duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
+                            if duplicate_choice == "i": is_duplicate_warning = False
+                            continue
 
                         parity_tmp = _calculate_configuration_parity(
                             configuration = new_configuration,
@@ -1009,33 +1028,6 @@ def _add_npnh_excitations(
                                 ho_quanta = ho_quanta_tmp,
                             )
                         )
-                        # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                        # for i in range(len(new_configuration)):
-                        #     draw_shell_map(
-                        #         vum = vum,
-                        #         model_space = interaction.model_space.orbitals,
-                        #         is_proton = is_proton,
-                        #         is_neutron = is_neutron,
-                        #         occupation = (i, new_configuration[i]),
-                        #     )
-                        # draw_shell_map(
-                        #     vum = vum,
-                        #     model_space = interaction.model_space.orbitals,
-                        #     is_proton = is_proton,
-                        #     is_neutron = is_neutron,
-                        #     occupation = (init_orb_idx_1, new_configuration[init_orb_idx_1] + 1),
-                        #     n_holes = 1,
-                        # )
-                        # draw_shell_map(
-                        #     vum = vum,
-                        #     model_space = interaction.model_space.orbitals,
-                        #     is_proton = is_proton,
-                        #     is_neutron = is_neutron,
-                        #     occupation = (init_orb_idx_2, new_configuration[init_orb_idx_2] + 1),
-                        #     n_holes = 1,
-                        # )
-                        # time.sleep(0.5)
 
                 for f1 in range(len(final_orbital_indices)):
                     """
@@ -1054,56 +1046,44 @@ def _add_npnh_excitations(
                     new_configuration[init_orb_idx_2]  -= 1
                     new_configuration[final_orb_idx_1] += n_particles_choice
 
-                    if _check_configuration_duplicate(new_configuration=new_configuration, existing_configurations=new_configurations):
+                    is_duplicate_configuration = _check_configuration_duplicate(
+                        new_configuration = new_configuration,
+                        existing_configurations = new_configurations,
+                        vum = vum,
+                        interaction = interaction,
+                        is_proton = is_proton,
+                        is_neutron = is_neutron,
+                        init_orb_idx = init_orb_idx,
+                        n_particles_choice = n_particles_choice,
+                        is_duplicate_warning = False
+                    )
+
+                    if is_duplicate_configuration:
                         """
-                        Check for duplicates to the new
-                        configurations which were created earlier in
-                        this function. There is some overlap so
-                        we'll just skip the duplicates here.
+                        Checking against the newly generated configuraions.
                         """
                         continue
-
-                    if (duplicate_configuration := _check_configuration_duplicate(new_configuration=new_configuration, existing_configurations=partition.configurations)):
+                    
+                    is_duplicate_configuration = _check_configuration_duplicate(
+                        new_configuration = new_configuration,
+                        existing_configurations = partition.configurations,
+                        vum = vum,
+                        interaction = interaction,
+                        is_proton = is_proton,
+                        is_neutron = is_neutron,
+                        init_orb_idx = init_orb_idx,
+                        n_particles_choice = n_particles_choice,
+                        is_duplicate_warning = is_duplicate_warning,
+                    )
+                    if is_duplicate_configuration:
                         """
                         Check that the newly generated configuration does
                         not already exist.
                         """
                         n_duplicate_skips += 1
-                        vum.addstr(
-                            vum.n_rows - 3 - vum.command_log_length, 0,
-                            f"DUPLICATE: {new_configuration = }, {duplicate_configuration = }"
-                        )
-                        vum.addstr(
-                            vum.n_rows - 2 - vum.command_log_length, 0,
-                            f"{partition.configurations[-1] = }"
-                        )
-                        draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                        for i in range(len(new_configuration)):
-                            draw_shell_map(
-                                vum = vum,
-                                model_space = interaction.model_space.orbitals,
-                                is_proton = is_proton,
-                                is_neutron = is_neutron,
-                                occupation = (i, new_configuration[i]),
-                            )
-                        draw_shell_map(
-                            vum = vum,
-                            model_space = interaction.model_space.orbitals,
-                            is_proton = is_proton,
-                            is_neutron = is_neutron,
-                            occupation = (init_orb_idx_1, new_configuration[init_orb_idx_1] + 1),
-                            n_holes = 1,
-                        )
-                        draw_shell_map(
-                            vum = vum,
-                            model_space = interaction.model_space.orbitals,
-                            is_proton = is_proton,
-                            is_neutron = is_neutron,
-                            occupation = (init_orb_idx_2, new_configuration[init_orb_idx_2] + 1),
-                            n_holes = 1,
-                        )
-                        input_wrapper("Enter any char to continue")
+                        duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
+                        if duplicate_choice == "i": is_duplicate_warning = False
+                        continue
 
                     parity_tmp = _calculate_configuration_parity(
                         configuration = new_configuration,
@@ -1122,33 +1102,6 @@ def _add_npnh_excitations(
                             ho_quanta = ho_quanta_tmp
                         )
                     )
-                    # draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=is_proton, is_neutron=is_neutron)
-
-                    # for i in range(len(new_configuration)):
-                    #     draw_shell_map(
-                    #         vum = vum,
-                    #         model_space = interaction.model_space.orbitals,
-                    #         is_proton = is_proton,
-                    #         is_neutron = is_neutron,
-                    #         occupation = (i, new_configuration[i]),
-                    #     )
-                    # draw_shell_map(
-                    #     vum = vum,
-                    #     model_space = interaction.model_space.orbitals,
-                    #     is_proton = is_proton,
-                    #     is_neutron = is_neutron,
-                    #     occupation = (init_orb_idx_1, new_configuration[init_orb_idx_1] + 1),
-                    #     n_holes = 1,
-                    # )
-                    # draw_shell_map(
-                    #     vum = vum,
-                    #     model_space = interaction.model_space.orbitals,
-                    #     is_proton = is_proton,
-                    #     is_neutron = is_neutron,
-                    #     occupation = (init_orb_idx_2, new_configuration[init_orb_idx_2] + 1),
-                    #     n_holes = 1,
-                    # )
-                    # time.sleep(0.5)
 
     partition.configurations.extend(new_configurations)
     if n_duplicate_skips:
@@ -1168,15 +1121,37 @@ def _sanity_checks(
     A few different sanity checks to make sure that the new
     configurations are physical.
     """
-    for configuration in partition_proton.configurations:
+    for i, configuration in enumerate(partition_proton.configurations):
         assert len(configuration.configuration) == interaction.model_space_proton.n_orbitals
         assert sum(configuration.configuration) == interaction.model_space_proton.n_valence_nucleons
         assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_proton.orbitals)]) == configuration.ho_quanta
 
-    for configuration in partition_neutron.configurations:
+        for j in range(i+1, partition_proton.n_configurations):
+            assert partition_proton.configurations[i].configuration != partition_proton.configurations[j].configuration, f"Duplicate proton configs {i} and {j}!"
+
+        for orbital, occupation in zip(interaction.model_space_proton.orbitals, configuration.configuration):
+            """
+            Check that max degeneracy is respected.
+            """
+            assert occupation <= (orbital.j + 1), "Occupation should never be lager than the max degeneracy!"
+
+    assert (i + 1) == partition_proton.n_configurations
+
+    for i, configuration in enumerate(partition_neutron.configurations):
         assert len(configuration.configuration) == interaction.model_space_neutron.n_orbitals
         assert sum(configuration.configuration) == interaction.model_space_neutron.n_valence_nucleons
         assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_neutron.orbitals)]) == configuration.ho_quanta
+
+        for j in range(i+1, partition_neutron.n_configurations):
+            assert partition_neutron.configurations[i].configuration != partition_neutron.configurations[j].configuration, f"Duplicate neutron configs {i} and {j}!"
+
+        for orbital, occupation in zip(interaction.model_space_neutron.orbitals, configuration.configuration):
+            """
+            Check that max degeneracy is respected.
+            """
+            assert occupation <= (orbital.j + 1), "Occupation should never be lager than the max degeneracy!"
+
+    assert (i + 1) == partition_neutron.n_configurations
 
     for configuration in partition_combined.configurations:
         p_idx, n_idx = configuration.configuration
@@ -1263,8 +1238,9 @@ def _prompt_user_for_interaction_and_partition(vum: Vum):
 
 def load_interaction(
     filename_interaction: str,
-) -> Interaction:
-    interaction: Interaction = Interaction(name=filename_interaction)
+    interaction: Interaction,
+):
+    interaction.name = filename_interaction
     with open(filename_interaction, "r") as infile:
         """
         Extract information from the interaction file about the orbitals
@@ -1342,8 +1318,6 @@ def load_interaction(
             "The orbitals in the model space are not indexed correctly!"
         )
         raise KshellDataStructureError(msg)
-    
-    return interaction
 
 def load_partition(
     filename_partition: str,
@@ -1501,7 +1475,13 @@ def load_partition(
 
         partition_combined.ho_quanta_min = min(ho_quanta_min, partition_combined.ho_quanta_min_opposite_parity)
         partition_combined.ho_quanta_max = max(ho_quanta_max, partition_combined.ho_quanta_max_opposite_parity)
-    
+
+    _sanity_checks(
+        partition_proton = partition_proton,
+        partition_neutron = partition_neutron,
+        partition_combined = partition_combined,
+        interaction = interaction,
+    )
     assert len(partition_proton.configurations) == n_proton_configurations
     assert len(partition_neutron.configurations) == n_neutron_configurations
     assert len(partition_combined.configurations) == n_combined_configurations
@@ -1661,9 +1641,7 @@ def _partition_editor(
     partition_proton: Partition = Partition()
     partition_neutron: Partition = Partition()
     partition_combined: Partition = Partition()
-    # interaction: Interaction = Interaction(name=filename_interaction)
-    # load_interaction(filename_interaction=filename_interaction, interaction=interaction)
-    interaction: Interaction = load_interaction(filename_interaction=filename_interaction)
+    interaction: Interaction = Interaction()
     
     if os.path.isfile(filename_partition_opposite_parity) and not is_recursive:
         """
@@ -1691,6 +1669,7 @@ def _partition_editor(
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
     
+    load_interaction(filename_interaction=filename_interaction, interaction=interaction)
     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
     header = load_partition(
         filename_partition = filename_partition,
@@ -1760,16 +1739,6 @@ def _partition_editor(
             total_partition = [configuration.configuration for configuration in partition_combined.configurations],
         )
     mdim_original: int = mdim[-1]
-    # vum.addstr(y_offset, 0, f"{filename_interaction}, {filename_partition}")
-    # vum.addstr(y_offset + 1, 0, f"M-scheme dim (M={M[-1]}): {mdim[-1]:d} ({mdim[-1]:.2e})")
-    # vum.addstr(y_offset + 2, 0, f"n proton, neutron configurations: {partition_proton.n_configurations}, {partition_neutron.n_configurations}")
-    # vum.addstr(y_offset + 3, 0, f"n valence protons, neutrons: {interaction.model_space_proton.n_valence_nucleons}, {interaction.model_space_neutron.n_valence_nucleons}")
-    # vum.addstr(y_offset + 4, 0, f"n core protons, neutrons: {interaction.n_core_protons}, {interaction.n_core_neutrons}")
-    # vum.addstr(y_offset + 5, 0, f"{partition_combined.parity = }")
-    # vum.addstr(y_offset + 6, 0, f"n proton +, - : {partition_proton.n_existing_positive_configurations}, {partition_proton.n_existing_negative_configurations}")
-    # vum.addstr(y_offset + 7, 0, f"n neutron +, - : {partition_neutron.n_existing_positive_configurations}, {partition_neutron.n_existing_negative_configurations}")
-    # vum.addstr(y_offset + PARITY_CURRENT_Y_COORD, 0, "parity current configuration = None")
-    # vum.addstr(y_offset + 9, 0, f"n pn configuration combinations: {partition_combined.n_configurations}")
     _summary_information(
         vum = vum,
         filename_interaction = filename_interaction,
