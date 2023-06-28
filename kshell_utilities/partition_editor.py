@@ -10,6 +10,7 @@ from .data_structures import (
     OrbitalParameters, Configuration, ModelSpace, Interaction, Partition
 )
 from .partition_tools import _prompt_user_for_interaction_and_partition
+from .partition_compare import _partition_compare
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 PARITY_CURRENT_Y_COORD = 5
 # is_duplicate_warning = True
@@ -1432,9 +1433,18 @@ def partition_editor(
     Wrapper for error handling.
     """
     try:
-        msg = _partition_editor(
-            filename_partition_edited = filename_partition_edited,
-        )
+        vum: Vum = Vum()
+        program_choice = vum.input("Edit or compare? (e/c)")
+        if program_choice == "e":
+            msg = _partition_editor(
+                filename_partition_edited = filename_partition_edited,
+                vum_wrapper = vum,
+            )
+        elif program_choice == "c":
+            msg = _partition_compare(vum=vum)
+        
+        else: return
+
     except KeyboardInterrupt:
         curses.endwin()
         print("Exiting without saving changes...")
@@ -1460,12 +1470,13 @@ def test_partition_editor(
         os.remove(filename_partition_edited)
     except FileNotFoundError:
         pass
-
+    
+    vum: VumDummy = VumDummy()
     _partition_editor(
         filename_interaction = filename_interaction,
         filename_partition = filename_partition,
         filename_partition_edited = filename_partition_edited,
-        vum_wrapper = VumDummy,
+        vum_wrapper = vum,
     )
     n_lines: int = 0
     with open(filename_partition_edited, "r") as infile_edited, open(filename_partition, "r") as infile:
@@ -1494,12 +1505,13 @@ def test_partition_editor_2(
         os.remove(filename_partition_edited)
     except FileNotFoundError:
         pass
-
+    
+    vum: VumDummy2 = VumDummy2()
     ans = _partition_editor(
         filename_interaction = "gs8.snt",
         filename_partition = filename_partition,
         filename_partition_edited = filename_partition_edited,
-        vum_wrapper = VumDummy2,
+        vum_wrapper = vum,
     )
 
     try:
@@ -1510,10 +1522,10 @@ def test_partition_editor_2(
     print(ans)
 
 def _partition_editor(
+    vum_wrapper: Vum,
     filename_interaction: str | None = None,
     filename_partition: str | None = None,
     filename_partition_edited: str | None = None,
-    vum_wrapper: Vum = Vum,
     is_recursive = False,
 ) -> tuple[int, int] | None:
     """
@@ -1548,7 +1560,7 @@ def _partition_editor(
     global return_string
     return_string = ""  # For returning a message to be printed after the screen closes.
     
-    vum: Vum = vum_wrapper()
+    vum: Vum = vum_wrapper
     screen = vum.screen
     input_wrapper = vum.input
 
@@ -1575,7 +1587,7 @@ def _partition_editor(
         partition_combined.ho_quanta_min_opposite_parity, partition_combined.ho_quanta_max_opposite_parity = _partition_editor(
             filename_interaction = filename_interaction,
             filename_partition = filename_partition_opposite_parity,
-            vum_wrapper = VumDummy,
+            vum_wrapper = VumDummy(),
             is_recursive = True,
         )
     elif not os.path.isfile(filename_partition_opposite_parity):
