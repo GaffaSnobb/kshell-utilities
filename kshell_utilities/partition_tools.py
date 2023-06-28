@@ -65,11 +65,10 @@ def _prompt_user_for_interaction_and_partition(
         for i in range(len(filenames_partition)):
             partition_choices += f"{filenames_partition[i]} ({i}), "
         
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
-        vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
-        vum.screen.refresh()
-        
         while True:
+            vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, "Several partition files detected.")
+            vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length, 0, partition_choices)
+            vum.screen.refresh()
             ans = vum.input("Several partition files detected. Please make a choice")
             if ans == "q": return False
             try:
@@ -83,7 +82,7 @@ def _prompt_user_for_interaction_and_partition(
             except IndexError:
                 continue
             
-            if is_compare_mode and (len(filename_interaction) < 2): continue
+            if is_compare_mode and (len(filename_partition) < 2): continue
             break
     
     vum.screen.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
