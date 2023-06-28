@@ -73,7 +73,7 @@ def _partition_compare(vum: Vum):
         vum = vum,
         is_compare_mode = True,
     )
-    filename_interaction, filename_partition_a, filename_partition_b = tmp
+    filename_interaction, (filename_partition_a, filename_partition_b) = tmp
     # filename_interaction = "gs8.snt"
     interaction: Interaction = Interaction()
     ksutil.load_interaction(
