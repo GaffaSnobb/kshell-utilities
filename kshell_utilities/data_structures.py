@@ -7,7 +7,6 @@ class OrbitalOrder:
     shell model orbitals.
     """
     idx: int    # NOTE: Indices are in the "standard shell model order", not the order of the interaction file.
-    # idx_snt: None | int # Index of the orbital as listed in the interaction file.
     major_shell_idx: int
     major_shell_name: str
 
@@ -32,22 +31,20 @@ class OrbitalParameters:
 
 @dataclass
 class ModelSpace:
-    orbitals: list[OrbitalParameters]
-    n_major_shells: int
-    major_shell_names: set[str]
-    n_orbitals: int
-    n_valence_nucleons: int
-    # n_proton_orbitals: int
-    # n_neutron_orbitals: int
+    orbitals: list[OrbitalParameters] = field(default_factory=list)
+    major_shell_names: set[str] = field(default_factory=set)
+    n_major_shells: int = 0
+    n_orbitals: int = 0
+    n_valence_nucleons: int = 0
 
 @dataclass
 class Interaction:
-    model_space: ModelSpace
-    model_space_proton: ModelSpace
-    model_space_neutron: ModelSpace
-    name: str
-    n_core_protons: int
-    n_core_neutrons: int
+    model_space: ModelSpace = field(default_factory=ModelSpace)
+    model_space_proton: ModelSpace = field(default_factory=ModelSpace)
+    model_space_neutron: ModelSpace = field(default_factory=ModelSpace)
+    name: str = ""
+    n_core_protons: int = 0
+    n_core_neutrons: int = 0
 
 @dataclass
 class Configuration:
