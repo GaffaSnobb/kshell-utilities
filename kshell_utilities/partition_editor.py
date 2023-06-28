@@ -1263,8 +1263,8 @@ def _prompt_user_for_interaction_and_partition(vum: Vum):
 
 def load_interaction(
     filename_interaction: str,
-    interaction: Interaction
-):
+) -> Interaction:
+    interaction: Interaction = Interaction(name=filename_interaction)
     with open(filename_interaction, "r") as infile:
         """
         Extract information from the interaction file about the orbitals
@@ -1342,6 +1342,8 @@ def load_interaction(
             "The orbitals in the model space are not indexed correctly!"
         )
         raise KshellDataStructureError(msg)
+    
+    return interaction
 
 def load_partition(
     filename_partition: str,
@@ -1638,12 +1640,6 @@ def _partition_editor(
     filename_partition_edited : str | None
         The name of the edited partition file. If None, a name will be
         generated automatically.
-
-    input_wrapper : Callable
-        NOTE: CURRENTLY NOT FUNCTIONING FOR TESTS. Defaults to `input`
-        which asks the user for input. This wrapper exists so that unit
-        tests can be performed in which case
-        `input_wrapper = input_wrapper_test`.
     """
     global return_string
     return_string = ""  # For returning a message to be printed after the screen closes.
@@ -1665,8 +1661,9 @@ def _partition_editor(
     partition_proton: Partition = Partition()
     partition_neutron: Partition = Partition()
     partition_combined: Partition = Partition()
-    interaction: Interaction = Interaction()
-    interaction.name = filename_interaction
+    # interaction: Interaction = Interaction(name=filename_interaction)
+    # load_interaction(filename_interaction=filename_interaction, interaction=interaction)
+    interaction: Interaction = load_interaction(filename_interaction=filename_interaction)
     
     if os.path.isfile(filename_partition_opposite_parity) and not is_recursive:
         """
@@ -1694,7 +1691,6 @@ def _partition_editor(
     if filename_partition_edited is None:
         filename_partition_edited = f"{filename_partition.split('.')[0]}_edited.ptn"
     
-    load_interaction(filename_interaction=filename_interaction, interaction=interaction)
     draw_shell_map(vum=vum, model_space=interaction.model_space.orbitals, is_proton=True, is_neutron=True)
     header = load_partition(
         filename_partition = filename_partition,
