@@ -899,7 +899,8 @@ def _add_npnh_excitations(
                     not already exist.
                     """
                     n_duplicate_skips += 1
-                    duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
+                    if not is_duplicate_warning: continue
+                    duplicate_choice = vum.input("Enter anylool char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
                     if duplicate_choice == "i": is_duplicate_warning = False
                     continue
 
@@ -1009,6 +1010,7 @@ def _add_npnh_excitations(
                             not already exist.
                             """
                             n_duplicate_skips += 1
+                            if not is_duplicate_warning: continue
                             duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
                             if duplicate_choice == "i": is_duplicate_warning = False
                             continue
@@ -1083,6 +1085,7 @@ def _add_npnh_excitations(
                         not already exist.
                         """
                         n_duplicate_skips += 1
+                        if not is_duplicate_warning: continue
                         duplicate_choice = vum.input("Enter any char to continue or 'i' to ignore duplicate warnings (they will still be deleted)")
                         if duplicate_choice == "i": is_duplicate_warning = False
                         continue
