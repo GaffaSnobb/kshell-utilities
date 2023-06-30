@@ -1,5 +1,80 @@
 import os
 from vum import Vum
+from .data_structures import OrbitalParameters, Partition, Interaction
+
+def _sanity_checks(
+    partition_proton: Partition,
+    partition_neutron: Partition,
+    partition_combined: Partition,
+    interaction: Interaction,
+):
+    """
+    A few different sanity checks to make sure that the new
+    configurations are physical.
+    """
+    for i, configuration in enumerate(partition_proton.configurations):
+        assert len(configuration.configuration) == interaction.model_space_proton.n_orbitals
+        assert sum(configuration.configuration) == interaction.model_space_proton.n_valence_nucleons
+        assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_proton.orbitals)]) == configuration.ho_quanta
+
+        for j in range(i+1, partition_proton.n_configurations):
+            assert partition_proton.configurations[i].configuration != partition_proton.configurations[j].configuration, f"Duplicate proton configs {i} and {j}!"
+
+        for orbital, occupation in zip(interaction.model_space_proton.orbitals, configuration.configuration):
+            """
+            Check that max degeneracy is respected.
+            """
+            assert occupation <= (orbital.j + 1), "Occupation should never be lager than the max degeneracy!"
+
+    assert (i + 1) == partition_proton.n_configurations
+
+    for i, configuration in enumerate(partition_neutron.configurations):
+        assert len(configuration.configuration) == interaction.model_space_neutron.n_orbitals
+        assert sum(configuration.configuration) == interaction.model_space_neutron.n_valence_nucleons
+        assert sum([n*orb.ho_quanta for n, orb in zip(configuration.configuration, interaction.model_space_neutron.orbitals)]) == configuration.ho_quanta
+
+        for j in range(i+1, partition_neutron.n_configurations):
+            assert partition_neutron.configurations[i].configuration != partition_neutron.configurations[j].configuration, f"Duplicate neutron configs {i} and {j}!"
+
+        for orbital, occupation in zip(interaction.model_space_neutron.orbitals, configuration.configuration):
+            """
+            Check that max degeneracy is respected.
+            """
+            assert occupation <= (orbital.j + 1), "Occupation should never be lager than the max degeneracy!"
+
+    assert (i + 1) == partition_neutron.n_configurations
+
+    for configuration in partition_combined.configurations:
+        p_idx, n_idx = configuration.configuration
+        
+        assert partition_combined.parity == partition_proton.configurations[p_idx].parity*partition_neutron.configurations[n_idx].parity
+        assert configuration.ho_quanta == partition_proton.configurations[p_idx].ho_quanta + partition_neutron.configurations[n_idx].ho_quanta
+
+def _calculate_configuration_parity(
+    configuration: list[int],
+    model_space: list[OrbitalParameters]
+) -> int:
+    """
+    Calculate the parity of a configuration.
+
+    Parameters
+    ----------
+    configuration : list[int]
+        The configuration to calculate the parity of.
+    
+    model_space : list[OrbitalParameters]
+        The model space orbitals to use for the calculation.
+    """
+    if not configuration:
+        msg = "Configuration is empty! Undefined behaviour."
+        raise ValueError(msg)
+
+    parity: int = 1
+    for i in range(len(configuration)):
+        if not configuration[i]: continue   # Empty orbitals do not count towards the total parity.
+        parity *= model_space[i].parity**configuration[i]
+
+    return parity
 
 def _prompt_user_for_interaction_and_partition(
     vum: Vum,

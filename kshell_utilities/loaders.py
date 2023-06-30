@@ -1,9 +1,279 @@
 import time, sys
 from fractions import Fraction
 from typing import TextIO
-import numpy as np
 from .kshell_exceptions import KshellDataStructureError
-from .parameters import flags
+from .data_structures import (
+    Interaction, Partition, OrbitalParameters, Configuration
+)
+from .parameters import (
+    spectroscopic_conversion, shell_model_order, flags
+)
+from .partition_tools import _calculate_configuration_parity, _sanity_checks
+
+def load_interaction(
+    filename_interaction: str,
+    interaction: Interaction,
+):
+    interaction.name = filename_interaction
+    with open(filename_interaction, "r") as infile:
+        """
+        Extract information from the interaction file about the orbitals
+        in the model space.
+        """
+        for line in infile:
+            """
+            Example:
+            ! 2015/07/13
+            ! from GCLSTsdpfsdgix5pn.snt 
+            !  8 0g9/2  -0.8MeV
+            !  9 0g7/2  -3.2MeV
+            ! 10 1d5/2  -2.5MeV
+            ! 11 1d3/2  -5.7MeV
+            ! 12 2s1/2  -4.0MeV
+            !
+            ! sdpfsdg_64.sps
+            ! sdpfsdg-shell
+            ! index,    n,  l,  j, tz
+            12  12   8   8
+            ...
+            """
+            if line[0] != "!":
+                tmp = line.split()
+                interaction.model_space_proton.n_orbitals = int(tmp[0])
+                interaction.model_space_neutron.n_orbitals = int(tmp[1])
+                interaction.model_space.n_orbitals = (
+                    interaction.model_space_proton.n_orbitals + interaction.model_space_neutron.n_orbitals
+                )
+                interaction.n_core_protons = int(tmp[2])
+                interaction.n_core_neutrons = int(tmp[3])
+                break
+
+        for line in infile:
+            if line[0] == "!": break
+            idx, n, l, j, tz = [int(i) for i in line.split("!")[0].split()]
+            idx -= 1
+            nucleon = "p" if tz == -1 else "n"
+            name = f"{n}{spectroscopic_conversion[l]}{j}"
+            tmp_orbital = OrbitalParameters(
+                idx = idx,
+                n = n,
+                l = l,
+                j = j,
+                tz = tz,
+                nucleon = nucleon,
+                name = f"{nucleon}{name}",
+                parity = (-1)**l,
+                order = shell_model_order[name],
+                ho_quanta = 2*n + l
+            )
+            interaction.model_space.orbitals.append(tmp_orbital)
+            interaction.model_space.major_shell_names.add(shell_model_order[name].major_shell_name)
+
+            if tz == -1:
+                interaction.model_space_proton.orbitals.append(tmp_orbital)
+                interaction.model_space_proton.major_shell_names.add(shell_model_order[name].major_shell_name)
+            elif tz == +1:
+                interaction.model_space_neutron.orbitals.append(tmp_orbital)
+                interaction.model_space_neutron.major_shell_names.add(shell_model_order[name].major_shell_name)
+            else:
+                msg = f"Valid values for tz are -1 and +1, got {tz=}"
+                raise ValueError(msg)
+
+    interaction.model_space.n_major_shells = len(interaction.model_space.major_shell_names)
+    interaction.model_space_proton.n_major_shells = len(interaction.model_space_proton.major_shell_names)
+    interaction.model_space_neutron.n_major_shells = len(interaction.model_space_neutron.major_shell_names)
+
+    if not all(orb.idx == i for i, orb in enumerate(interaction.model_space.orbitals)):
+        """
+        Make sure that the list indices are the same as the orbit
+        indices.
+        """
+        msg = (
+            "The orbitals in the model space are not indexed correctly!"
+        )
+        raise KshellDataStructureError(msg)
+
+def load_partition(
+    filename_partition: str,
+    interaction: Interaction,
+    partition_proton: Partition,
+    partition_neutron: Partition,
+    partition_combined: Partition,
+) -> str:
+    header: str = ""
+    with open(filename_partition, "r") as infile:
+        # truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
+        # hw_min, hw_max = [int(i.split("=")[1].strip()) for i in truncation_info.split(",")[1:]] # NOTE: No idea what happens if no hw trunc is specified.
+        for line in infile:
+            """
+            Extract the information from the header before partitions
+            are specified. Example:
+
+            # hw trucnation,  min hw = 0 ,   max hw = 1
+            # partition file of gs8.snt  Z=20  N=31  parity=-1
+            20 31 -1
+            # num. of  proton partition, neutron partition
+            86 4
+            # proton partition
+            ...
+            """
+            if "#" not in line:
+                tmp = [int(i) for i in line.split()]
+
+                try:
+                    """
+                    For example:
+                    20 31 -1
+                    """
+                    n_valence_protons, n_valence_neutrons, parity_partition = tmp
+
+                    partition_proton.parity = parity_partition
+                    partition_neutron.parity = parity_partition
+                    partition_combined.parity = parity_partition
+                    interaction.model_space.n_valence_nucleons = n_valence_protons + n_valence_neutrons
+                    interaction.model_space_proton.n_valence_nucleons = n_valence_protons
+                    interaction.model_space_neutron.n_valence_nucleons = n_valence_neutrons
+                except ValueError:
+                    """
+                    For example:
+                    86 4
+                    """
+                    n_proton_configurations, n_neutron_configurations = tmp
+                    infile.readline()   # Skip header.
+                    break
+
+            header += line
+
+        ho_quanta_min: int = +1000  # The actual number of harmonic oscillator quanta will never be smaller or larger than these values.
+        ho_quanta_max: int = -1000
+        for line in infile:
+            """
+            Extract proton configurations.
+            """
+            if "# neutron partition" in line: break
+
+            configuration = [int(i) for i in line.split()[1:]]
+
+            parity_tmp = _calculate_configuration_parity(
+                configuration = configuration,
+                model_space = interaction.model_space_proton.orbitals
+            )
+            if   parity_tmp == -1: partition_proton.n_existing_negative_configurations += 1
+            elif parity_tmp == +1: partition_proton.n_existing_positive_configurations += 1
+
+            assert len(interaction.model_space_proton.orbitals) == len(configuration)
+
+            ho_quanta_tmp = sum([   # The number of harmonic oscillator quanta for each configuration.
+                n*orb.ho_quanta for n, orb in zip(configuration, interaction.model_space_proton.orbitals)
+            ])
+            ho_quanta_min = min(ho_quanta_min, ho_quanta_tmp)
+            ho_quanta_max = max(ho_quanta_max, ho_quanta_tmp)
+            
+            partition_proton.configurations.append(
+                Configuration(
+                    configuration = configuration,
+                    parity = parity_tmp,
+                    ho_quanta = ho_quanta_tmp,
+                )
+            )
+        partition_proton.ho_quanta_min_this_parity = ho_quanta_min
+        partition_proton.ho_quanta_max_this_parity = ho_quanta_max
+        ho_quanta_min: int = +1000  # Reset for neutrons.
+        ho_quanta_max: int = -1000
+        
+        for line in infile:
+            """
+            Extract neutron configurations.
+            """
+            if "# partition of proton and neutron" in line: break
+
+            configuration = [int(i) for i in line.split()[1:]]
+
+            parity_tmp = _calculate_configuration_parity(
+                configuration = configuration,
+                model_space = interaction.model_space_neutron.orbitals
+            )
+            if   parity_tmp == -1: partition_neutron.n_existing_negative_configurations += 1
+            elif parity_tmp == +1: partition_neutron.n_existing_positive_configurations += 1
+
+            assert len(interaction.model_space_neutron.orbitals) == len(configuration)
+
+            ho_quanta_tmp = sum([   # The number of harmonic oscillator quanta for each configuration.
+                n*orb.ho_quanta for n, orb in zip(configuration, interaction.model_space_neutron.orbitals)
+            ])
+            ho_quanta_min = min(ho_quanta_min, ho_quanta_tmp)
+            ho_quanta_max = max(ho_quanta_max, ho_quanta_tmp)
+            
+            partition_neutron.configurations.append(
+                Configuration(
+                    configuration = configuration,
+                    parity = parity_tmp,
+                    ho_quanta = ho_quanta_tmp,
+                )
+            )
+        partition_neutron.ho_quanta_min_this_parity = ho_quanta_min
+        partition_neutron.ho_quanta_max_this_parity = ho_quanta_max
+        ho_quanta_min: int = +1000  # Reset for combined.
+        ho_quanta_max: int = -1000
+        n_combined_configurations = int(infile.readline())
+
+        for line in infile:
+            """
+            Extract the combined pn configurations.
+            """
+            proton_idx, neutron_idx = line.split()
+            proton_idx = int(proton_idx) - 1
+            neutron_idx = int(neutron_idx) - 1
+            parity_tmp = partition_proton.configurations[proton_idx].parity*partition_neutron.configurations[neutron_idx].parity
+            assert parity_partition == parity_tmp
+
+            if   parity_tmp == -1: partition_combined.n_existing_negative_configurations += 1
+            elif parity_tmp == +1: partition_combined.n_existing_positive_configurations += 1
+
+            ho_quanta_tmp = (
+                partition_proton.configurations[proton_idx].ho_quanta + 
+                partition_neutron.configurations[neutron_idx].ho_quanta
+            )
+            ho_quanta_min = min(ho_quanta_min, ho_quanta_tmp)
+            ho_quanta_max = max(ho_quanta_max, ho_quanta_tmp)
+
+            partition_combined.configurations.append(
+                Configuration(
+                    configuration = [proton_idx, neutron_idx],
+                    parity = parity_partition,
+                    ho_quanta = ho_quanta_tmp,
+                )
+            )
+        partition_combined.ho_quanta_min_this_parity = ho_quanta_min
+        partition_combined.ho_quanta_max_this_parity = ho_quanta_max
+
+        partition_combined.ho_quanta_min = min(ho_quanta_min, partition_combined.ho_quanta_min_opposite_parity)
+        partition_combined.ho_quanta_max = max(ho_quanta_max, partition_combined.ho_quanta_max_opposite_parity)
+
+    _sanity_checks(
+        partition_proton = partition_proton,
+        partition_neutron = partition_neutron,
+        partition_combined = partition_combined,
+        interaction = interaction,
+    )
+    assert len(partition_proton.configurations) == n_proton_configurations
+    assert len(partition_neutron.configurations) == n_neutron_configurations
+    assert len(partition_combined.configurations) == n_combined_configurations
+
+    assert (
+        partition_proton.n_existing_negative_configurations + partition_proton.n_existing_positive_configurations + 
+        partition_proton.n_new_negative_configurations + partition_proton.n_new_positive_configurations
+    ) == n_proton_configurations
+    assert (
+        partition_neutron.n_existing_negative_configurations + partition_neutron.n_existing_positive_configurations + 
+        partition_neutron.n_new_negative_configurations + partition_neutron.n_new_positive_configurations
+    ) == n_neutron_configurations
+    assert (
+        partition_combined.n_existing_negative_configurations + partition_combined.n_existing_positive_configurations + 
+        partition_combined.n_new_negative_configurations + partition_combined.n_new_positive_configurations
+    ) == n_combined_configurations
+
+    return header
 
 def _parity_string_to_integer(parity: str):
     if parity == "+":
