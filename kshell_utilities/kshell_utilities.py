@@ -1935,10 +1935,45 @@ class ReadKshellOutput:
 
         return Ex_range, Eg_range, B_matrix
 
-    def mixing_ratio(self):
+    @property
+    def mixing_pairs_BM1_BE2(self):
+        return self._mixing_pairs(
+            B_left = "M1",
+            B_right = "E2",
+        )
+
+    def _mixing_pairs(self,
+        B_left: str = "M1",
+        B_right: str = "E2",
+    ):
+        """
+        
+        """
+        if B_left not in ["M1", "E2"]:
+            msg = f"'B_left' must be 'M1' or 'E2', got: {B_left}"
+            raise ValueError(msg)
+        
+        if B_right not in ["M1", "E2"]:
+            msg = f"'B_right' must be 'M1' or 'E2', got: {B_right}"
+            raise ValueError(msg)
+        
+        transitions_dict = {
+            "M1": self.transitions_BM1,
+            "E2": self.transitions_BE2,
+            "E1": self.transitions_BE1
+        }
+        transitions_left = transitions_dict[B_left]
+        transitions_right = transitions_dict[B_right]
+        
+        mixing_pairs_fname = f"{self.npy_path}/{self.base_fname}_mixing_pairs_B{B_left}_B{B_right}_{self.unique_id}.npy"
+
+        if os.path.isfile(mixing_pairs_fname) and self.load_and_save_to_file and (self.load_and_save_to_file != "overwrite"):
+            print(f"Mixing pairs loaded from .npy!")
+            mixing_pairs = np.load(file=mixing_pairs_fname, allow_pickle=True)
+            return mixing_pairs        
         
         @numba.njit
-        def calculate_mixing_ratio(
+        def calculate_mixing_pairs(
             possible_j: list[int],
             possible_indices: list[int],
             transitions_BM1: np.ndarray,
@@ -1993,16 +2028,23 @@ class ReadKshellOutput:
                 
             return mixing_pairs
 
-        possible_j = np.unique(self.transitions_BM1[:, 0])
-        possible_indices = np.unique(self.transitions_BM1[:, 2])
-        assert np.all(possible_indices == np.unique(self.transitions_BM1[:, 6]))    # Check that indices of the initial and final levels are the same range.
+        mixing_pairs_time = time.perf_counter()
+        possible_j = np.unique(transitions_left[:, 0])
+        possible_indices = np.unique(transitions_left[:, 2])
+        assert np.all(possible_indices == np.unique(transitions_left[:, 6]))    # Check that indices of the initial and final levels are the same range.
         
-        return calculate_mixing_ratio(
-            transitions_BM1 = self.transitions_BM1,
-            transitions_BE2 = self.transitions_BE2,
+        mixing_pairs = calculate_mixing_pairs(
+            transitions_BM1 = transitions_left,
+            transitions_BE2 = transitions_right,
             possible_j = possible_j,
             possible_indices = possible_indices,
         )
+        mixing_pairs.sort(key=lambda tup: tup[0][8])    # Sort wrt. gamma energy.
+        mixing_pairs = np.array(mixing_pairs)
+        np.save(file=mixing_pairs_fname, arr=mixing_pairs, allow_pickle=True)
+        mixing_pairs_time = time.perf_counter() - mixing_pairs_time
+        print(f"{mixing_pairs_time = :.3f} s")
+        return mixing_pairs
 
     @property
     def help(self):
