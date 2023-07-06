@@ -3,6 +3,7 @@ from fractions import Fraction
 from typing import Union, Callable, Tuple, Iterable
 from itertools import chain
 import numpy as np
+import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
 from .collect_logs import collect_logs
@@ -1933,6 +1934,75 @@ class ReadKshellOutput:
             plt.show()
 
         return Ex_range, Eg_range, B_matrix
+
+    def mixing_ratio(self):
+        
+        @numba.njit
+        def calculate_mixing_ratio(
+            possible_j: list[int],
+            possible_indices: list[int],
+            transitions_BM1: np.ndarray,
+            transitions_BE2: np.ndarray,
+        ):
+            mixing_pairs = []
+
+            for ji in possible_j:
+                ji_slice_BM1 = transitions_BM1[transitions_BM1[:, 0] == ji]
+                ji_slice_BE2 = transitions_BE2[transitions_BE2[:, 0] == ji]
+
+                if (not ji_slice_BM1.size) or (not ji_slice_BE2.size): return
+
+                for jf in possible_j:
+                    # if not j_allowed(ji=ji, jf=jf): continue
+                    jf_slice_BM1 = ji_slice_BM1[ji_slice_BM1[:, 4] == jf]
+                    jf_slice_BE2 = ji_slice_BE2[ji_slice_BE2[:, 4] == jf]
+
+                    if (not jf_slice_BM1.size) or (not jf_slice_BE2.size): continue
+
+                    for pi in [-1, 1]:
+                        """
+                        [2*spin_initial, parity_initial, idx_initial, Ex_initial, 2*spin_final,
+                        parity_final, idx_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
+                        """
+                        pi_i_slice_BM1 = jf_slice_BM1[jf_slice_BM1[:, 1] == pi]
+                        pi_i_slice_BE2 = jf_slice_BE2[jf_slice_BE2[:, 1] == pi]
+
+                        if (not pi_i_slice_BM1.size) or (not pi_i_slice_BE2.size): continue
+                        
+                        pi_f_slice_BM1 = pi_i_slice_BM1[pi_i_slice_BM1[:, 5] == pi]
+                        pi_f_slice_BE2 = pi_i_slice_BE2[pi_i_slice_BE2[:, 5] == pi]
+
+                        if (not pi_f_slice_BM1.size) or (not pi_f_slice_BE2.size): continue
+
+                        for idx_i in possible_indices:
+                            idx_i_slice_BM1 = pi_f_slice_BM1[pi_f_slice_BM1[:, 2] == idx_i]
+                            idx_i_slice_BE2 = pi_f_slice_BE2[pi_f_slice_BE2[:, 2] == idx_i]
+
+                            if (not idx_i_slice_BM1.size) or (not idx_i_slice_BE2.size): continue
+
+                            for idx_f in possible_indices:
+                                idx_f_slice_BM1 = idx_i_slice_BM1[idx_i_slice_BM1[:, 2] == idx_f]
+                                idx_f_slice_BE2 = idx_i_slice_BE2[idx_i_slice_BE2[:, 2] == idx_f]
+
+                                if (not idx_f_slice_BM1.size) or (not idx_f_slice_BE2.size): continue
+
+                                for transition_BM1 in idx_f_slice_BM1:
+                                    for transition_BE2 in idx_f_slice_BE2:
+                                        if (transition_BM1[3] == transition_BE2[3]) and (transition_BM1[7] == transition_BE2[7]):
+                                            mixing_pairs.append([transition_BM1, transition_BE2])
+                
+            return mixing_pairs
+
+        possible_j = np.unique(self.transitions_BM1[:, 0])
+        possible_indices = np.unique(self.transitions_BM1[:, 2])
+        assert np.all(possible_indices == np.unique(self.transitions_BM1[:, 6]))    # Check that indices of the initial and final levels are the same range.
+        
+        return calculate_mixing_ratio(
+            transitions_BM1 = self.transitions_BM1,
+            transitions_BE2 = self.transitions_BE2,
+            possible_j = possible_j,
+            possible_indices = possible_indices,
+        )
 
     @property
     def help(self):
