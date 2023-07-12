@@ -201,6 +201,7 @@ class ReadKshellOutput:
         self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
         self._extract_info_from_summary_fname()
         self._read_summary()
+        self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2")
         
         self.ground_state_energy = self.levels[0, 0]
         
@@ -1935,27 +1936,29 @@ class ReadKshellOutput:
 
         return Ex_range, Eg_range, B_matrix
 
-    @property
-    def mixing_pairs_BM1_BE2(self):
-        return self._mixing_pairs(
-            B_left = "M1",
-            B_right = "E2",
-        )
+    # @property
+    # def mixing_pairs_BM1_BE2(self):
+    #     return self._mixing_pairs(
+    #         B_left = "M1",
+    #         B_right = "E2",
+    #     )
 
     def _mixing_pairs(self,
         B_left: str = "M1",
         B_right: str = "E2",
     ):
         """
-        
+        NOTE: Currently hard-coded for BM1_BE2!
         """
-        if B_left not in ["M1", "E2"]:
-            msg = f"'B_left' must be 'M1' or 'E2', got: {B_left}"
-            raise ValueError(msg)
+        if B_left != "M1":#not in ["M1", "E2"]:
+            # msg = f"'B_left' must be 'M1' or 'E2', got: {B_left}"
+            # raise ValueError(msg)
+            raise ValueError
         
-        if B_right not in ["M1", "E2"]:
-            msg = f"'B_right' must be 'M1' or 'E2', got: {B_right}"
-            raise ValueError(msg)
+        if B_right != "E2":# not in ["M1", "E2"]:
+            # msg = f"'B_right' must be 'M1' or 'E2', got: {B_right}"
+            # raise ValueError(msg)
+            raise ValueError
         
         transitions_dict = {
             "M1": self.transitions_BM1,
