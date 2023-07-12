@@ -45,6 +45,13 @@ class Interaction:
     name: str = ""
     n_core_protons: int = 0
     n_core_neutrons: int = 0
+    n_spe: int = 0
+    spe: list[float] = field(default_factory=list)  # Single-particle energies.
+    n_tbme: int = 0
+    # tbme: list[list[int | float]] = field(default_factory=list) # Two-body matrix elements.
+    tbme: dict[tuple[int, int, int, int, int], float] = field(default_factory=dict) # Two-body matrix elements.
+    fmd_mass: int = 0   # Dont know what this is yet.
+    fmd_power: float = 0    # The exponent of fmd_mass.
 
 @dataclass
 class Configuration:

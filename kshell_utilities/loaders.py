@@ -1,6 +1,7 @@
-import time, sys
+import time, sys, ast
 from fractions import Fraction
 from typing import TextIO
+import numpy as np
 from .kshell_exceptions import KshellDataStructureError
 from .data_structures import (
     Interaction, Partition, OrbitalParameters, Configuration
@@ -22,19 +23,18 @@ def load_interaction(
         """
         for line in infile:
             """
-            Example:
-            ! 2015/07/13
-            ! from GCLSTsdpfsdgix5pn.snt 
-            !  8 0g9/2  -0.8MeV
-            !  9 0g7/2  -3.2MeV
-            ! 10 1d5/2  -2.5MeV
-            ! 11 1d3/2  -5.7MeV
-            ! 12 2s1/2  -4.0MeV
+            Example
+            -------
+            ! GXPF1A  pf-shell 
+            ! M. Honma, T. Otsuka, B. A. Brown, and T. Mizusaki, 
+            !   Eur. Phys. J. A 25, Suppl. 1, 499 (2005). 
             !
-            ! sdpfsdg_64.sps
-            ! sdpfsdg-shell
-            ! index,    n,  l,  j, tz
-            12  12   8   8
+            ! default input parameters 
+            !namelist eff_charge = 1.5, 0.5
+            !namelist orbs_ratio = 2, 3, 4, 6, 7, 8
+            !
+            ! model space
+            4   4    20  20
             ...
             """
             if line[0] != "!":
@@ -49,6 +49,21 @@ def load_interaction(
                 break
 
         for line in infile:
+            """
+            Example
+            -------
+            4   4    20  20
+            1       0   3   7  -1    !  1 = p 0f_7/2
+            2       1   1   3  -1    !  2 = p 1p_3/2
+            3       0   3   5  -1    !  3 = p 0f_5/2
+            4       1   1   1  -1    !  4 = p 1p_1/2
+            5       0   3   7   1    !  5 = n 0f_7/2
+            6       1   1   3   1    !  6 = n 1p_3/2
+            7       0   3   5   1    !  7 = n 0f_5/2
+            8       1   1   1   1    !  8 = n 1p_1/2
+            ! interaction
+            ...
+            """
             if line[0] == "!": break
             idx, n, l, j, tz = [int(i) for i in line.split("!")[0].split()]
             idx -= 1
@@ -78,6 +93,117 @@ def load_interaction(
             else:
                 msg = f"Valid values for tz are -1 and +1, got {tz=}"
                 raise ValueError(msg)
+            
+        for line in infile:
+            """
+            Example
+            -------
+            ! GCLSTsdpfsdgix5pn.int
+            !   p-n formalism
+                24      0
+            ...
+            """
+            if line[0] != "!":
+                tmp = line.split()
+                if int(tmp[1]) != 0: raise NotImplementedError
+                interaction.n_spe = int(tmp[0])
+                break
+
+        for line in infile:
+            """
+            Example
+            -------
+            1   1     -8.62400
+            2   2     -5.67930
+            3   3     -1.38290
+            4   4     -4.13700
+            5   5     -8.62400
+            6   6     -5.67930
+            7   7     -1.38290
+            8   8     -4.13700
+            518   1  42  -0.30000
+            ...
+            """
+            tmp = line.split()
+            if len(tmp) != 3: break
+            interaction.spe.append(float(tmp[2]))
+
+        try:
+            interaction.n_tbme = int(tmp[0])
+            interaction.fmd_mass = int(tmp[2])
+            interaction.fmd_power = float(tmp[3])
+        except IndexError:
+            """
+            I dont really know what this is yet.
+            """
+            msg = "Interactions with no mass dependence have not yet been implemented."
+            raise NotImplementedError(msg)
+
+        for line in infile:
+            """
+            NOTE: This way of structuring the TBMEs is taken from
+            espe.py.
+            """
+            i0, i1, i2, i3, j, tbme = line.split()
+            i0 = int(i0) - 1
+            i1 = int(i1) - 1
+            i2 = int(i2) - 1
+            i3 = int(i3) - 1
+            j = int(j)
+            tbme = float(tbme)
+
+            if (i0, i1, i2, i3, j) in interaction.tbme:
+                """
+                I dont yet understand why I should check the TBME value
+                when I already know that the indices are the same. This
+                is how it is done in espe.py (why check > 1.e-3 and not
+                < 1.e-3?):
+                if (i,j,k,l,J) in vtb:
+                    if abs( v - vtb[i,j,k,l,J] )>1.e-3:
+                            print( 'WARNING duplicate TBME', i+1,j+1,k+1,l+1,J,v,vtb[(i,j,k,l,J)] )
+
+                """
+                print('WARNING duplicate TBME!', i0 + 1, i1 + 1, i2 + 1, i3 + 1, j, tbme, interaction.tbme[(i0, i1, i2, i3, j)])
+
+            interaction.tbme[(i0, i1, i2, i3, j)] = tbme
+            s01 = (-1) **( (interaction.model_space.orbitals[i0].j + interaction.model_space.orbitals[i1].j)/2 - j + 1)
+            s23 = (-1) **( (interaction.model_space.orbitals[i2].j + interaction.model_space.orbitals[i3].j)/2 - j + 1)
+            
+            if i0 != i1:
+                interaction.tbme[(i1, i0, i2, i3, j)] = tbme*s01
+            if i2 != i3:
+                interaction.tbme[(i0, i1, i3, i2, j)] = tbme*s23
+            if (i0 != i1) and (i2 != i3):
+                interaction.tbme[(i1, i0, i3, i2, j)] = tbme*s01*s23
+            
+            if (i0, i1) != (i2, i3):
+                interaction.tbme[(i2, i3, i0, i1, j)] = tbme
+                if i0 != i1:
+                    interaction.tbme[(i2, i3, i1, i0, j)] = tbme*s01
+                if i2 != i3:
+                    interaction.tbme[(i3, i2, i0, i1, j)] = tbme*s23
+                if (i0 != i1) and (i2!=i3):
+                    interaction.tbme[(i3, i2, i1, i0, j)] = tbme*s01*s23
+
+    assert len(interaction.spe) == interaction.n_spe
+    # assert len(interaction.tbme) == interaction.n_tbme
+
+    self.vm = np.zeros( (nj, nj) )
+    # non-diagonal
+    for i in range(nj):
+        for j in range(nj):
+            Jmin = abs(self.jorb[i] - self.jorb[j])//2
+            Jmax = (self.jorb[i] + self.jorb[j])//2
+            skip = 1
+            if i == j: skip = 2
+            for J in range(Jmin, Jmax+1, skip):
+                if not (i,j,i,j,J) in vtb.keys(): 
+                    print( "# Warning not found TBME entry",i+1,j+1,i+1,j+1,J )
+            v = sum([ (2.*J+1.)*vtb.get((i,j,i,j,J), 0.0)
+                        for J in range(Jmin, Jmax+1, skip) ]) 
+            d = sum([ 2.*J+1.
+                        for J in range(Jmin, Jmax+1, skip) ]) 
+            self.vm[i,j] = v/d
 
     interaction.model_space.n_major_shells = len(interaction.model_space.major_shell_names)
     interaction.model_space_proton.n_major_shells = len(interaction.model_space_proton.major_shell_names)
