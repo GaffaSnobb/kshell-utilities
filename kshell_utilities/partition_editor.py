@@ -1,4 +1,5 @@
-import time, os, curses
+import time, os, curses, warnings
+from math import inf
 from typing import Callable
 from vum import Vum
 from .count_dim import count_dim
@@ -7,14 +8,16 @@ from .parameters import (
     spectroscopic_conversion, shell_model_order, major_shell_order
 )
 from .data_structures import (
-    OrbitalParameters, Configuration, ModelSpace, Interaction, Partition
+    OrbitalParameters, Configuration, ModelSpace, Interaction, Partition, Skips
 )
 from .partition_tools import (
     _prompt_user_for_interaction_and_partition, _calculate_configuration_parity,
-    _sanity_checks,
+    _sanity_checks, configuration_energy,
 )
 from .loaders import load_partition, load_interaction
 from .partition_compare import _partition_compare
+
+warnings.filterwarnings("ignore", category=UserWarning)
 DELAY: int = 2  # Delay time for time.sleep(DELAY) in seconds
 PARITY_CURRENT_Y_COORD = 5
 # is_duplicate_warning = True
@@ -298,6 +301,7 @@ def draw_shell_map(
 
 def _summary_information(
     vum: Vum,
+    skips: Skips,
     filename_interaction: str,
     filename_partition: str,
     partition_proton: Partition,
@@ -306,10 +310,10 @@ def _summary_information(
     interaction: Interaction,
     M: list[int],
     mdim: list[int],
-    n_proton_skips: int,
-    n_neutron_skips: int,
-    n_parity_skips: int,
-    n_ho_skips: int,
+    # n_proton_skips: int,
+    # n_neutron_skips: int,
+    # n_parity_skips: int,
+    # n_ho_skips: int,
     y_offset: int,
     mdim_original: int | None = None,
 ):
@@ -364,27 +368,47 @@ def _summary_information(
     vum.addstr(
         y = y_offset + 6,
         x = 0,
-        string = f"n proton, neutron configurations will be deleted because of parity or H.O. mismatch: {n_proton_skips, n_neutron_skips}"
+        string = f"n proton, neutron configurations will be deleted because of parity or H.O. mismatch: {skips.n_proton_skips, skips.n_neutron_skips}"
     )
     vum.addstr(
         y = y_offset + 7,
         x = 0,
-        string = f"n parity, H.O. skips: {n_parity_skips, n_ho_skips}"
+        string = f"n parity, H.O. skips: {skips.n_parity_skips, skips.n_ho_skips}"
     )
     vum.addstr(
         y = y_offset + 8,
+        x = 0,
+        string = f"Monopole trunc skips: {skips.n_monopole_skips}"
+    )
+    if partition_combined.max_configuration_energy_original == partition_combined.max_configuration_energy:
+        vum.addstr(
+            y = y_offset + 9,
+            x = 0,
+            string = f"Min, max configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f}"
+        )
+    else:
+        vum.addstr(
+            y = y_offset + 9,
+            x = 0,
+            string = f"Min, max configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f} (original {partition_combined.max_configuration_energy_original:.2f})"
+        )
+    vum.addstr(
+        y = y_offset + 10,
         x = 0,
         string = f"Min H.O.: {partition_combined.ho_quanta_min}, max H.O.: {partition_combined.ho_quanta_max}"
     )
 
 def _generate_total_configurations(
+    interaction: Interaction,
     partition_proton: Partition,
     partition_neutron: Partition,
     partition_combined: Partition,
     partition_file_parity: int,
+    skips: Skips,
+    threshold_energy: float,
     allow_invalid: bool = True,
     is_recursive: bool = False,
-) -> tuple[int, int]:
+):# -> tuple[int, int]:
     """
     Generate all the possible combinations of proton and neutron
     configurations. The parities of the proton and neutron
@@ -421,6 +445,7 @@ def _generate_total_configurations(
     proton_configurations_count: list[int] = [0]*partition_proton.n_configurations
     proton_configurations_parity_skips: list[int] = [0]*partition_proton.n_configurations
     proton_configurations_ho_skips: list[int] = [0]*partition_proton.n_configurations
+    n_monopole_skips = 0
     
     for p_idx in range(partition_proton.n_configurations):
         for n_idx in range(partition_neutron.n_configurations):
@@ -448,6 +473,31 @@ def _generate_total_configurations(
                 neutron_configurations_ho_skips[n_idx] += 1
                 proton_configurations_ho_skips[p_idx] += 1
                 continue
+            
+            is_original = partition_proton.configurations[p_idx].is_original and partition_neutron.configurations[n_idx].is_original
+            energy = configuration_energy(
+                interaction = interaction,
+                proton_configuration = partition_proton.configurations[p_idx],
+                neutron_configuration = partition_neutron.configurations[n_idx],
+            )
+            if (energy > threshold_energy) and not is_original:
+                """
+                Skip configurations with energies over the threshold
+                energy only if they are newly generated configurations
+                and not originally existing configurations.
+                """
+                n_monopole_skips += 1
+                continue
+            
+            if energy < partition_combined.min_configuration_energy:
+                """
+                I am not yet sure if this is OK or not.
+                """
+                msg = (
+                    "A newly calculated pn configuration energy is lower than"
+                    " the initial lowest energy pn configuration!"
+                )
+                raise RuntimeError(msg)
 
             neutron_configurations_count[n_idx] += 1
             proton_configurations_count[p_idx] += 1
@@ -463,6 +513,8 @@ def _generate_total_configurations(
                     configuration = [p_idx, n_idx],
                     parity = parity_tmp,
                     ho_quanta = ho_quanta_tmp,
+                    energy = energy,
+                    is_original = is_original,
                 )
             )
     if is_recursive:
@@ -533,50 +585,26 @@ def _generate_total_configurations(
                 
                 partition_neutron.configurations.pop(n_idx)
 
-        # raise KshellDataStructureError(proton_configurations_count)
         _generate_total_configurations( # Re-generate combined partition after removing invalid p and n configs.
+            interaction = interaction,
             partition_proton = partition_proton,
             partition_neutron = partition_neutron,
             partition_combined = partition_combined,
             partition_file_parity = partition_file_parity,
+            skips = skips,
+            threshold_energy = threshold_energy,
             is_recursive = True,
         )
-
-    # for p_idx in range(partition_proton.n_configurations):
-    #     if proton_configurations_count[p_idx] == 0:
-    #         msg = (
-    #             f"Proton configuration {p_idx} ({partition_proton.configurations[p_idx].configuration}) has not been paired with"
-    #             " any neutron configuration!"
-    #             f" Skips because of parity: {proton_configurations_parity_skips[p_idx]}"
-    #             f" Skips because of hw truncation: {proton_configurations_ho_skips[p_idx]}"
-    #             # " any neutron configuration due to parity mismatch."
-    #             # f" Unable to produce partition file parity ({partition_file_parity})"
-    #             # f" with the parity of this configuration ({partition_proton.configurations[p_idx].parity})."
-    #         )
-    #         raise KshellDataStructureError(msg)
-
-    # for n_idx in range(partition_neutron.n_configurations):
-    #     if neutron_configurations_count[n_idx] == 0:
-    #         msg = (
-    #             f"Neutron configuration {n_idx} ({partition_neutron.configurations[n_idx].configuration}) has not been paired with"
-    #             " any proton configuration!"
-    #             f" Skips because of parity: {proton_configurations_parity_skips[p_idx]}"
-    #             f" Skips because of hw truncation: {proton_configurations_ho_skips[p_idx]}"
-    #             # " any proton configuration due to parity mismatch."
-    #             # f" Unable to produce partition file parity ({partition_file_parity})"
-    #             # f" with the parity of this configuration ({partition_neutron.configurations[n_idx].parity})."
-    #         )
-    #         raise KshellDataStructureError(msg)
 
     # assert ho_quanta_min_before == partition_combined.ho_quanta_min_this_parity, f"{ho_quanta_min_before} != {partition_combined.ho_quanta_min_this_parity}"
     # assert ho_quanta_max_before == partition_combined.ho_quanta_max_this_parity, f"{ho_quanta_max_before} != {partition_combined.ho_quanta_max_this_parity}"
     
-    n_proton_skips = len([i for i in proton_configurations_count if i == 0])    # The number of proton configurations which will be removed at the end of this program.
-    n_neutron_skips = len([i for i in neutron_configurations_count if i == 0])  # The number of neutron configurations which will be removed at the end of this program.
-    n_parity_skips = sum(proton_configurations_parity_skips) + sum(neutron_configurations_parity_skips)
-    n_ho_skips = sum(proton_configurations_ho_skips) + sum(neutron_configurations_ho_skips)
-    
-    return n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips
+    partition_combined.max_configuration_energy = max([configuration.energy for configuration in partition_combined.configurations])
+    skips.n_proton_skips = len([i for i in proton_configurations_count if i == 0])    # The number of proton configurations which will be removed at the end of this program.
+    skips.n_neutron_skips = len([i for i in neutron_configurations_count if i == 0])  # The number of neutron configurations which will be removed at the end of this program.
+    skips.n_parity_skips = sum(proton_configurations_parity_skips) + sum(neutron_configurations_parity_skips)
+    skips.n_ho_skips = sum(proton_configurations_ho_skips) + sum(neutron_configurations_ho_skips)
+    skips.n_monopole_skips = n_monopole_skips
 
 def _check_configuration_duplicate(
     new_configuration: list[int],
@@ -896,7 +924,9 @@ def _add_npnh_excitations(
                     Configuration(
                         configuration = new_configuration.copy(),
                         parity = parity_tmp,
-                        ho_quanta = ho_quanta_tmp
+                        ho_quanta = ho_quanta_tmp,
+                        energy = None,
+                        is_original = False,
                     )
                 )
 
@@ -1008,6 +1038,8 @@ def _add_npnh_excitations(
                                 configuration = new_configuration.copy(),
                                 parity = parity_tmp,
                                 ho_quanta = ho_quanta_tmp,
+                                energy = None,
+                                is_original = False,
                             )
                         )
 
@@ -1082,7 +1114,9 @@ def _add_npnh_excitations(
                         Configuration(
                             configuration = new_configuration.copy(),
                             parity = parity_tmp,
-                            ho_quanta = ho_quanta_tmp
+                            ho_quanta = ho_quanta_tmp,
+                            energy = None,
+                            is_original = False,
                         )
                     )
 
@@ -1102,6 +1136,7 @@ def partition_editor(
     """
     try:
         vum: Vum = Vum()
+        vum.screen.clear()  # Clear the screen between interactive sessions.
         program_choice = vum.input("Edit or compare? (e/c)")
         if program_choice == "e":
             msg = _partition_editor(
@@ -1232,7 +1267,7 @@ def _partition_editor(
     screen = vum.screen
     input_wrapper = vum.input
 
-    screen.clear()  # Clear the screen between interactive sessions.
+    # screen.clear()  # Clear the screen between interactive sessions.
 
     if (filename_interaction is None) or (filename_partition is None):
         tmp = _prompt_user_for_interaction_and_partition(vum=vum, is_compare_mode=False)
@@ -1246,6 +1281,8 @@ def _partition_editor(
     partition_neutron: Partition = Partition()
     partition_combined: Partition = Partition()
     interaction: Interaction = Interaction()
+    skips: Skips = Skips()
+    threshold_energy: float = inf    # Threshold energy for monopole truncation. inf means no truncation.
     
     if os.path.isfile(filename_partition_opposite_parity) and not is_recursive:
         """
@@ -1291,10 +1328,13 @@ def _partition_editor(
 
     combined_existing_configurations_expected: list[Configuration] = partition_combined.configurations.copy()    # For sanity check.
     _generate_total_configurations(
+        interaction = interaction,
+        threshold_energy = threshold_energy,
         partition_proton = partition_proton,
         partition_neutron = partition_neutron,
         partition_combined = partition_combined,
-        partition_file_parity = partition_combined.parity
+        partition_file_parity = partition_combined.parity,
+        skips = skips,
     )
     msg = (
         "The number of combined configurations is not correct!"
@@ -1345,6 +1385,7 @@ def _partition_editor(
     mdim_original: int = mdim[-1]
     _summary_information(
         vum = vum,
+        skips = skips,
         filename_interaction = filename_interaction,
         filename_partition = filename_partition,
         partition_proton = partition_proton,
@@ -1355,10 +1396,10 @@ def _partition_editor(
         mdim = mdim,
         y_offset = y_offset,
         mdim_original = None,
-        n_proton_skips = 0,
-        n_neutron_skips = 0,
-        n_parity_skips = 0,
-        n_ho_skips = 0,
+        # n_proton_skips = 0,
+        # n_neutron_skips = 0,
+        # n_parity_skips = 0,
+        # n_ho_skips = 0,
     )
     _analyse_existing_configuration(
         vum = vum,
@@ -1419,10 +1460,18 @@ def _partition_editor(
                         y_offset = y_offset,
                     )
                     if new_configuration:
-                        if _check_configuration_duplicate(
+                        is_duplicate_configuration = _check_configuration_duplicate(
                             new_configuration = new_configuration,
-                            existing_configurations = partition.configurations
-                        ):
+                            existing_configurations = partition.configurations,
+                            vum = vum,
+                            interaction = interaction,
+                            is_proton = is_proton,
+                            is_neutron = is_neutron,
+                            init_orb_idx = 0,
+                            n_particles_choice = 0,
+                            is_duplicate_warning = False,
+                        )
+                        if is_duplicate_configuration:
                             msg = (
                                 "This configuration already exists! Skipping..."
                             )
@@ -1448,15 +1497,20 @@ def _partition_editor(
                                 configuration = new_configuration,
                                 parity = parity_tmp,
                                 ho_quanta = ho_quanta_tmp,
+                                energy = None,
+                                is_original = False,
                             )
                         )
                         return_string += f"\n{len(partition_proton.configurations) = }, {len(partition_neutron.configurations) = }, {len(partition_combined.configurations) = }"
-                        n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips = _generate_total_configurations(
+                        _generate_total_configurations(
+                            interaction = interaction,
+                            threshold_energy = threshold_energy,
                             partition_proton = partition_proton,
                             partition_neutron = partition_neutron,
                             partition_combined = partition_combined,
                             partition_file_parity = partition_combined.parity,
                             allow_invalid = True,
+                            skips = skips,
                         )
                         # try:
                         #     n_proton_skips, n_neutron_skips = _generate_total_configurations(
@@ -1505,10 +1559,11 @@ def _partition_editor(
                             mdim = mdim,
                             y_offset = y_offset,
                             mdim_original = mdim_original,
-                            n_proton_skips = n_proton_skips,
-                            n_neutron_skips = n_neutron_skips,
-                            n_parity_skips = n_parity_skips,
-                            n_ho_skips = n_ho_skips,
+                            skips = skips,
+                            # n_proton_skips = n_proton_skips,
+                            # n_neutron_skips = n_neutron_skips,
+                            # n_parity_skips = n_parity_skips,
+                            # n_ho_skips = n_ho_skips,
                         )
                         vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configuration added!")
                         time.sleep(DELAY)
@@ -1531,6 +1586,19 @@ def _partition_editor(
                 Prompt the user for a range of configurations. Currently
                 only supports 2p2h excitations.
                 """
+                if input_wrapper("Monopole truncation? (y/n)") == "y":
+                    while True:
+                        try:
+                            threshold_energy = input_wrapper("Monopole trunc threshold energy (relative to min)")
+                            threshold_energy = float(threshold_energy)
+
+                        except ValueError:
+                            continue
+
+                        if threshold_energy > 0:
+                            threshold_energy = partition_combined.min_configuration_energy + threshold_energy
+                            break
+
                 if not _add_npnh_excitations(
                     vum = vum,
                     input_wrapper = input_wrapper,
@@ -1542,15 +1610,18 @@ def _partition_editor(
                     partition_combined = partition_combined,
                     nucleon_choice = nucleon_choice,
                     is_proton = is_proton,
-                    is_neutron = is_neutron
+                    is_neutron = is_neutron,
                 ):
                     continue
                 try:
-                    n_proton_skips, n_neutron_skips, n_parity_skips, n_ho_skips = _generate_total_configurations(
+                    _generate_total_configurations(
+                        interaction = interaction,
+                        threshold_energy = threshold_energy,
                         partition_proton = partition_proton,
                         partition_neutron = partition_neutron,
                         partition_combined = partition_combined,
-                        partition_file_parity = partition_combined.parity
+                        partition_file_parity = partition_combined.parity,
+                        skips = skips,
                     )
                 except KshellDataStructureError:
                     """
@@ -1585,10 +1656,11 @@ def _partition_editor(
                     mdim = mdim,
                     y_offset = y_offset,
                     mdim_original = mdim_original,
-                    n_proton_skips = n_proton_skips,
-                    n_neutron_skips = n_neutron_skips,
-                    n_parity_skips = n_parity_skips,
-                    n_ho_skips = n_ho_skips,
+                    skips = skips,
+                    # n_proton_skips = n_proton_skips,
+                    # n_neutron_skips = n_neutron_skips,
+                    # n_parity_skips = n_parity_skips,
+                    # n_ho_skips = n_ho_skips,
                 )
                 # vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, "Configurations added!")
                 break
@@ -1599,11 +1671,14 @@ def _partition_editor(
             else: continue
 
     _generate_total_configurations(
+        interaction = interaction,
         partition_proton = partition_proton,
         partition_neutron = partition_neutron,
         partition_combined = partition_combined,
         partition_file_parity = partition_combined.parity,
+        threshold_energy = threshold_energy,    # NOTE: Maybe this should be inf to avoid removing existing configurations?
         allow_invalid = False,
+        skips = skips,
     )
     n_new_proton_configurations = partition_proton.n_new_negative_configurations + partition_proton.n_new_positive_configurations
     n_new_neutron_configurations = partition_neutron.n_new_negative_configurations + partition_neutron.n_new_positive_configurations

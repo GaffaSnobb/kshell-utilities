@@ -1,4 +1,4 @@
-import time, sys, ast
+import time, sys, ast, warnings
 from fractions import Fraction
 from typing import TextIO
 import numpy as np
@@ -9,7 +9,9 @@ from .data_structures import (
 from .parameters import (
     spectroscopic_conversion, shell_model_order, flags
 )
-from .partition_tools import _calculate_configuration_parity, _sanity_checks
+from .partition_tools import (
+    _calculate_configuration_parity, _sanity_checks, configuration_energy
+)
 
 def load_interaction(
     filename_interaction: str,
@@ -163,11 +165,11 @@ def load_interaction(
                             print( 'WARNING duplicate TBME', i+1,j+1,k+1,l+1,J,v,vtb[(i,j,k,l,J)] )
 
                 """
-                print('WARNING duplicate TBME!', i0 + 1, i1 + 1, i2 + 1, i3 + 1, j, tbme, interaction.tbme[(i0, i1, i2, i3, j)])
+                warnings.warn(f"Duplicate TBME! {i0 + 1}, {i1 + 1}, {i2 + 1}, {i3 + 1}, {j}, {tbme}, {interaction.tbme[(i0, i1, i2, i3, j)]}")
 
             interaction.tbme[(i0, i1, i2, i3, j)] = tbme
-            s01 = (-1) **( (interaction.model_space.orbitals[i0].j + interaction.model_space.orbitals[i1].j)/2 - j + 1)
-            s23 = (-1) **( (interaction.model_space.orbitals[i2].j + interaction.model_space.orbitals[i3].j)/2 - j + 1)
+            s01 = (-1)**((interaction.model_space.orbitals[i0].j + interaction.model_space.orbitals[i1].j)/2 - j + 1)
+            s23 = (-1)**((interaction.model_space.orbitals[i2].j + interaction.model_space.orbitals[i3].j)/2 - j + 1)
             
             if i0 != i1:
                 interaction.tbme[(i1, i0, i2, i3, j)] = tbme*s01
@@ -188,22 +190,45 @@ def load_interaction(
     assert len(interaction.spe) == interaction.n_spe
     # assert len(interaction.tbme) == interaction.n_tbme
 
-    self.vm = np.zeros( (nj, nj) )
-    # non-diagonal
-    for i in range(nj):
-        for j in range(nj):
-            Jmin = abs(self.jorb[i] - self.jorb[j])//2
-            Jmax = (self.jorb[i] + self.jorb[j])//2
-            skip = 1
-            if i == j: skip = 2
-            for J in range(Jmin, Jmax+1, skip):
-                if not (i,j,i,j,J) in vtb.keys(): 
-                    print( "# Warning not found TBME entry",i+1,j+1,i+1,j+1,J )
-            v = sum([ (2.*J+1.)*vtb.get((i,j,i,j,J), 0.0)
-                        for J in range(Jmin, Jmax+1, skip) ]) 
-            d = sum([ 2.*J+1.
-                        for J in range(Jmin, Jmax+1, skip) ]) 
-            self.vm[i,j] = v/d
+    interaction.vm = np.zeros((interaction.model_space.n_orbitals, interaction.model_space.n_orbitals), dtype=float)
+    for i0 in range(interaction.model_space.n_orbitals):
+        """
+        Non-diagonal. TODO: Make a better description when I figure out
+        what vm is.
+        """
+        for i1 in range(interaction.model_space.n_orbitals):
+            j_min = abs(interaction.model_space.orbitals[i0].j - interaction.model_space.orbitals[i1].j)//2
+            j_max =    (interaction.model_space.orbitals[i0].j + interaction.model_space.orbitals[i1].j)//2
+            
+            skip = 2 if (i0 == i1) else 1
+            
+            v: float = 0.0
+            d: int = 0
+            for j in range(j_min, j_max + 1, skip):
+                """
+                Using j_max + 1, not j_max + skip, because when i0 == i1
+                both nucleons are in the same orbital and they cannot
+                both have the same angular momentum z component.
+
+                skip = 2 when i0 == i1 because only even numbered j are
+                allowed when identical particles are in the same
+                orbital.
+                """
+                try:
+                    tbme = interaction.tbme[(i0, i1, i0, i1, j)]
+                except KeyError:
+                    """
+                    I am unsure if this should be allowed at all and
+                    should rather raise an exception.
+                    """
+                    warnings.warn(f"TBME entry not found! ({i0 + 1}, {i1 + 1}, {i0 + 1}, {i1 + 1}, {j})")
+                    tbme = 0.0
+                
+                degeneracy = 2*j + 1
+                v += degeneracy*tbme
+                d += degeneracy
+            
+            interaction.vm[i0, i1] = v/d
 
     interaction.model_space.n_major_shells = len(interaction.model_space.major_shell_names)
     interaction.model_space_proton.n_major_shells = len(interaction.model_space_proton.major_shell_names)
@@ -300,6 +325,8 @@ def load_partition(
                     configuration = configuration,
                     parity = parity_tmp,
                     ho_quanta = ho_quanta_tmp,
+                    energy = None,
+                    is_original = True,
                 )
             )
         partition_proton.ho_quanta_min_this_parity = ho_quanta_min
@@ -335,6 +362,8 @@ def load_partition(
                     configuration = configuration,
                     parity = parity_tmp,
                     ho_quanta = ho_quanta_tmp,
+                    energy = None,
+                    is_original = True,
                 )
             )
         partition_neutron.ho_quanta_min_this_parity = ho_quanta_min
@@ -363,11 +392,19 @@ def load_partition(
             ho_quanta_min = min(ho_quanta_min, ho_quanta_tmp)
             ho_quanta_max = max(ho_quanta_max, ho_quanta_tmp)
 
+            energy = configuration_energy(
+                interaction = interaction,
+                proton_configuration = partition_proton.configurations[proton_idx],
+                neutron_configuration = partition_neutron.configurations[neutron_idx],
+            )
+
             partition_combined.configurations.append(
                 Configuration(
                     configuration = [proton_idx, neutron_idx],
                     parity = parity_partition,
                     ho_quanta = ho_quanta_tmp,
+                    energy = energy,
+                    is_original = True,
                 )
             )
         partition_combined.ho_quanta_min_this_parity = ho_quanta_min
@@ -375,6 +412,11 @@ def load_partition(
 
         partition_combined.ho_quanta_min = min(ho_quanta_min, partition_combined.ho_quanta_min_opposite_parity)
         partition_combined.ho_quanta_max = max(ho_quanta_max, partition_combined.ho_quanta_max_opposite_parity)
+
+    energies = [configuration.energy for configuration in partition_combined.configurations]
+    partition_combined.min_configuration_energy = min(energies)
+    partition_combined.max_configuration_energy = max(energies)
+    partition_combined.max_configuration_energy_original = partition_combined.max_configuration_energy
 
     _sanity_checks(
         partition_proton = partition_proton,

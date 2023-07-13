@@ -1,4 +1,13 @@
 from dataclasses import dataclass, field
+import numpy as np
+
+@dataclass
+class Skips:
+    n_proton_skips: int = 0
+    n_neutron_skips: int = 0
+    n_parity_skips: int = 0
+    n_ho_skips: int = 0
+    n_monopole_skips: int = 0
 
 @dataclass
 class OrbitalOrder:
@@ -52,6 +61,7 @@ class Interaction:
     tbme: dict[tuple[int, int, int, int, int], float] = field(default_factory=dict) # Two-body matrix elements.
     fmd_mass: int = 0   # Dont know what this is yet.
     fmd_power: float = 0    # The exponent of fmd_mass.
+    vm: np.ndarray = field(default_factory=lambda: np.zeros(shape=0, dtype=float))  # Dont know what this is yet.
 
 @dataclass
 class Configuration:
@@ -79,10 +89,29 @@ class Configuration:
         The sum of the harmonic oscillator quanta of all the particles
         in the configuration. Used to limit the possible combinations of
         pn configuration combinations when using hw truncation.
+
+    energy : float | None
+        The energy of the combined pn configuration. For just proton
+        configurations and just neutron configurations the energy has
+        not yet been properly defined and is therefore set to None.
+
+    is_original : bool
+        If True, the configuration existed in the original partition
+        file. If the configuration is new, then False. NOTE: Snce the
+        total configurations are re-calculated, they are set to
+        is_original = True if both proton and neutron configuration
+        which it is built of of is is_original = True. There might
+        however be a problem with this, namely that if the user changes
+        the max H.O. quanta, then previously disallowed combinations of
+        the original proton and neutron configurations might now be
+        allowed, and these new total configurations will subsequently be
+        is_original = True even though they are not.
     """
     parity: int
     configuration: list[int]
     ho_quanta: int
+    energy: float | None
+    is_original: bool
 
 @dataclass
 class Partition:
@@ -109,6 +138,9 @@ class Partition:
     ho_quanta_max_this_parity: int = -1000
     ho_quanta_min: int = +1000
     ho_quanta_max: int = -1000
+    min_configuration_energy: float = 0.0   # Is this also the ground state energy?
+    max_configuration_energy: float = 0.0
+    max_configuration_energy_original: float = 0.0
 
     @property
     def n_configurations(self) -> int:

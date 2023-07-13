@@ -1,6 +1,8 @@
 import os
 from vum import Vum
-from .data_structures import OrbitalParameters, Partition, Interaction
+from .data_structures import (
+    OrbitalParameters, Partition, Interaction, Configuration
+)
 
 def _sanity_checks(
     partition_proton: Partition,
@@ -165,3 +167,56 @@ def _prompt_user_for_interaction_and_partition(
     vum.screen.refresh()
 
     return filename_interaction, filename_partition
+
+# def is_configuration_below_energy_threshold(
+#     interaction: Interaction,
+#     threshold_energy: float,
+#     proton_configuration: Configuration,
+#     neutron_configuration: Configuration,
+# ) -> bool:
+#     """
+#     Calculate the energy of a pn configuration. Return True if the
+#     energy is lower than the threshold energy and False otherwise. Used
+#     for monopole truncation.
+#     """
+#     energy = configuration_energy(
+#         interaction = interaction,
+#         proton_configuration = proton_configuration,
+#         neutron_configuration = neutron_configuration,
+#     )
+
+#     return energy < threshold_energy
+
+def configuration_energy(
+    interaction: Interaction,
+    proton_configuration: Configuration,
+    neutron_configuration: Configuration,
+) -> float:
+    """
+    Code from https://github.com/GaffaSnobb/kshell/blob/6e6edd6ac7ae70513b4bdaa94099cd3a3e32351d/bin/espe.py#L164
+    """
+    combined_configuration = proton_configuration.configuration + neutron_configuration.configuration
+    if interaction.fmd_mass == 0:
+        fmd = 1
+    else:
+        mass = interaction.n_core_neutrons + interaction.n_core_protons
+        mass += interaction.model_space.n_valence_nucleons
+        fmd = (mass/interaction.fmd_mass)**interaction.fmd_power
+
+    assert len(interaction.spe) == len(combined_configuration)
+
+    energy: float = 0.0
+    
+    for spe, occupation in zip(interaction.spe, combined_configuration, strict=True):
+        energy += occupation*spe
+
+    for i0 in range(len(combined_configuration)):
+        for i1 in range(len(combined_configuration)):
+            if i0 < i1: continue    # Why?
+            
+            elif i0 == i1:
+                energy += combined_configuration[i0]*(combined_configuration[i0] - 1)*0.5*interaction.vm[i0, i0]*fmd
+            else:
+                energy += combined_configuration[i0]*combined_configuration[i1]*interaction.vm[i0, i1]*fmd
+
+    return energy
