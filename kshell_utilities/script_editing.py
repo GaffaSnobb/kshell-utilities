@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os, warnings
 from .parameters import GS_FREE_PROTON, GS_FREE_NEUTRON
 
