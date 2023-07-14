@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys, time, warnings
 from typing import Union, Tuple, Optional
 from fractions import Fraction
