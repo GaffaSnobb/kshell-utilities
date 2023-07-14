@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .data_structures import OrbitalOrder
 
 GS_FREE_PROTON = 5.585
