@@ -1,3 +1,4 @@
+from __future__ import annotations
 import time, sys, ast, warnings
 from fractions import Fraction
 from typing import TextIO
