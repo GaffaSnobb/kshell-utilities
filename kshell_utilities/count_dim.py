@@ -178,13 +178,13 @@ def _parallel(args):
 # @lru_cache(maxsize=None, typed=False)
 def count_dim(
     model_space_filename: str,
+    parity: None | int,
+    proton_partition: None | list[list[int]],
+    neutron_partition: None | list[list[int]],
+    total_partition: None | list[list[int]],
     partition_filename: str | None = None,
     print_dimensions: bool = True,
     debug: bool = False,
-    parity = None | int,
-    proton_partition = None | list[list[int]],
-    neutron_partition = None | list[list[int]],
-    total_partition = None | list[list[int]],
     ):
     """ 
     Product dimension calculation is parallelized. Some timing data for
