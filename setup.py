@@ -15,7 +15,7 @@ setup(
     author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities', 'tests'],
-    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba'],
+    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'vum'],
 
     classifiers = [
         'Development Status :: 5 - Production/Stable',
