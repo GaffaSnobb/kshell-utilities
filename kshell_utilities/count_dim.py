@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 usage: count_dim.py foo.snt bar.ptn
 count M-scheme dimension
