@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Union, Tuple
 from itertools import cycle, islice
 import numpy as np
