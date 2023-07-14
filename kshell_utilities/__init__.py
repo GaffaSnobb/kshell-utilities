@@ -1,5 +1,6 @@
-__version__ = "1.5.0.0"
+from __future__ import annotations
 __author__ = "Jon Kristian Dahl, Johannes Heines"
+__version__ = "1.5.0.0"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
 """
