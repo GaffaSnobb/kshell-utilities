@@ -384,13 +384,13 @@ def _summary_information(
         vum.addstr(
             y = y_offset + 9,
             x = 0,
-            string = f"Min, max configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f}"
+            string = f"Min, max, diff configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f}, {abs(partition_combined.min_configuration_energy - partition_combined.max_configuration_energy):.2f}"
         )
     else:
         vum.addstr(
             y = y_offset + 9,
             x = 0,
-            string = f"Min, max configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f} (original {partition_combined.max_configuration_energy_original:.2f})"
+            string = f"Min, max, diff configuration energy: {partition_combined.min_configuration_energy:.2f}, {partition_combined.max_configuration_energy:.2f} (original {partition_combined.max_configuration_energy_original:.2f}), {abs(partition_combined.min_configuration_energy - partition_combined.max_configuration_energy):.2f}"
         )
     vum.addstr(
         y = y_offset + 10,
@@ -480,7 +480,7 @@ def _generate_total_configurations(
                 proton_configuration = partition_proton.configurations[p_idx],
                 neutron_configuration = partition_neutron.configurations[n_idx],
             )
-            if (energy > threshold_energy) and not is_original:
+            if (energy > threshold_energy):# and not is_original:
                 """
                 Skip configurations with energies over the threshold
                 energy only if they are newly generated configurations
@@ -1327,20 +1327,48 @@ def _partition_editor(
         return partition_combined.ho_quanta_min_this_parity, partition_combined.ho_quanta_max_this_parity
 
     combined_existing_configurations_expected: list[Configuration] = partition_combined.configurations.copy()    # For sanity check.
-    _generate_total_configurations(
-        interaction = interaction,
-        threshold_energy = threshold_energy,
-        partition_proton = partition_proton,
-        partition_neutron = partition_neutron,
-        partition_combined = partition_combined,
-        partition_file_parity = partition_combined.parity,
-        skips = skips,
-    )
-    msg = (
-        "The number of combined configurations is not correct!"
-        f" Expected: {len(combined_existing_configurations_expected)}, calculated: {partition_combined.n_configurations}"
-    )
-    assert len(combined_existing_configurations_expected) == partition_combined.n_configurations, msg
+
+    while True:
+        _generate_total_configurations(
+            interaction = interaction,
+            threshold_energy = threshold_energy,
+            partition_proton = partition_proton,
+            partition_neutron = partition_neutron,
+            partition_combined = partition_combined,
+            partition_file_parity = partition_combined.parity,
+            skips = skips,
+        )
+        if len(combined_existing_configurations_expected) != partition_combined.n_configurations:
+            msg = (
+                "The number of combined configurations is not correct!"
+                f" Expected: {len(combined_existing_configurations_expected)}, calculated: {partition_combined.n_configurations}"
+            )
+            vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, msg)
+            msg = (
+                "This can happen if the .ptn file was generated with monopole"
+                " truncation."
+            )
+            vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, msg)
+            while True:
+                check_choice = input_wrapper(".ptn monopole threshold energy or skip the check? (energy/s)")
+                if check_choice == "s": break
+
+                try:
+                    threshold_energy = float(check_choice)
+                except ValueError:
+                    continue
+                else:
+                    threshold_energy = partition_combined.min_configuration_energy + threshold_energy
+                    break
+
+            if check_choice == "s": break
+
+        else: break
+
+    vum.addstr(vum.n_rows - 1 - vum.command_log_length - 2, 0, vum.blank_line)
+    vum.addstr(vum.n_rows - 1 - vum.command_log_length - 1, 0, vum.blank_line)
+
+        # assert len(combined_existing_configurations_expected) == partition_combined.n_configurations, msg
 
     for i in range(partition_combined.n_configurations):
         if partition_combined.configurations[i].configuration != combined_existing_configurations_expected[i].configuration:
@@ -1698,6 +1726,15 @@ def _partition_editor(
         partition_combined = partition_combined,
         interaction = interaction,
     )
+    while True:
+        save_changes_choice = input_wrapper("Save changes to new partition file? (y/n)")
+        
+        if save_changes_choice == "n":
+            return_string += "Exiting without saving changes..."
+            return return_string
+        
+        elif save_changes_choice == "y": break
+
     with open(filename_partition_edited, "w") as outfile:
         """
         Write edited data to new partition file.
