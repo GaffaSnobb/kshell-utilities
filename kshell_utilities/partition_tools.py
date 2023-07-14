@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 from vum import Vum
 from .data_structures import (
