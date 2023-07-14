@@ -1,3 +1,4 @@
+from __future__ import annotations
 import multiprocessing, curses
 import kshell_utilities as ksutil
 from vum import Vum
