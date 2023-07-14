@@ -1936,13 +1936,6 @@ class ReadKshellOutput:
 
         return Ex_range, Eg_range, B_matrix
 
-    # @property
-    # def mixing_pairs_BM1_BE2(self):
-    #     return self._mixing_pairs(
-    #         B_left = "M1",
-    #         B_right = "E2",
-    #     )
-
     def _mixing_pairs(self,
         B_left: str = "M1",
         B_right: str = "E2",
@@ -2048,6 +2041,57 @@ class ReadKshellOutput:
         mixing_pairs_time = time.perf_counter() - mixing_pairs_time
         print(f"{mixing_pairs_time = :.3f} s")
         return mixing_pairs
+
+    def mixing_ratio(self,
+        bin_width: float = 0.2,
+        plot: bool = True,
+        save_plot: bool = False,
+    ):
+        """
+        Calculate the ratio of T(E2)/(T(E2) + T(M1)), aka. how large the
+        E2 contribution is. Currently hard-coded for this specific
+        ratio.
+
+        Parameters
+        ----------
+        bin_width : float
+            The ratios are sorted by gamma energy and averaged over
+            the ratio values in a gamma energy bin of bin_with.
+        """
+        E_min = self.mixing_pairs_BM1_BE2[0, 0, 8]
+        E_max = self.mixing_pairs_BM1_BE2[-1, 0, 8]
+
+        bins = np.arange(E_min, E_max + bin_width, bin_width)
+        n_bins = len(bins)
+        ratios = np.zeros(n_bins - 1)
+
+        for i in range(n_bins - 1):
+            mask_1 = self.mixing_pairs_BM1_BE2[:, 0, 8] >= bins[i]
+            mask_2 = self.mixing_pairs_BM1_BE2[:, 0, 8] < bins[i + 1]
+            mask_3 = np.logical_and(mask_1, mask_2)
+
+            # M1_mean = self.mixing_pairs_BM1_BE2[:, 0, 9][mask_3].mean()
+            # E2_mean = self.mixing_pairs_BM1_BE2[:, 1, 9][mask_3].mean()
+
+            M1_mean = (1.76e13*(self.mixing_pairs_BM1_BE2[:, 0, 8][mask_3]**3)*self.mixing_pairs_BM1_BE2[:, 0, 9][mask_3]).mean()
+            E2_mean = (1.22e09*(self.mixing_pairs_BM1_BE2[:, 1, 8][mask_3]**5)*self.mixing_pairs_BM1_BE2[:, 1, 9][mask_3]).mean()
+
+            ratios[i] = E2_mean/(E2_mean + M1_mean)
+        
+        if plot:
+            fig, ax = plt.subplots()
+            ax.step(bins[:-1], ratios, color="black")
+            # ax.legend()
+            ax.grid()
+            ax.set_ylabel(r"TE2/(TE2 + TM1)")
+            ax.set_xlabel(r"$E_{\gamma}$ [MeV]")
+            if save_plot:
+                fname = f"mixing_ratio_E2_M1.png"
+                print(f"Mixing ratio plot saved as '{fname}'")
+                fig.savefig(fname=fname, dpi=300)
+            plt.show()
+
+        return bins[:-1], ratios
 
     @property
     def help(self):
