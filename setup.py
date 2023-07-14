@@ -15,14 +15,14 @@ setup(
     author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities', 'tests'],
-    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy'],
+    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba'],
 
     classifiers = [
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
         'Operating System :: MacOS',
         'Operating System :: Unix',
-        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Topic :: Scientific/Engineering :: Physics',
     ],
 )
