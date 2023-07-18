@@ -114,6 +114,36 @@ class Configuration:
     energy: float | None
     is_original: bool
 
+    def __lt__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration < other.configuration
+        return NotImplemented
+
+    def __le__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration <= other.configuration
+        return NotImplemented
+
+    def __gt__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration > other.configuration
+        return NotImplemented
+
+    def __ge__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration >= other.configuration
+        return NotImplemented
+
+    def __eq__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration == other.configuration
+        return NotImplemented
+
+    def __ne__(self, other):
+        if isinstance(other, Configuration):
+            return self.configuration != other.configuration
+        return NotImplemented
+
 @dataclass
 class Partition:
     """
