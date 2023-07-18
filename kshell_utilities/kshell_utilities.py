@@ -2058,7 +2058,7 @@ class ReadKshellOutput:
             The ratios are sorted by gamma energy and averaged over
             the ratio values in a gamma energy bin of bin_with.
         """
-        E_min = self.mixing_pairs_BM1_BE2[0, 0, 8]
+        E_min = self.mixing_pairs_BM1_BE2[0, 0, 8]  # BM1 and BE2 has to be at the exact same gamma energies so it doesnt matter which one we take E_min and E_max from.
         E_max = self.mixing_pairs_BM1_BE2[-1, 0, 8]
 
         bins = np.arange(E_min, E_max + bin_width, bin_width)
