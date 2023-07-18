@@ -106,6 +106,7 @@ def test_partition_editor():
         filename_partition = filename_partition_original,
         filename_partition_edited = filename_partition_edited,
         input_wrapper = input_wrapper_test,
+        is_interactive = False,
     )
 
     with open(filename_partition_edited, "r") as infile_edited, open(filename_partition_original, "r") as infile_original:
