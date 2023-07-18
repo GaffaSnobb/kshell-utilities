@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
 from typing import Union, Callable, Tuple, Iterable
