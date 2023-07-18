@@ -447,6 +447,9 @@ def _generate_total_configurations(
     proton_configurations_parity_skips: list[int] = [0]*partition_proton.n_configurations
     proton_configurations_ho_skips: list[int] = [0]*partition_proton.n_configurations
     n_monopole_skips = 0
+
+    partition_proton.configurations.sort(key=lambda elem: elem.configuration)   # Sort configs in lexicographic order.
+    partition_neutron.configurations.sort(key=lambda elem: elem.configuration)
     
     for p_idx in range(partition_proton.n_configurations):
         for n_idx in range(partition_neutron.n_configurations):
