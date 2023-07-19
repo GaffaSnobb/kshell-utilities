@@ -2038,7 +2038,8 @@ class ReadKshellOutput:
         )
         mixing_pairs.sort(key=lambda tup: tup[0][8])    # Sort wrt. gamma energy.
         mixing_pairs = np.array(mixing_pairs)
-        np.save(file=mixing_pairs_fname, arr=mixing_pairs, allow_pickle=True)
+        if self.load_and_save_to_file:
+            np.save(file=mixing_pairs_fname, arr=mixing_pairs, allow_pickle=True)
         mixing_pairs_time = time.perf_counter() - mixing_pairs_time
         print(f"{mixing_pairs_time = :.3f} s")
         return mixing_pairs
