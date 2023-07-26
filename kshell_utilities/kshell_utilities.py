@@ -68,7 +68,7 @@ def _generate_unique_identifier(path: str) -> str:
     if (shell_file_content == "") and (save_input_content == ""):
         print(msg)
 
-    return hashlib.sha1((shell_file_content + save_input_content).encode()).hexdigest()
+    return hashlib.sha1((shell_file_content + save_input_content + path).encode()).hexdigest()
 
 class ReadKshellOutput:
     """
