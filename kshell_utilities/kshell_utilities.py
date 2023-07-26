@@ -1953,7 +1953,7 @@ class ReadKshellOutput:
             # msg = f"'B_right' must be 'M1' or 'E2', got: {B_right}"
             # raise ValueError(msg)
             raise ValueError
-        
+
         transitions_dict = {
             "M1": self.transitions_BM1,
             "E2": self.transitions_BE2,
@@ -1961,6 +1961,20 @@ class ReadKshellOutput:
         }
         transitions_left = transitions_dict[B_left]
         transitions_right = transitions_dict[B_right]
+
+        if (transitions_left.size == 0):
+            msg = (
+                f"Cannot calculate mixing pairs because there are no {B_left} values!"
+            )
+            print(msg)
+            return np.zeros(0)
+        
+        if (transitions_right.size == 0):
+            msg = (
+                f"Cannot calculate mixing pairs because there are no {B_right} values!"
+            )
+            print(msg)
+            return np.zeros(0)
         
         mixing_pairs_fname = f"{self.npy_path}/{self.base_fname}_mixing_pairs_B{B_left}_B{B_right}_{self.unique_id}.npy"
 
@@ -2060,6 +2074,14 @@ class ReadKshellOutput:
             The ratios are sorted by gamma energy and averaged over
             the ratio values in a gamma energy bin of bin_with.
         """
+        if self.mixing_pairs_BM1_BE2.size == 0:
+            msg = (
+                "Cannot calculate mixing ration due to abscence of the"
+                " needed transitions!"
+            )
+            print(msg)
+            return np.zeros(0), np.zeros(0)
+
         E_min = self.mixing_pairs_BM1_BE2[0, 0, 8]  # BM1 and BE2 has to be at the exact same gamma energies so it doesnt matter which one we take E_min and E_max from.
         E_max = self.mixing_pairs_BM1_BE2[-1, 0, 8]
 
