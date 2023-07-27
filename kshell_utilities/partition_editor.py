@@ -42,7 +42,21 @@ class VumDummy:
 
     def input(self, _) -> str:
         return "n"
+
+class VumDummyTestPartition(VumDummy):
+    def __init__(self) -> None:
+        super().__init__()
+        self.answers: list[str] = [
+            "e",
+            "n",
+            "y",
+        ]
     
+    def input(self, _) -> str:
+        ans = self.answers.pop(0)
+        # print(ans)    # Debug.
+        return ans
+
 class VumDummy2(VumDummy):
     def __init__(self) -> None:
         super().__init__()
@@ -1178,7 +1192,7 @@ def test_partition_editor(
     except FileNotFoundError:
         pass
     
-    vum: VumDummy = VumDummy()
+    vum: VumDummyTestPartition = VumDummyTestPartition()
     _partition_editor(
         filename_interaction = filename_interaction,
         filename_partition = filename_partition,
@@ -1276,7 +1290,10 @@ def _partition_editor(
     if (filename_interaction is None) or (filename_partition is None):
         tmp = _prompt_user_for_interaction_and_partition(vum=vum, is_compare_mode=False)
         if not tmp: return "Exiting without saving changes..."
-        filename_interaction, filename_partition = tmp
+        try:
+            filename_interaction, filename_partition = tmp
+        except ValueError:
+            return tmp
     
     filename_partition_opposite_parity: str = \
         filename_partition[0:-5] + ("n" if (filename_partition[-5] == "p") else "p") + filename_partition[-4:]

@@ -6,6 +6,7 @@ import numpy as np
 from kshell_utilities.data_structures import (
     Partition, Interaction
 )
+from kshell_utilities.loaders import load_partition, load_interaction
 from .partition_tools import _prompt_user_for_interaction_and_partition
 
 def _duplicate_checker(
@@ -77,7 +78,7 @@ def _partition_compare(vum: Vum):
     filename_interaction, (filename_partition_a, filename_partition_b) = tmp
     # filename_interaction = "gs8.snt"
     interaction: Interaction = Interaction()
-    ksutil.load_interaction(
+    load_interaction(
         filename_interaction = filename_interaction,
         interaction = interaction
     )
@@ -86,7 +87,7 @@ def _partition_compare(vum: Vum):
     partition_proton_a: Partition = Partition()
     partition_neutron_a: Partition = Partition()
     partition_combined_a: Partition = Partition()
-    ksutil.load_partition(
+    load_partition(
         filename_partition = filename_partition_a,
         interaction = interaction,
         partition_proton = partition_proton_a,
@@ -98,7 +99,7 @@ def _partition_compare(vum: Vum):
     partition_proton_b: Partition = Partition()
     partition_neutron_b: Partition = Partition()
     partition_combined_b: Partition = Partition()
-    ksutil.load_partition(
+    load_partition(
         filename_partition = filename_partition_b,
         interaction = interaction,
         partition_proton = partition_proton_b,
@@ -111,6 +112,8 @@ def _partition_compare(vum: Vum):
         args = (filename_partition_a, filename_partition_b, filename_interaction),
     )
     sanity_check_process.start()
+
+    # _sanity_checks(filename_partition_a, filename_partition_b, filename_interaction)  # Or no separate process for easier troubleshooting.
     
     _, mdim_a, _ = ksutil.count_dim(
         model_space_filename = filename_interaction,
