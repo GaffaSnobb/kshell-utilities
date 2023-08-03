@@ -16,8 +16,12 @@ from .partition_tools import (
 
 def load_interaction(
     filename_interaction: str,
-    interaction: Interaction,
-):
+    interaction: Interaction | None = None,
+) -> Interaction:
+    
+    if interaction is None:
+        interaction = Interaction()
+    
     interaction.name = filename_interaction
     with open(filename_interaction, "r") as infile:
         """
@@ -244,6 +248,8 @@ def load_interaction(
             "The orbitals in the model space are not indexed correctly!"
         )
         raise KshellDataStructureError(msg)
+    
+    return interaction
 
 def load_partition(
     filename_partition: str,
