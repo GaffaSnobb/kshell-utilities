@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import numpy as np
 
-@dataclass
+@dataclass(slots=True)
 class Skips:
     n_proton_skips: int = 0
     n_neutron_skips: int = 0
@@ -10,7 +10,7 @@ class Skips:
     n_ho_skips: int = 0
     n_monopole_skips: int = 0
 
-@dataclass
+@dataclass(slots=True)
 class OrbitalOrder:
     """
     For storing information about the general classification of the
@@ -20,7 +20,7 @@ class OrbitalOrder:
     major_shell_idx: int
     major_shell_name: str
 
-@dataclass
+@dataclass(slots=True)
 class OrbitalParameters:
     """
     For storing parameters of the model space orbitals.
@@ -39,7 +39,7 @@ class OrbitalParameters:
     def __str__(self):
         return self.name
 
-@dataclass
+@dataclass(slots=True)
 class ModelSpace:
     orbitals: list[OrbitalParameters] = field(default_factory=list)
     major_shell_names: set[str] = field(default_factory=set)
@@ -47,7 +47,7 @@ class ModelSpace:
     n_orbitals: int = 0
     n_valence_nucleons: int = 0
 
-@dataclass
+@dataclass(slots=True)
 class Interaction:
     model_space: ModelSpace = field(default_factory=ModelSpace)
     model_space_proton: ModelSpace = field(default_factory=ModelSpace)
@@ -64,7 +64,7 @@ class Interaction:
     fmd_power: float = 0    # The exponent of fmd_mass.
     vm: np.ndarray = field(default_factory=lambda: np.zeros(shape=0, dtype=float))  # Dont know what this is yet.
 
-@dataclass
+@dataclass(slots=True)
 class Configuration:
     """
     Terminology:
@@ -144,7 +144,7 @@ class Configuration:
             return self.configuration != other.configuration
         return NotImplemented
 
-@dataclass
+@dataclass(slots=True)
 class Partition:
     """
     Parameters
