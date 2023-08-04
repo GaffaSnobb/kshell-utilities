@@ -257,7 +257,7 @@ def load_partition(
     partition_proton: Partition | None = None,
     partition_neutron: Partition | None = None,
     partition_combined: Partition | None = None,
-) -> str:
+) -> tuple[Partition, Partition, Partition] | str:
     
     is_return_partitions = False
     if partition_proton is None:
