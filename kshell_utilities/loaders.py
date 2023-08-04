@@ -254,10 +254,24 @@ def load_interaction(
 def load_partition(
     filename_partition: str,
     interaction: Interaction,
-    partition_proton: Partition,
-    partition_neutron: Partition,
-    partition_combined: Partition,
+    partition_proton: Partition | None = None,
+    partition_neutron: Partition | None = None,
+    partition_combined: Partition | None = None,
 ) -> str:
+    
+    is_return_partitions = False
+    if partition_proton is None:
+        partition_proton = Partition()
+        is_return_partitions = True
+    
+    if partition_neutron is None:
+        partition_neutron = Partition()
+        is_return_partitions = True
+    
+    if partition_combined is None:
+        partition_combined = Partition()
+        is_return_partitions = True
+    
     header: str = ""
     with open(filename_partition, "r") as infile:
         # truncation_info: str = infile.readline()    # Eg. hw trucnation,  min hw = 0 ,   max hw = 1
@@ -448,7 +462,10 @@ def load_partition(
         partition_combined.n_new_negative_configurations + partition_combined.n_new_positive_configurations
     ) == n_combined_configurations
 
-    return header
+    if is_return_partitions:
+        return partition_proton, partition_neutron, partition_combined
+    else:
+        return header
 
 def _parity_string_to_integer(parity: str):
     if parity == "+":
