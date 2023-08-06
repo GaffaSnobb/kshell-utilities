@@ -86,7 +86,8 @@ def load_interaction(
                 name = f"{nucleon}{name}",
                 parity = (-1)**l,
                 order = shell_model_order[name],
-                ho_quanta = 2*n + l
+                ho_quanta = 2*n + l,
+                degeneracy = j + 1,
             )
             interaction.model_space.orbitals.append(tmp_orbital)
             interaction.model_space.major_shell_names.add(shell_model_order[name].major_shell_name)

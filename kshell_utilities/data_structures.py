@@ -35,6 +35,7 @@ class OrbitalParameters:
     parity: int
     order: OrbitalOrder
     ho_quanta: int  # Harmonic oscillator quanta (2*n + l) of the orbital (little bit unsure if this is a good name). Used to limit the possible combinations of pn configuration combinations.
+    degeneracy: int
 
     def __str__(self):
         return self.name
