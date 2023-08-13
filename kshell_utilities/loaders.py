@@ -81,6 +81,7 @@ def load_interaction(
                 n = n,
                 l = l,
                 j = j,
+                jz = tuple(range(-j, j+1, 1)),
                 tz = tz,
                 nucleon = nucleon,
                 name = f"{nucleon}{name}",

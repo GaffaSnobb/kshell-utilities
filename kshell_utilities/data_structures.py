@@ -30,6 +30,7 @@ class OrbitalParameters:
     l: int          # Orbital angular momentum.
     j: int          # Total angular momentum.
     tz: int         # Isospin.
+    jz: list[int]   # All possible z projections of the total angular momentum vector.
     nucleon: str    # 'p' or 'n'.
     name: str       # Ex: 'p 0d5/2'.
     parity: int
