@@ -5,7 +5,7 @@ from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
-from .parameters import flags, elements
+from .parameters import flags, elements, latex_plot
 # warnings.filterwarnings("error")    # To catch warnings with try except.
 # from scipy.optimize import curve_fit
 
@@ -1192,17 +1192,7 @@ def nuclear_shell_model():
     """
     Generate a diagram of the nuclear shell model shell structure.
     """
-    plt.rcParams.update({
-        "backend": "pgf",
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["roman"],
-        "legend.fontsize": 14,
-        "xtick.labelsize": 15,
-        "ytick.labelsize": 15,
-        "axes.labelsize": 14,
-        "axes.titlesize": 15,
-    })
+    latex_plot()
     fig, ax = plt.subplots(figsize=(6.4, 8))
     ax.axis(False)
     fontsize = 15
