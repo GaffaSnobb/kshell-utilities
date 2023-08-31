@@ -69,22 +69,20 @@ def div0(numerator, denominator):
 def gamma_strength_function_average(
     levels: np.ndarray,
     transitions: np.ndarray,
-    bin_width: Union[float, int],
-    Ex_min: Union[float, int],
-    Ex_max: Union[float, int],
+    bin_width: float | int,
+    Ex_min: float | int,
+    Ex_max: float | int,
     multipole_type: str,
-    prefactor_E1: Union[None, float] = None,
-    prefactor_M1: Union[None, float] = None,
-    prefactor_E2: Union[None, float] = None,
+    prefactor_E1: None | float = None,
+    prefactor_M1: None | float = None,
+    prefactor_E2: None | float = None,
     initial_or_final: str = "initial",
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
-    include_n_levels: Union[None, int] = None,
-    filter_spins: Union[None, list] = None,
+    include_n_levels: None | int = None,
+    filter_spins: None | list = None,
     filter_parities: str = "both",
     return_n_transitions: bool = False,
-    # plot: bool = False,
-    # save_plot: bool = False
     ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
     Calculate the gamma strength function averaged over total angular
@@ -124,29 +122,29 @@ def gamma_strength_function_average(
         2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
         B(.., i->f), B(.., f<-i)]
 
-    bin_width : Union[float, int]
+    bin_width : float | int
         The width of the energy bins. A bin width of 0.2 contains 20
         states of uniform spacing of 0.01.
 
-    Ex_min : Union[float, int]
+    Ex_min : float | int
         Lower limit for initial level excitation energy, usually in MeV.
 
-    Ex_max : Union[float, int]
+    Ex_max : float | int
         Upper limit for initial level excitation energy, usually in MeV.
 
     multipole_type : str
         Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
         Currently only M1 and E1 is implemented.
 
-    prefactor_E1 : Union[None, float]
+    prefactor_E1 : None | float
         E1 pre-factor from the definition of the GSF. Defaults to a
         standard value if None.
 
-    prefactor_M1 : Union[None, float]
+    prefactor_M1 : None | float
         M1 pre-factor from the definition of the GSF. Defaults to a
         standard value if None.
 
-    prefactor_E2 : Union[None, float]
+    prefactor_E2 : None | float
         E2 pre-factor from the definition of the GSF. Defaults to a
         standard value if None.
 
@@ -174,12 +172,12 @@ def gamma_strength_function_average(
         alternative is to use only the non-zero values, so setting this
         parameter to False should be done with care.
 
-    include_n_levels : Union[None, int]
+    include_n_levels : None | int
         The number of states per spin to include. Example:
         include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
 
-    filter_spins : Union[None, list]
+    filter_spins : None | list
         Which spins to include in the GSF. If None, all spins are
         included. TODO: Make int valid input too.
 
@@ -376,11 +374,18 @@ def gamma_strength_function_average(
         up all reduced transition probabilities and the number of
         transitions in the correct bins.
         """
-        if (Ex_initial_or_final[transition_idx] < Ex_min) or (Ex_initial_or_final[transition_idx] >= Ex_max):
+        if Ex_initial_or_final[transition_idx] < Ex_min:
             """
-            Check if transition is within min max limits, skip if not.
+            Check if transition is within min limit, skip if not.
             """
-            skip_counter["Transit: Energy range"] += 1   # Debug.
+            skip_counter["Transit: Energy range (less)"] += 1   # Debug.
+            continue
+
+        if Ex_initial_or_final[transition_idx] >= Ex_max:
+            """
+            Check if transition is within max limit, skip if not.
+            """
+            skip_counter["Transit: Energy range (greater)"] += 1   # Debug.
             continue
 
         idx_initial = transitions[transition_idx, 2]
@@ -628,7 +633,7 @@ def gamma_strength_function_average(
 def level_plot(
     levels: np.ndarray,
     include_n_levels: int = 1_000,
-    filter_spins: Union[None, list] = None,
+    filter_spins: None | list = None,
     filter_parity: Union[None, str] = None,
     ax: Union[None, plt.Axes] = None,
     color: Union[None, str] = None,
@@ -649,7 +654,7 @@ def level_plot(
         The maximum amount of states to plot for each spin. Default set
         to a large number to indicate ≈ no limit.
 
-    filter_spins : Union[None, list]
+    filter_spins : None | list
         Which spins to include in the plot. If None, all spins are
         plotted.
 
@@ -774,11 +779,11 @@ def level_plot(
 def level_density(
     levels: np.ndarray,
     bin_width: Union[int, float],
-    include_n_levels: Union[None, int] = None,
+    include_n_levels: None | int = None,
     filter_spins: Union[None, int, list] = None,
     filter_parity: Union[None, str, int] = None,
-    E_min: Union[float, int] = 0,
-    E_max: Union[float, int] = np.inf,
+    E_min: float | int = 0,
+    E_max: float | int = np.inf,
     return_counts: bool = False,
     plot: bool = False,
     save_plot: bool = False
@@ -795,7 +800,7 @@ def level_density(
     bin_width : Union[int, float]
         Energy interval of which to calculate the density.
 
-    include_n_levels : Union[None, int]
+    include_n_levels : None | int
         The number of states per spin to include. Example:
         include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
@@ -1188,7 +1193,11 @@ def porter_thomas(
         # return BXL_bins, BXL_counts
         return BXL_bins, BXL_counts_normalised
 
-def nuclear_shell_model():
+def nuclear_shell_model(
+    show_spectroscopic_notation: bool = True,
+    show_interactions: bool = True,
+    show_cores: bool = True,
+):
     """
     Generate a diagram of the nuclear shell model shell structure.
     """
@@ -1311,134 +1320,136 @@ def nuclear_shell_model():
             fontsize = fontsize - 1
         )
 
-    for y, label in zip(core_layer_y, core_layer_labels):
-        fig.text(
-            x = 0.77 + x_text_offset,
-            y = y/14 + 0.067,
-            s = label,
-            fontsize = fontsize - 1
+    if show_cores:
+        for y, label in zip(core_layer_y, core_layer_labels):
+            fig.text(
+                x = 0.77 + x_text_offset,
+                y = y/14 + 0.067,
+                s = label,
+                fontsize = fontsize - 1
+            )
+            fig.text(
+                x = 0.73 + x_text_offset,
+                y = y/14 + 0.064,
+                s = "---------",
+                fontsize = fontsize - 1
+            )
+    if show_interactions:
+        # USD
+        x1 = 1.35
+        x2 = 1.25
+        y1 = 4.9
+        y2 = 3.83
+        ax.vlines(
+            x = x2,
+            ymin = y2,
+            ymax = y1,
+            color = "darkorange",
         )
         fig.text(
-            x = 0.73 + x_text_offset,
-            y = y/14 + 0.064,
-            s = "---------",
-            fontsize = fontsize - 1
+            x = 0.15,
+            y = 0.37,
+            s = "USD",
+            fontsize = 12,
+            rotation = "vertical",
+            color = "darkorange"
         )
-
-    # USD
-    x1 = 1.35
-    x2 = 1.25
-    y1 = 4.9
-    y2 = 3.83
-    ax.vlines(
-        x = x2,
-        ymin = y2,
-        ymax = y1,
-        color = "darkorange",
-    )
-    fig.text(
-        x = 0.15,
-        y = 0.37,
-        s = "USD",
-        fontsize = 12,
-        rotation = "vertical",
-        color = "darkorange"
-    )
-    # GXPF
-    y3 = 7.5
-    y4 = 5.6
-    ax.vlines(
-        x = x2,
-        ymin = y4,
-        ymax = y3,
-        color = "firebrick",
-    )
-    fig.text(
-        x = 0.15,
-        y = 0.52,
-        s = "GXPF",
-        fontsize = 12,
-        rotation = "vertical",
-        color = "firebrick"
-    )
-    # SDPF-MU
-    x4 = x2 - 0.04
-    ax.vlines(
-        x = x4,
-        ymin = y2,
-        ymax = y3,
-        color = "royalblue",
-    )
-    fig.text(
-        x = 0.14,
-        y = 0.42,
-        s = "SDPF-MU",
-        fontsize = 12,
-        rotation = "vertical",
-        color = "royalblue"
-    )
-    #JUN45
-    y7 = 6.5
-    y8 = 8.2
-    x6 = x4 - 0.04
-    ax.vlines(
-        x = x6,
-        ymin = y8,
-        ymax = y7,
-        color = "green",
-    )
-    fig.text(
-        x = 0.14,
-        y = 0.59,
-        s = "JUN45",
-        fontsize = 12,
-        rotation = "vertical",
-        color = "green"
-    )
-    # SDPF-SDG
-    ax.vlines(
-        x = x6 - 0.04,
-        ymin = y2,
-        ymax = 11,
-        color = "mediumorchid",
-    )
-    fig.text(
-        x = 0.15,
-        y = 0.66,
-        s = "SDPF-SDG",
-        fontsize = 12,
-        rotation = "vertical",
-        color = "mediumorchid"
-    )
+        # GXPF
+        y3 = 7.5
+        y4 = 5.6
+        ax.vlines(
+            x = x2,
+            ymin = y4,
+            ymax = y3,
+            color = "firebrick",
+        )
+        fig.text(
+            x = 0.15,
+            y = 0.52,
+            s = "GXPF",
+            fontsize = 12,
+            rotation = "vertical",
+            color = "firebrick"
+        )
+        # SDPF-MU
+        x4 = x2 - 0.04
+        ax.vlines(
+            x = x4,
+            ymin = y2,
+            ymax = y3,
+            color = "royalblue",
+        )
+        fig.text(
+            x = 0.14,
+            y = 0.42,
+            s = "SDPF-MU",
+            fontsize = 12,
+            rotation = "vertical",
+            color = "royalblue"
+        )
+        #JUN45
+        y7 = 6.5
+        y8 = 8.2
+        x6 = x4 - 0.04
+        ax.vlines(
+            x = x6,
+            ymin = y8,
+            ymax = y7,
+            color = "green",
+        )
+        fig.text(
+            x = 0.14,
+            y = 0.59,
+            s = "JUN45",
+            fontsize = 12,
+            rotation = "vertical",
+            color = "green"
+        )
+        # SDPF-SDG
+        ax.vlines(
+            x = x6 - 0.04,
+            ymin = y2,
+            ymax = 11,
+            color = "mediumorchid",
+        )
+        fig.text(
+            x = 0.15,
+            y = 0.66,
+            s = "SDPF-SDG",
+            fontsize = 12,
+            rotation = "vertical",
+            color = "mediumorchid"
+        )
     # Spectroscopic notation
-    fig.text(
-        x = 0.45,
-        y = 0.93,
-        s = r"$s \;\; p \;\; d \;\; f \;\; g \;\; h$",
-        fontsize = fontsize - 1,
-        color = "black",
-    )
-    fig.text(
-        x = 0.45,
-        y = 0.92,
-        s = "------------------",
-        fontsize = fontsize - 1,
-        color = "black",
-    )
-    fig.text(
-        x = 0.415,
-        y = 0.90,
-        s = r"$l: 0 \;\; 1 \;\; 2 \;\; 3 \;\; 4 \;\; 5$",
-        fontsize = fontsize - 1,
-        color = "black",
-    )
-    fig.text(
-        x = 0.405,
-        y = 0.88,
-        s = r"$\pi:+  -  +  - \, + \, -$",
-        fontsize = fontsize - 1,
-        color = "black",
-    )
+    if show_spectroscopic_notation:
+        fig.text(
+            x = 0.45,
+            y = 0.93,
+            s = r"$s \;\; p \;\; d \;\; f \;\; g \;\; h$",
+            fontsize = fontsize - 1,
+            color = "black",
+        )
+        fig.text(
+            x = 0.45,
+            y = 0.92,
+            s = "------------------",
+            fontsize = fontsize - 1,
+            color = "black",
+        )
+        fig.text(
+            x = 0.415,
+            y = 0.90,
+            s = r"$l: 0 \;\; 1 \;\; 2 \;\; 3 \;\; 4 \;\; 5$",
+            fontsize = fontsize - 1,
+            color = "black",
+        )
+        fig.text(
+            x = 0.405,
+            y = 0.88,
+            s = r"$\pi:+  -  +  - \, + \, -$",
+            fontsize = fontsize - 1,
+            color = "black",
+        )
 
     fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
     plt.show()
