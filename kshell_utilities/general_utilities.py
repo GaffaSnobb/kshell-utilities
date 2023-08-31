@@ -227,7 +227,8 @@ def gamma_strength_function_average(
         The gamma strength function.
     """
     skip_counter = {    # Debug.
-        "Transit: Energy range": 0,
+        "Transit: Energy range (less)": 0,
+        "Transit: Energy range (greater)": 0,
         "Transit: Number of levels": 0,
         "Transit: Parity": 0,
         "Level density: Energy range": 0,
