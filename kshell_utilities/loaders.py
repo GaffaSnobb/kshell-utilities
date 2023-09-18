@@ -96,9 +96,11 @@ def load_interaction(
             if tz == -1:
                 interaction.model_space_proton.orbitals.append(tmp_orbital)
                 interaction.model_space_proton.major_shell_names.add(shell_model_order[name].major_shell_name)
+                interaction.model_space_proton.all_jz_values += tmp_orbital.jz
             elif tz == +1:
                 interaction.model_space_neutron.orbitals.append(tmp_orbital)
                 interaction.model_space_neutron.major_shell_names.add(shell_model_order[name].major_shell_name)
+                interaction.model_space_neutron.all_jz_values += tmp_orbital.jz
             else:
                 msg = f"Valid values for tz are -1 and +1, got {tz=}"
                 raise ValueError(msg)
