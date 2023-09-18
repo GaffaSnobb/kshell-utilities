@@ -44,7 +44,7 @@ class OrbitalParameters:
 @dataclass(slots=True)
 class ModelSpace:
     orbitals: list[OrbitalParameters] = field(default_factory=list)
-    all_jz_values: tuple()
+    all_jz_values: tuple = tuple()
     major_shell_names: set[str] = field(default_factory=set)
     n_major_shells: int = 0
     n_orbitals: int = 0
