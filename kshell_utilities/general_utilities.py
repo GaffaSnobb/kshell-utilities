@@ -72,8 +72,8 @@ def gamma_strength_function_average(
     Ex_min: float | int,
     Ex_max: float | int,
     multipole_type: str,
-    Ex_final_min: float | int | None = None,
-    Ex_final_max: float | int | None = None,
+    Ex_final_min: float | int = -np.inf,
+    Ex_final_max: float | int = np.inf,
     prefactor_E1: None | float = None,
     prefactor_M1: None | float = None,
     prefactor_E2: None | float = None,
@@ -223,6 +223,8 @@ def gamma_strength_function_average(
     skip_counter = {    # Debug.
         "Transit: Energy range (less)": 0,
         "Transit: Energy range (greater)": 0,
+        "Transit: Energy final range (less)": 0,
+        "Transit: Energy final range (greater)": 0,
         "Transit: Number of levels": 0,
         "Transit: Parity": 0,
         "Level density: Energy range": 0,
@@ -307,6 +309,7 @@ def gamma_strength_function_average(
         negative. Fingers crossed for no negative side effects!
         """
         Ex_initial -= E_ground_state
+        Ex_final -= E_ground_state
 
     if Ex[0] != 0:
         """
@@ -367,10 +370,15 @@ def gamma_strength_function_average(
             continue
 
         if Ex_initial[transition_idx] >= Ex_max:
-            """
-            Check if transition is within max limit, skip if not.
-            """
-            skip_counter["Transit: Energy range (greater)"] += 1   # Debug.
+            skip_counter["Transit: Energy range (greater)"] += 1
+            continue
+
+        if Ex_final[transition_idx] < Ex_final_min:
+            skip_counter["Transit: Energy final range (less)"] += 1
+            continue
+
+        if Ex_final[transition_idx] >= Ex_final_max:
+            skip_counter["Transit: Energy final range (greater)"] += 1
             continue
 
         idx_initial = transitions[transition_idx, 2]
@@ -381,7 +389,7 @@ def gamma_strength_function_average(
             Include only 'include_n_levels' number of levels. Defaults
             to np.inf (include all).
             """
-            skip_counter["Transit: Number of levels"] += 1   # Debug.
+            skip_counter["Transit: Number of levels"] += 1
             continue
 
         spin_initial = transitions[transition_idx, 0]/2
