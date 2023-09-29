@@ -595,7 +595,6 @@ class ReadKshellOutput:
         prefactor_E1: Union[None, float] = None,
         prefactor_M1: Union[None, float] = None,
         prefactor_E2: Union[None, float] = None,
-        initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
         include_n_levels: Union[None, int] = None,
@@ -623,7 +622,7 @@ class ReadKshellOutput:
         is_loaded = False
         gsf_unique_string = f"{bin_width}{Ex_min}{Ex_max}{multipole_type}"
         gsf_unique_string += f"{prefactor_E1}{prefactor_M1}{prefactor_E2}"
-        gsf_unique_string += f"{initial_or_final}{partial_or_total}{include_only_nonzero_in_average}"
+        gsf_unique_string += f"{partial_or_total}{include_only_nonzero_in_average}"
         gsf_unique_string += f"{include_n_levels}{filter_spins}{filter_parities}"
         gsf_unique_id = hashlib.sha1((gsf_unique_string).encode()).hexdigest()
         gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npy"
@@ -660,7 +659,6 @@ class ReadKshellOutput:
                 prefactor_E1 = prefactor_E1,
                 prefactor_M1 = prefactor_M1,
                 prefactor_E2 = prefactor_E2,
-                initial_or_final = initial_or_final,
                 partial_or_total = partial_or_total,
                 include_only_nonzero_in_average = include_only_nonzero_in_average,
                 include_n_levels = include_n_levels,
@@ -709,7 +707,6 @@ class ReadKshellOutput:
         prefactor_E1: Union[None, float] = None,
         prefactor_M1: Union[None, float] = None,
         prefactor_E2: Union[None, float] = None,
-        initial_or_final: str = "initial",
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
         include_n_levels: Union[None, int] = None,
@@ -731,7 +728,6 @@ class ReadKshellOutput:
             prefactor_E1 = prefactor_E1,
             prefactor_M1 = prefactor_M1,
             prefactor_E2 = prefactor_E2,
-            initial_or_final = initial_or_final,
             partial_or_total = partial_or_total,
             include_only_nonzero_in_average = include_only_nonzero_in_average,
             include_n_levels = include_n_levels,

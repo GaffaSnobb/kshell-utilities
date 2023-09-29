@@ -1,6 +1,5 @@
 from __future__ import annotations
 import sys, time, warnings
-from typing import Union, Tuple, Optional
 from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
@@ -73,17 +72,18 @@ def gamma_strength_function_average(
     Ex_min: float | int,
     Ex_max: float | int,
     multipole_type: str,
+    Ex_final_min: float | int | None = None,
+    Ex_final_max: float | int | None = None,
     prefactor_E1: None | float = None,
     prefactor_M1: None | float = None,
     prefactor_E2: None | float = None,
-    initial_or_final: str = "initial",
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
     include_n_levels: None | int = None,
     filter_spins: None | list = None,
     filter_parities: str = "both",
     return_n_transitions: bool = False,
-    ) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate the gamma strength function averaged over total angular
     momenta, parities, and initial excitation energies.
@@ -147,12 +147,6 @@ def gamma_strength_function_average(
     prefactor_E2 : None | float
         E2 pre-factor from the definition of the GSF. Defaults to a
         standard value if None.
-
-    initial_or_final : str
-        Choose whether to use the energy of the initial or final state
-        for the transition calculations. NOTE: This may be removed in
-        a future release since the correct alternative is to use the
-        initial energy.
 
     partial_or_total : str
         Choose whether to use the partial level density
@@ -276,7 +270,7 @@ def gamma_strength_function_average(
     
     if prefactor_E2 is not None:
         prefactors["E2"] = prefactor_E2
-    
+
     prefactor = prefactors[multipole_type]
 
     # Extract data to a more readable form:
@@ -293,27 +287,13 @@ def gamma_strength_function_average(
         msg += " load_and_save_to_file = 'overwrite' (once) to re-read data from the"
         msg += " summary file and generate new tmp files."
         raise Exception(msg) from err
-    
-    if initial_or_final == "initial":
-        Ex_initial_or_final = np.copy(transitions[:, 3])   # To avoid altering the raw data.
-        spin_initial_or_final_idx = 0
-        parity_initial_or_final_idx = 1
-    
-    elif initial_or_final == "final":
-        Ex_initial_or_final = np.copy(transitions[:, 7])   # To avoid altering the raw data.
-        spin_initial_or_final_idx = 4
-        parity_initial_or_final_idx = 5
-        msg = "Using final states for the energy limits is not correct"
-        msg += " and should only be used for comparison with the correct"
-        msg += " option which is using initial states for the energy limits."
-        warnings.warn(msg, RuntimeWarning)
-    
-    else:
-        msg = "'initial_or_final' must be either 'initial' or 'final'."
-        msg += f" Got {initial_or_final}"
-        raise ValueError(msg)
 
-    if abs(Ex_initial_or_final[0]) > 10:
+    Ex_initial = np.copy(transitions[:, 3])   # To avoid altering the raw data.
+    spin_initial_idx = 0
+    parity_initial_idx = 1
+
+    # if abs(Ex_initial[0]) > 10:
+    if Ex_initial[0] < 0:
         """
         Adjust energies relative to the ground state energy if they have
         not been adjusted already. The ground state energy is usually
@@ -321,8 +301,10 @@ def gamma_strength_function_average(
         above 10 MeV is probably safe. Cant check for equality to zero
         since the initial state will never be zero.
         NOTE: Just check if the value is negative instead?
+        2023-08-31: I have now changed it to check if the value is
+        negative. Fingers crossed for no negative side effects!
         """
-        Ex_initial_or_final -= E_ground_state
+        Ex_initial -= E_ground_state
 
     if Ex[0] != 0:
         """
@@ -375,14 +357,14 @@ def gamma_strength_function_average(
         up all reduced transition probabilities and the number of
         transitions in the correct bins.
         """
-        if Ex_initial_or_final[transition_idx] < Ex_min:
+        if Ex_initial[transition_idx] < Ex_min:
             """
             Check if transition is within min limit, skip if not.
             """
             skip_counter["Transit: Energy range (less)"] += 1   # Debug.
             continue
 
-        if Ex_initial_or_final[transition_idx] >= Ex_max:
+        if Ex_initial[transition_idx] >= Ex_max:
             """
             Check if transition is within max limit, skip if not.
             """
@@ -429,7 +411,7 @@ def gamma_strength_function_average(
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
-        Ex_initial_or_final_idx = int(Ex_initial_or_final[transition_idx]/bin_width)
+        Ex_initial_idx = int(Ex_initial[transition_idx]/bin_width)
         n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
         """
         transitions : np.ndarray
@@ -444,9 +426,9 @@ def gamma_strength_function_average(
             2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
             B(.., i->f), B(.., f<-i)]
         """
-        spin_initial_or_final = int(transitions[transition_idx, spin_initial_or_final_idx])  # Superfluous int casts?
-        parity_initial_or_final = int(transitions[transition_idx, parity_initial_or_final_idx])
-        spin_parity_idx = spin_parity_list.index([spin_initial_or_final, parity_initial_or_final])
+        spin_initial = int(transitions[transition_idx, spin_initial_idx])  # Superfluous int casts?
+        parity_initial = int(transitions[transition_idx, parity_initial_idx])
+        spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
         try:
             """
@@ -456,9 +438,9 @@ def gamma_strength_function_average(
             the note: Will prob. not be removed to keep the ability to
             compare initial and final.
             """
-            B_pixel_sum[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += \
+            B_pixel_sum[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += \
                 transitions[transition_idx, 9]
-            B_pixel_count[Ex_initial_or_final_idx, E_gamma_idx, spin_parity_idx] += 1
+            B_pixel_count[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += 1
         except IndexError as err:
             """
             NOTE: This error usually occurs because Ex_max is set to
@@ -473,7 +455,7 @@ def gamma_strength_function_average(
             is larger.
             """
             msg = f"{err.__str__()}\n"
-            msg += f"{Ex_initial_or_final_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
+            msg += f"{Ex_initial_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
             msg += f"{B_pixel_sum.shape=}\n"
             msg += f"{transitions.shape=}\n"
             msg += f"{Ex_max=}\n"
@@ -635,9 +617,9 @@ def level_plot(
     levels: np.ndarray,
     include_n_levels: int = 1_000,
     filter_spins: None | list = None,
-    filter_parity: Union[None, str] = None,
-    ax: Union[None, plt.Axes] = None,
-    color: Union[None, str] = None,
+    filter_parity: None | str = None,
+    ax: None | plt.Axes = None,
+    color: None | str = None,
     line_width: float = 0.4,
     x_offset_scale: float = 1.0,
     ):
@@ -659,16 +641,16 @@ def level_plot(
         Which spins to include in the plot. If None, all spins are
         plotted.
 
-    filter_parity : Union[None, str]
+    filter_parity : None | str
         A filter for parity. If None (default) then the parity of the
         ground state will be used. `+` is positive, `-` is negative,
         while `both` gives both parities.
 
-    ax : Union[None, plt.Axes]
+    ax : None | plt.Axes
         matplotlib Axes to plot on. If None, plt.Figure and plt.Axes is
         generated in this function.
 
-    color : Union[None, str]
+    color : None | str
         Color to use for the levels. If None, the next color in the
         matplotlib color_cycle iterator is used.
     
@@ -779,26 +761,26 @@ def level_plot(
 
 def level_density(
     levels: np.ndarray,
-    bin_width: Union[int, float],
+    bin_width: int | float,
     include_n_levels: None | int = None,
-    filter_spins: Union[None, int, list] = None,
-    filter_parity: Union[None, str, int] = None,
+    filter_spins: None | int | list = None,
+    filter_parity: None | str | int = None,
     E_min: float | int = 0,
     E_max: float | int = np.inf,
     return_counts: bool = False,
     plot: bool = False,
     save_plot: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate the level density for a given bin size.
 
     Parameters
     ----------
-    levels : Union[np.ndarray, list]
+    levels : np.ndarray | list
         Nx4 array of [[E, 2*spin, parity, idx], ...] or 1D array / list
         of only energies.
 
-    bin_width : Union[int, float]
+    bin_width : int | float
         Energy interval of which to calculate the density.
 
     include_n_levels : None | int
@@ -806,19 +788,19 @@ def level_density(
         include_n_levels = 100 will include only the 100 lowest laying
         states for each spin.
 
-    filter_spins : Union[None, int, list]
+    filter_spins : None | int | list
         Keep only the levels which have angular momenta in the filter.
         If None, all angular momenta are kept. Input must be the actual
         angular momenta values and not 2*j.
 
-    filter_parity : Union[None, str, int]
+    filter_parity : None | str | int
         Keep only levels of parity 'filter_parity'. +1, -1, '+', '-'
         allowed inputs.
 
-    E_min : Union[None, float, int]
+    E_min : None | float | int
         Minimum energy to include in the calculation.
 
-    E_max : Union[None, float, int]
+    E_max : None | float | int
         Maximum energy to include in the calculation. If input E_max is
         larger than the largest E in the data set, E_max is set to that
         value.
@@ -1001,12 +983,12 @@ def level_density(
 
 def porter_thomas(
     transitions: np.ndarray,
-    Ei: Union[int, float, list],
-    BXL_bin_width: Union[int, float],
-    j_list: Union[list, None] = None,
-    Ei_bin_width: Union[int, float] = 0.1,
+    Ei: int | float | list,
+    BXL_bin_width: int | float,
+    j_list: list | None = None,
+    Ei_bin_width: int | float = 0.1,
     return_chi2: bool = False,
-) -> tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate the distribution of B(XL)/mean(B(XL)) values scaled to
     a chi-squared distribution of 1 degree of freedom.
