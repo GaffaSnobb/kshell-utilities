@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os, sys, multiprocessing, hashlib, ast, time, re
 from fractions import Fraction
-from typing import Union, Callable, Tuple, Iterable
+from typing import Callable, Iterable
 from itertools import chain
 import numpy as np
 import numba
@@ -495,9 +495,9 @@ class ReadKshellOutput:
 
     def level_plot(self,
         include_n_levels: int = 1000,
-        filter_spins: Union[None, list] = None,
-        filter_parity: Union[None, str] = None,
-        color: Union[None, str] = "black"
+        filter_spins: list | None = None,
+        filter_parity: str | None = None,
+        color: str | None = "black"
         ):
         """
         Wrapper method to include level plot as an attribute to this
@@ -510,11 +510,11 @@ class ReadKshellOutput:
             The maximum amount of states to plot for each spin. Default
             set to a large number to indicate ≈ no limit.
 
-        filter_spins : Union[None, list]
+        filter_spins : list | None
             Which spins to include in the plot. If `None`, all spins are
             plotted. Defaults to `None`
 
-        color : Union[None, str]
+        color : str | None
             Set the color of the level lines.
         """
         level_plot(
@@ -526,13 +526,13 @@ class ReadKshellOutput:
         )
 
     def level_density_plot(self,
-            bin_width: Union[int, float] = 0.2,
-            include_n_levels: Union[None, int] = None,
-            filter_spins: Union[None, int, list] = None,
-            filter_parity: Union[None, str, int] = None,
+            bin_width: int | float = 0.2,
+            include_n_levels: int | None = None,
+            filter_spins: int | list | None = None,
+            filter_parity: str | int | None = None,
             return_counts: bool = False,
-            E_min: Union[float, int] = 0,
-            E_max: Union[float, int] = np.inf,
+            E_min: float | int = 0,
+            E_max: float | int = np.inf,
             plot: bool = True,
             save_plot: bool = False
         ):
@@ -562,12 +562,12 @@ class ReadKshellOutput:
         return bins, density
 
     def nld(self,
-        bin_width: Union[int, float] = 0.2,
-        include_n_levels: Union[None, int] = None,
-        filter_spins: Union[None, int, list] = None,
-        filter_parity: Union[None, str, int] = None,
-        E_min: Union[float, int] = 0,
-        E_max: Union[float, int] = np.inf,
+        bin_width: int | float = 0.2,
+        include_n_levels: int | None = None,
+        filter_spins: int | list | None = None,
+        filter_parity: str | int | None = None,
+        E_min: float | int = 0,
+        E_max: float | int = np.inf,
         return_counts: bool = False,
         plot: bool = True,
         save_plot: bool = False
@@ -588,19 +588,19 @@ class ReadKshellOutput:
         )
 
     def gamma_strength_function_average_plot(self,
-        bin_width: Union[float, int] = 0.2,
-        Ex_min: Union[float, int] = 5,
-        Ex_max: Union[float, int] = 50,
-        Ex_final_min: float | int = -np.inf,
+        bin_width: float | int = 0.2,
+        Ex_min: float | int = 5,
+        Ex_max: float | int = 50,
+        Ex_final_min: float | int = 0,
         Ex_final_max: float | int = np.inf,
         multipole_type: str = "M1",
-        prefactor_E1: Union[None, float] = None,
-        prefactor_M1: Union[None, float] = None,
-        prefactor_E2: Union[None, float] = None,
+        prefactor_E1: float | None = None,
+        prefactor_M1: float | None = None,
+        prefactor_E2: float | None = None,
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
-        include_n_levels: Union[None, int] = None,
-        filter_spins: Union[None, list] = None,
+        include_n_levels: int | float = np.inf,
+        filter_spins: list | None = None,
         filter_parities: str = "both",
         return_n_transitions: bool = False,
         plot: bool = True,
@@ -705,19 +705,19 @@ class ReadKshellOutput:
             return bins, gsf
 
     def gsf(self,
-        bin_width: Union[float, int] = 0.2,
-        Ex_min: Union[float, int] = 5,
-        Ex_max: Union[float, int] = 50,
-        Ex_final_min: float | int = -np.inf,
+        bin_width: float | int = 0.2,
+        Ex_min: float | int = 5,
+        Ex_max: float | int = 50,
+        Ex_final_min: float | int = 0,
         Ex_final_max: float | int = np.inf,
         multipole_type: str = "M1",
-        prefactor_E1: Union[None, float] = None,
-        prefactor_M1: Union[None, float] = None,
-        prefactor_E2: Union[None, float] = None,
+        prefactor_E1: float | None = None,
+        prefactor_M1: float | None = None,
+        prefactor_E2: float | None = None,
         partial_or_total: str = "partial",
         include_only_nonzero_in_average: bool = True,
-        include_n_levels: Union[None, int] = None,
-        filter_spins: Union[None, list] = None,
+        include_n_levels: int | float = np.inf,
+        filter_spins: list | None = None,
         filter_parities: str = "both",
         return_n_transitions: bool = False,
         plot: bool = True,
@@ -769,10 +769,10 @@ class ReadKshellOutput:
     def porter_thomas_Ei_plot(self,
         Ei_range_min: float = 5,
         Ei_range_max: float = 9,
-        Ei_values: Union[list, None] = None,
+        Ei_values: list | None = None,
         Ei_bin_width: float = 0.2,
         BXL_bin_width: float = 0.1,
-        multipole_type: Union[str, list] = "M1",
+        multipole_type: str | list = "M1",
         set_title: bool = True
         ):
         """
@@ -793,7 +793,7 @@ class ReadKshellOutput:
             spaced intervals will be chosen from this range. The neutron
             separation energy is a good choice. MeV.
 
-        Ei_values : Union[list, None]
+        Ei_values : list | None
             List of initial energies to be used. If None, the
             initial energies will be chosen from the Ei_range_min
             and Ei_range_max. Values in a bin around Ei_values of size
@@ -1034,7 +1034,7 @@ class ReadKshellOutput:
     def _porter_thomas_j_plot_calculator(self,
         Ex_min: float,
         Ex_max: float,
-        j_lists: Union[list, None],
+        j_lists: list | None,
         BXL_bin_width: float,
         multipole_type: str,
         ):
@@ -1049,7 +1049,7 @@ class ReadKshellOutput:
         Ex_max : float
             Maximum value of the initial energy. MeV.
 
-        j_lists : Union[list, None]
+        j_lists : list | None
             Either a list of j values to compare, a list of lists of j
             values to compare, or None where all j values available
             will be used.
@@ -1135,9 +1135,9 @@ class ReadKshellOutput:
     def porter_thomas_j_plot(self,
         Ex_min: float = 5,
         Ex_max: float = 9,
-        j_lists: Union[list, None] = None,
+        j_lists: list | None = None,
         BXL_bin_width: float = 0.1,
-        multipole_type: Union[str, list] = "M1",
+        multipole_type: str | list = "M1",
         include_relative_difference: bool = True,
         set_title: bool = True
         ):
@@ -1147,7 +1147,7 @@ class ReadKshellOutput:
 
         Parameter
         ---------
-        multipole_type : Union[str, list]
+        multipole_type : str | list
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'. Accepts a list of max 2 multipolarities.
 
@@ -1382,10 +1382,10 @@ class ReadKshellOutput:
         bin_width: float = 0.2,
         E_min: float = 5,
         E_max: float = 10,
-        j_list: Union[None, int, float, Iterable] = None,
-        filter_parity: Union[None, int, str] = None,
+        j_list: int | float | Iterable | None = None,
+        filter_parity: int | str | None = None,
         plot: bool = True,
-        # single_spin_plot: Union[None, int, float, Iterable] = None,
+        # single_spin_plot: int | float | Iterable | None = None,
         save_plot: bool = True,
         set_title: bool = True
     ):
@@ -1403,11 +1403,11 @@ class ReadKshellOutput:
         E_max : float
             Maximum value of the energy range.
 
-        j_list : Union[None, int, float, Iterable]
+        j_list : int | float | Iterable | None
             Filter the levels by their angular momentum. If None,
             all levels are plotted.
 
-        filter_parity : Union[None, int, str]
+        filter_parity : int | str | None
             Filter the levels by their parity. If None, all levels
             are plotted.
 
@@ -1586,9 +1586,9 @@ class ReadKshellOutput:
     def B_distribution(self,
         partial_or_total: str,
         multipole_type: str = "M1",
-        filter_spins: Union[None, list] = None,
-        filter_parity: Union[None, int] = None,
-        filter_indices: Union[None, int, list] = None,
+        filter_spins: list | None = None,
+        filter_parity: int | None = None,
+        filter_indices: int | list | None = None,
         plot: bool = True,
     ) -> np.ndarray:
         """
@@ -1605,11 +1605,11 @@ class ReadKshellOutput:
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
         
-        filter_spins : Union[None, list]
+        filter_spins : list | None
             Filter the levels by their angular momentum. If None,
             all levels are included.
 
-        filter_parity : Union[None, int]
+        filter_parity : int | None
             Filter the levels by their parity. If None, both parities
             are included.
 
@@ -1714,12 +1714,12 @@ class ReadKshellOutput:
         return total_B
 
     def _brink_axel_j_calculator(self,
-        bin_width: Union[float, int],
-        Ex_min: Union[float, int],
-        Ex_max: Union[float, int],
+        bin_width: float | int,
+        Ex_min: float | int,
+        Ex_max: float | int,
         multipole_type: str,
         j_list: list,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Calculate the GSF as a function of Eg for all Ei and ji, as well
         as the GSF individually for all ji in j_list.
@@ -1756,11 +1756,11 @@ class ReadKshellOutput:
         return bins, gsf, bins_all_j, gsf_all_j
 
     def brink_axel_j(self,
-        bin_width: Union[float, int] = 0.2,
-        Ex_min: Union[float, int] = 5,
-        Ex_max: Union[float, int] = 50,
-        multipole_type: Union[list, str] = "M1",
-        j_list: Union[list, None] = None,
+        bin_width: float | int = 0.2,
+        Ex_min: float | int = 5,
+        Ex_max: float | int = 50,
+        multipole_type: list | str = "M1",
+        j_list: list | None = None,
         set_title: bool = True
     ):
         """
@@ -1842,9 +1842,9 @@ class ReadKshellOutput:
         plt.show()
 
     def primary_matrix(self,
-        bin_width: Union[float, int] = 0.2,
-        Ex_min: Union[float, int] = 0,
-        Ex_max: Union[float, int] = 50,
+        bin_width: float | int = 0.2,
+        Ex_min: float | int = 0,
+        Ex_max: float | int = 50,
         multipole_type: str = "M1",
         plot: bool = True,
     ):
@@ -2187,7 +2187,7 @@ class ReadKshellOutput:
 
 def loadtxt(
     path: str,
-    load_and_save_to_file: Union[bool, str] = True,
+    load_and_save_to_file: bool | str = True,
     old_or_new = "new"
     ) -> ReadKshellOutput:
     """
@@ -2199,7 +2199,7 @@ def loadtxt(
         Path to summary file or path to directory with summary / log
         files.
 
-    load_and_save_to_file : Union[bool, str]
+    load_and_save_to_file : bool | str
         Toggle saving data as `.npy` files on / off. If 'overwrite',
         saved `.npy` files are overwritten.
 
@@ -2300,7 +2300,7 @@ def _get_timing_data(path: str):
     
     return total
 
-def _get_memory_usage(path: str) -> Union[float, None]:
+def _get_memory_usage(path: str) -> float | None:
     """
     Get memory usage from KSHELL log files.
 
