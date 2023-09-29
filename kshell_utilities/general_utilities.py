@@ -235,10 +235,13 @@ def gamma_strength_function_average(
     if filter_parities not in allowed_filter_parities:
         msg = f"filter_parities must be {allowed_filter_parities}"
         raise TypeError(msg)
+    
     if filter_parities == "both":
         filter_parities = [-1, +1]
+    
     elif filter_parities == "-":
         filter_parities = [-1]
+    
     elif filter_parities == "+":
         filter_parities = [+1]
 
@@ -289,8 +292,7 @@ def gamma_strength_function_average(
         raise Exception(msg) from err
 
     Ex_initial = np.copy(transitions[:, 3])   # To avoid altering the raw data.
-    spin_initial_idx = 0
-    parity_initial_idx = 1
+    Ex_final = np.copy(transitions[:, 7])
 
     # if abs(Ex_initial[0]) > 10:
     if Ex_initial[0] < 0:
@@ -412,63 +414,15 @@ def gamma_strength_function_average(
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_idx = int(Ex_initial[transition_idx]/bin_width)
+        
         n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
-        """
-        transitions : np.ndarray
-            OLD:
-            Mx8 array containing [2*spin_final, parity_initial, Ex_final,
-            2*spin_initial, parity_initial, Ex_initial, E_gamma, B(.., i->f)]
-            OLD NEW:
-            [2*spin_initial, parity_initial, Ex_initial, 2*spin_final,
-            parity_final, Ex_final, E_gamma, B(.., i->f), B(.., f<-i)]
-            NEW:
-            [2*spin_initial, parity_initial, idx_initial, Ex_initial,
-            2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
-            B(.., i->f), B(.., f<-i)]
-        """
-        spin_initial = int(transitions[transition_idx, spin_initial_idx])  # Superfluous int casts?
-        parity_initial = int(transitions[transition_idx, parity_initial_idx])
+        spin_initial = int(transitions[transition_idx, 0])  # Superfluous int casts?
+        parity_initial = int(transitions[transition_idx, 1])
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
-        try:
-            """
-            Add B(..) value and increment transition count,
-            respectively. NOTE: Hope to remove this try-except by
-            implementing suitable input checks to this function. Note to
-            the note: Will prob. not be removed to keep the ability to
-            compare initial and final.
-            """
-            B_pixel_sum[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += \
-                transitions[transition_idx, 9]
-            B_pixel_count[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += 1
-        except IndexError as err:
-            """
-            NOTE: This error usually occurs because Ex_max is set to
-            limit Ex_final instead of Ex_initial. If so, E_gamma might
-            be larger than Ex_max and thus be placed in a B_pixel
-            outside of the allocated scope. This error has a larger
-            probability of occuring if Ex_max is set to a low value
-            because then the probability of 
-                
-                E_gamma = Ex_initial - Ex_final
-
-            is larger.
-            """
-            msg = f"{err.__str__()}\n"
-            msg += f"{Ex_initial_idx=}, {E_gamma_idx=}, {spin_parity_idx=}, {transition_idx=}\n"
-            msg += f"{B_pixel_sum.shape=}\n"
-            msg += f"{transitions.shape=}\n"
-            msg += f"{Ex_max=}\n"
-            msg += f"2*spin_final: {transitions[transition_idx, 4]}\n"
-            msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            msg += f"Ex_final: {transitions[transition_idx, 7]}\n"
-            msg += f"2*spin_initial: {transitions[transition_idx, 0]}\n"
-            msg += f"parity_initial: {transitions[transition_idx, 1]}\n"
-            msg += f"Ex_initial: {transitions[transition_idx, 3]}\n"
-            msg += f"E_gamma: {transitions[transition_idx, 8]}\n"
-            msg += f"B(.., i->f): {transitions[transition_idx, 9]}\n"
-            msg += f"B(.., f<-i): {transitions[transition_idx, 10]}\n"
-            raise Exception(msg) from err
+        B_pixel_sum[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += \
+            transitions[transition_idx, 9]
+        B_pixel_count[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += 1
 
     transit_gsf_time = time.perf_counter() - transit_gsf_time
     level_density_gsf_time = time.perf_counter()
@@ -583,6 +537,7 @@ def gamma_strength_function_average(
     bins = bins[:len(gSF_ExJpiavg)]
 
     total_gsf_time = time.perf_counter() - total_gsf_time
+    
     if flags["debug"]:
         transit_total_skips = \
             sum([skip_counter[key] for key in skip_counter if key.startswith("Transit")])
