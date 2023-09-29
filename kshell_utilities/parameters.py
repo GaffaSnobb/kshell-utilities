@@ -117,3 +117,17 @@ major_shell_order: dict[str, int] = {
     "pf" : 3,
     "sdg": 4,
 }
+
+parity_j_pair_to_l_map: dict[tuple[int, int], int] = {
+    (+1, 5): 2,     # d5/2 has positive parity and l = 2
+    (+1, 1): 0,     # s1/2 has positive parity and l = 0
+    (+1, 3): 2,     # d3/2 has positive parity and l = 2
+    (-1, 7): 3,     # f7/2 has negative parity and l = 3
+    (-1, 3): 1,     # p3/2 has negative parity and l = 1
+    (-1, 5): 3,     # f5/2 has negative parity and l = 3
+    (+1, 9): 4,     # g9/2 has positive parity and l = 4
+    # (+1, 5): 2,     # d5/2 has positive parity and l = 2
+    (+1, 7): 4,     # g7/2 has positive parity and l = 4
+    # (+1, 3): 2,     # d3/2 has positive parity and l = 2
+    # (+1, 1): 0,     # s1/2 has positive parity and l = 0
+}
