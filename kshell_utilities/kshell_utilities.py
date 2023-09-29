@@ -591,6 +591,8 @@ class ReadKshellOutput:
         bin_width: Union[float, int] = 0.2,
         Ex_min: Union[float, int] = 5,
         Ex_max: Union[float, int] = 50,
+        Ex_final_min: float | int = -np.inf,
+        Ex_final_max: float | int = np.inf,
         multipole_type: str = "M1",
         prefactor_E1: Union[None, float] = None,
         prefactor_M1: Union[None, float] = None,
@@ -621,6 +623,7 @@ class ReadKshellOutput:
         }
         is_loaded = False
         gsf_unique_string = f"{bin_width}{Ex_min}{Ex_max}{multipole_type}"
+        gsf_unique_string += f"{Ex_final_min}{Ex_final_max}"
         gsf_unique_string += f"{prefactor_E1}{prefactor_M1}{prefactor_E2}"
         gsf_unique_string += f"{partial_or_total}{include_only_nonzero_in_average}"
         gsf_unique_string += f"{include_n_levels}{filter_spins}{filter_parities}"
@@ -655,6 +658,8 @@ class ReadKshellOutput:
                 bin_width = bin_width,
                 Ex_min = Ex_min,
                 Ex_max = Ex_max,
+                Ex_final_min = Ex_final_min,
+                Ex_final_max = Ex_final_max,
                 multipole_type = multipole_type,
                 prefactor_E1 = prefactor_E1,
                 prefactor_M1 = prefactor_M1,
@@ -703,6 +708,8 @@ class ReadKshellOutput:
         bin_width: Union[float, int] = 0.2,
         Ex_min: Union[float, int] = 5,
         Ex_max: Union[float, int] = 50,
+        Ex_final_min: float | int = -np.inf,
+        Ex_final_max: float | int = np.inf,
         multipole_type: str = "M1",
         prefactor_E1: Union[None, float] = None,
         prefactor_M1: Union[None, float] = None,
@@ -724,6 +731,8 @@ class ReadKshellOutput:
             bin_width = bin_width,
             Ex_min = Ex_min,
             Ex_max = Ex_max,
+            Ex_final_min = Ex_final_min,
+            Ex_final_max = Ex_final_max,
             multipole_type = multipole_type,
             prefactor_E1 = prefactor_E1,
             prefactor_M1 = prefactor_M1,
