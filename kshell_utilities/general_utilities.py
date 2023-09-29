@@ -72,14 +72,14 @@ def gamma_strength_function_average(
     Ex_min: float | int,
     Ex_max: float | int,
     multipole_type: str,
-    Ex_final_min: float | int = -np.inf,
+    Ex_final_min: float | int = 0,
     Ex_final_max: float | int = np.inf,
     prefactor_E1: None | float = None,
     prefactor_M1: None | float = None,
     prefactor_E2: None | float = None,
     partial_or_total: str = "partial",
     include_only_nonzero_in_average: bool = True,
-    include_n_levels: None | int = None,
+    include_n_levels: float | int = np.inf,
     filter_spins: None | list = None,
     filter_parities: str = "both",
     return_n_transitions: bool = False,
@@ -166,10 +166,10 @@ def gamma_strength_function_average(
         alternative is to use only the non-zero values, so setting this
         parameter to False should be done with care.
 
-    include_n_levels : None | int
-        The number of states per spin to include. Example:
+    include_n_levels : float | int
+        The number of levels per spin to include. Example:
         include_n_levels = 100 will include only the 100 lowest laying
-        states for each spin.
+        levels for each spin.
 
     filter_spins : None | list
         Which spins to include in the GSF. If None, all spins are
@@ -232,11 +232,6 @@ def gamma_strength_function_average(
         "Level density: Parity": 0
     }
     total_gsf_time = time.perf_counter()
-
-    allowed_filter_parities = ["+", "-", "both"]
-    if filter_parities not in allowed_filter_parities:
-        msg = f"filter_parities must be {allowed_filter_parities}"
-        raise TypeError(msg)
     
     if filter_parities == "both":
         filter_parities = [-1, +1]
@@ -247,8 +242,9 @@ def gamma_strength_function_average(
     elif filter_parities == "+":
         filter_parities = [+1]
 
-    if include_n_levels is None:
-        include_n_levels = np.inf   # Include all states.
+    else:
+        msg = f"filter_parities must be '+', '-' or 'both'! Got {filter_parities}"
+        raise TypeError(msg)
 
     if (Ex_min < 0) or (Ex_max < 0):
         msg = "Ex_min and Ex_max cannot be negative!"
@@ -256,6 +252,14 @@ def gamma_strength_function_average(
 
     if Ex_max < Ex_min:
         msg = "Ex_max cannot be smaller than Ex_min!"
+        raise ValueError(msg)
+    
+    if (Ex_final_min < 0) or (Ex_final_max < 0):
+        msg = "Ex_final_min and Ex_final_max cannot be negative!"
+        raise ValueError(msg)
+
+    if Ex_final_max < Ex_final_min:
+        msg = "Ex_final_max cannot be smaller than Ex_final_min!"
         raise ValueError(msg)
 
     prefactors: dict[str, float] = {   # Factor for converting from B(XL) to GSF
