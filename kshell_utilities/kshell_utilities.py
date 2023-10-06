@@ -611,6 +611,13 @@ class ReadKshellOutput:
         calculations as an attribute to this class. Includes saving
         of GSF data to .npy files.
 
+        The value of all the input arguments to this function are used
+        to generate a unique ID so that the calculated GSF data can be
+        saved to disk while at the same time any change in any of the
+        arguments to this function will change the unique ID and
+        subsequently prompt the calculation of a new GSF with those
+        input parameters.
+
         Parameters
         ----------
         See gamma_strength_function_average in general_utilities.py

@@ -4,7 +4,10 @@ from fractions import Fraction
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
-from .parameters import flags, elements, latex_plot
+from .parameters import (
+    flags, elements, latex_plot, spectroscopic_conversion_reversed,
+    parity_j_pair_to_l_map
+)
 # warnings.filterwarnings("error")    # To catch warnings with try except.
 # from scipy.optimize import curve_fit
 
@@ -244,7 +247,7 @@ def gamma_strength_function_average(
 
     else:
         msg = f"filter_parities must be '+', '-' or 'both'! Got {filter_parities}"
-        raise TypeError(msg)
+        raise ValueError(msg)
 
     if (Ex_min < 0) or (Ex_max < 0):
         msg = "Ex_min and Ex_max cannot be negative!"
@@ -279,6 +282,20 @@ def gamma_strength_function_average(
     
     if prefactor_E2 is not None:
         prefactors["E2"] = prefactor_E2
+
+    if filter_spinflip is not None:
+        if isinstance(filter_spinflip, str):
+            filter_spinflip = spectroscopic_conversion_reversed[filter_spinflip]
+
+        elif isinstance(filter_spinflip, int):
+            pass
+
+        else:
+            msg = (
+                "'filter_spinflip' has to be either spectroscopic notation or"
+                " integer valued ORBITAL angular momentum!"
+            )
+            raise ValueError(msg)
 
     prefactor = prefactors[multipole_type]
 
@@ -396,12 +413,12 @@ def gamma_strength_function_average(
             skip_counter["Transit: Number of levels"] += 1
             continue
 
-        spin_initial = transitions[transition_idx, 0]/2
-        spin_final = transitions[transition_idx, 4]/2
+        spin_initial = int(transitions[transition_idx, 0])  # int cast might not be necessary here.
+        spin_final = int(transitions[transition_idx, 4])
 
         if filter_spins is not None:
             # if (spin_initial not in filter_spins) or (spin_final not in filter_spins):
-            if spin_initial not in filter_spins:
+            if spin_initial/2 not in filter_spins:
                 """
                 Skip transitions to or from levels of total angular momentum
                 not in the filter list.
@@ -428,8 +445,8 @@ def gamma_strength_function_average(
         Ex_initial_idx = int(Ex_initial[transition_idx]/bin_width)
         
         n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
-        spin_initial = int(transitions[transition_idx, 0])  # Superfluous int casts?
-        parity_initial = int(transitions[transition_idx, 1])
+        # spin_initial = int(transitions[transition_idx, 0])  # Superfluous int casts?
+        # parity_initial = int(transitions[transition_idx, 1])
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
         B_pixel_sum[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += \
