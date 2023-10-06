@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import chi2
 from .parameters import (
     flags, elements, latex_plot, spectroscopic_conversion_reversed,
-    parity_j_pair_to_l_map
 )
 # warnings.filterwarnings("error")    # To catch warnings with try except.
 # from scipy.optimize import curve_fit
