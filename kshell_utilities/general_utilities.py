@@ -282,20 +282,6 @@ def gamma_strength_function_average(
     if prefactor_E2 is not None:
         prefactors["E2"] = prefactor_E2
 
-    if filter_spinflip is not None:
-        if isinstance(filter_spinflip, str):
-            filter_spinflip = spectroscopic_conversion_reversed[filter_spinflip]
-
-        elif isinstance(filter_spinflip, int):
-            pass
-
-        else:
-            msg = (
-                "'filter_spinflip' has to be either spectroscopic notation or"
-                " integer valued ORBITAL angular momentum!"
-            )
-            raise ValueError(msg)
-
     prefactor = prefactors[multipole_type]
 
     # Extract data to a more readable form:
