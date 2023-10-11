@@ -63,8 +63,9 @@ class Interaction:
     n_tbme: int = 0
     # tbme: list[list[int | float]] = field(default_factory=list) # Two-body matrix elements.
     tbme: dict[tuple[int, int, int, int, int], float] = field(default_factory=dict) # Two-body matrix elements.
-    fmd_mass: int = 0   # Dont know what this is yet.
-    fmd_power: float = 0    # The exponent of fmd_mass.
+    tbme_mass_dependence_denominator: int = 0
+    tbme_mass_dependence_exponent: float = 0.0
+    tbme_mass_dependence_method: int = 0
     vm: np.ndarray = field(default_factory=lambda: np.zeros(shape=0, dtype=float))  # Dont know what this is yet.
 
 @dataclass(slots=True)

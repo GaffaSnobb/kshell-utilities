@@ -141,11 +141,16 @@ def load_interaction(
 
         try:
             interaction.n_tbme = int(tmp[0])
-            interaction.fmd_mass = int(tmp[2])
-            interaction.fmd_power = float(tmp[3])
+            interaction.tbme_mass_dependence_method = int(tmp[1])
+            interaction.tbme_mass_dependence_denominator = int(tmp[2])
+            interaction.tbme_mass_dependence_exponent = float(tmp[3])
         except IndexError:
             """
             I dont really know what this is yet.
+
+            NOTE: 2023-10-11: Pretty sure that I can just leave the TBMEs as
+            they are if no mass dependence is specified in the interaction
+            file.
             """
             msg = "Interactions with no mass dependence have not yet been implemented."
             raise NotImplementedError(msg)
@@ -160,7 +165,7 @@ def load_interaction(
             i1 = int(i1) - 1
             i2 = int(i2) - 1
             i3 = int(i3) - 1
-            j = int(j)
+            j = 2*int(j)
             tbme = float(tbme)
 
             if (i0, i1, i2, i3, j) in interaction.tbme:
