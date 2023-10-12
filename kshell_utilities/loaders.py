@@ -105,6 +105,8 @@ def load_interaction(
                 msg = f"Valid values for tz are -1 and +1, got {tz=}"
                 raise ValueError(msg)
             
+        interaction.model_space.all_jz_values = interaction.model_space_proton.all_jz_values + interaction.model_space_neutron.all_jz_values
+            
         for line in infile:
             """
             Example
