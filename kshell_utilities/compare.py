@@ -90,6 +90,7 @@ class Compare:
         include_n_levels: int = 1_000,
         filter_spins: Union[None, list] = None,
         filter_parity: Union[None, str] = None,
+        use_relative_energy: bool = False,
         ):
         """
         Draw level plots for all kshell outputs. 
@@ -99,6 +100,12 @@ class Compare:
         ax : Union[None, plt.Axes]
             matplotlib Axes on which to plot. If None, plt.Figure and
             plt.Axes is generated in this function.
+
+        use_relative_energy : bool
+            Use relative energy (with respect to the ground state) for
+            the y-axis. Default is `False`. I think one should be
+            careful with using this option, as it can be misleading
+            when comparing different nuclei.
 
         See level_plot in general_utilities.py for details on the other
         parameters.
@@ -135,8 +142,14 @@ class Compare:
                 self._color_palette, self._kshell_outputs, labels
             ):
 
+            if use_relative_energy:
+                levels_tmp = kshell_output.levels.copy()
+                levels_tmp[:, 0] -= kshell_output.ground_state_energy
+            else:
+                levels_tmp = kshell_output.levels
+
             level_plot(
-                levels = kshell_output.levels,
+                levels = levels_tmp,
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
                 filter_parity = filter_parity,

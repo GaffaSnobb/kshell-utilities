@@ -497,7 +497,8 @@ class ReadKshellOutput:
         include_n_levels: int = 1000,
         filter_spins: list | None = None,
         filter_parity: str | None = None,
-        color: str | None = "black"
+        color: str | None = "black",
+        use_relative_energy: bool = True,
         ):
         """
         Wrapper method to include level plot as an attribute to this
@@ -516,9 +517,19 @@ class ReadKshellOutput:
 
         color : str | None
             Set the color of the level lines.
+
+        use_relative_energy : bool
+            Use relative energy (with respect to the ground state) for
+            the y-axis. Default is `True`.
         """
+        if use_relative_energy:
+            levels_tmp = self.levels.copy()
+            levels_tmp[:, 0] -= self.ground_state_energy
+        else:
+            levels_tmp = self.levels
+
         level_plot(
-            levels = self.levels,
+            levels = levels_tmp,
             include_n_levels = include_n_levels,
             filter_spins = filter_spins,
             filter_parity = filter_parity,

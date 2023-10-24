@@ -593,22 +593,23 @@ def level_plot(
     x_offset_scale: float = 1.0,
     ):
     """
-    Generate a level plot for a single isotope. Spin on the x axis,
-    energy on the y axis.
+    Generate a level plot for a single isotope. Total angukar momentum
+    on the x axis, energy on the y axis.
 
     Parameters
     ----------
     levels : np.ndarray
-        NxM array of [[energy, spin, parity, index], ...]. This is the
-        instance attribute 'levels' of ReadKshellOutput.
+        NxM array of [[energy, j, parity, index], ...]. This is the
+        instance attribute 'levels' of ReadKshellOutput. N is the number
+        of levels, M is the number of parameters.
     
     include_n_levels : int
-        The maximum amount of states to plot for each spin. Default set
-        to a large number to indicate ≈ no limit.
+        The maximum amount of levels to plot for each total angular
+        momenta. Default set to a large number to indicate ≈ no limit.
 
     filter_spins : None | list
-        Which spins to include in the plot. If None, all spins are
-        plotted.
+        Which total angular momenta to include in the plot. If None, all
+        total angular momenta are plotted.
 
     filter_parity : None | str
         A filter for parity. If None (default) then the parity of the
@@ -634,14 +635,15 @@ def level_plot(
         well as both parities.
     """
     ax_input = False if (ax is None) else True
+    energies = levels[:, 0]
 
-    if levels[0, 0] != 0:
-        """
-        Adjust energies relative to the ground state energy.
-        """
-        energies = levels[:, 0] - levels[0, 0]
-    else:
-        energies = levels[:, 0]
+    # if levels[0, 0] != 0:
+    #     """
+    #     Adjust energies relative to the ground state energy.
+    #     """
+    #     energies = levels[:, 0] - levels[0, 0]
+    # else:
+    #     energies = levels[:, 0]
 
     spins = levels[:, 1]/2  # levels[:, 1] is 2*spin.
     parities = levels[:, 2]
@@ -707,7 +709,7 @@ def level_plot(
         
         if counts[key] > include_n_levels:
             """
-            Include only the first `include_n_levels` amount of states
+            Include only the first `include_n_levels` amount of levels
             for any of the spins.
             """
             continue
