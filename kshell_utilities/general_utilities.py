@@ -740,8 +740,9 @@ def level_density(
     E_max: float | int = np.inf,
     return_counts: bool = False,
     plot: bool = False,
-    save_plot: bool = False
-    ) -> tuple[np.ndarray, np.ndarray]:
+    save_plot: bool = False,
+    ax: None | plt.Axes = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate the level density for a given bin size.
 
@@ -803,6 +804,17 @@ def level_density(
     TypeError:
         If input parameters are of the wrong type.
     """
+    if ax is not None:
+        """
+        If the user gives an ax, then this function should not create a
+        new ax, nor call plt.show, nor save the plot.        
+        """
+        if plot or save_plot:
+            msg = "'plot' and 'save_plot' is ignored when an ax is supplied."
+            warnings.warn(message=msg)
+        plot = False
+        save_plot = False
+
     if not isinstance(levels, np.ndarray):
         levels = np.array(levels)
 
@@ -930,8 +942,9 @@ def level_density(
     # bins = bins[1:]
     bins = bins[:-1]    # Maybe just a matter of preference...?
 
-    if plot:
-        fig, ax = plt.subplots()
+    if plot or (ax is not None):
+        if plot: fig, ax = plt.subplots()
+        
         if return_counts:
             ax.step(bins, counts, color="black")
             ax.set_ylabel(r"Counts")
@@ -939,13 +952,16 @@ def level_density(
             ax.step(bins, density, color="black")
             ax.set_ylabel(r"NLD [MeV$^{-1}$]")
         ax.set_xlabel("E [MeV]")
-        ax.legend([f"{bin_width=} MeV"])
-        ax.grid()
+        # ax.legend([f"{bin_width=} MeV"])
+        
+        if plot: ax.grid()
+        
         if save_plot:
-            fname = "nld.png"
+            fname = "nld.pdf"
             print(f"NLD saved as '{fname}'")
-            fig.savefig(fname=fname, dpi=300)
-        plt.show()
+            fig.savefig(fname=fname, dpi=600, format="pdf")
+        
+        if plot: plt.show()
 
     if return_counts:
         return bins, density, counts
@@ -1405,5 +1421,5 @@ def nuclear_shell_model(
             color = "black",
         )
 
-    fig.savefig(fname="nuclear_shell_model.png", dpi=500)#, format="eps")
+    fig.savefig(fname="nuclear_shell_model.pdf", dpi=600, format="pdf")
     plt.show()
