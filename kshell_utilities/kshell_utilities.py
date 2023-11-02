@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, multiprocessing, hashlib, ast, time, re
+import os, sys, multiprocessing, hashlib, ast, time, re, warnings
 from fractions import Fraction
 from typing import Callable, Iterable
 from itertools import chain
@@ -536,6 +536,87 @@ class ReadKshellOutput:
             color = color,
         )
 
+    def level_scheme_experimental_vs_calculated(self,
+        experimental_energies: list[float],
+        experimental_angular_momenta: list[int],
+        experimental_parities: list[int],
+        ax: plt.Axes | None = None,
+    ):
+        """
+        Compare the calculated levels from KSHELL with user-supplied
+        experimental data.
+
+        Parameters
+        ----------
+        experimental_energies : list[float]
+            List of experimental energies of the levels.
+        
+        experimental_angular_momenta : list[int]
+            List of experimental total angular momenta of the levels.
+        
+        experimental_parities : list[int]
+            You guessed it! List of experimental parities of the levels.
+        """
+        if ax is not None: show = False
+        else: show = True
+        experimental_angular_momenta = [2*j for j in experimental_angular_momenta]
+
+        indices: list[int] = []
+        index_counter: dict[tuple[int, int], int] = {}
+        for j, p in zip(experimental_angular_momenta, experimental_parities):
+            """
+            The index counter keeps tabs on how many levels there are with
+            each (j, p) pair.
+            """
+            index_counter[(j, p)] = 1
+
+        for j, p in zip(experimental_angular_momenta, experimental_parities):
+            indices.append(index_counter[(j, p)])
+            index_counter[(j, p)] += 1
+
+        experimental_levels = np.zeros((len(experimental_energies), 4))
+        calculated_levels = np.zeros((len(experimental_energies), 4))
+        
+        experimental_levels[:, 0] = experimental_energies
+        experimental_levels[:, 1] = experimental_angular_momenta
+        experimental_levels[:, 2] = experimental_parities
+        experimental_levels[:, 3] = indices
+
+        for i0 in range(len(experimental_energies)):
+            """
+            Match the experimental levels with calculated levels.
+            """
+            e0, j0, p0, idx0 = experimental_levels[i0]
+            for i1 in range(self.levels.shape[0]):
+                e1, j1, p1, idx1 = self.levels[i1]
+
+                if (j0 == j1) and (p0 == p1) and (idx0 == idx1):
+                    e1 -= self.ground_state_energy
+                    calculated_levels[i0] = e1, j1, p1, idx1
+                    break
+            else:
+                msg = "Could not find a match for experimental level"
+                msg += f" {e0 = }, {j0 = }, {p0 = }, {idx0 = }"
+                warnings.warn(msg)
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        level_plot(
+            levels = experimental_levels,
+            ax = ax,
+            color = "red",
+        )
+        level_plot(
+            levels = calculated_levels,
+            ax = ax,
+            color = "blue",
+        )
+        ax.plot([], [], color="red", label="Experimental")
+        ax.plot([], [], color="blue", label="Calculated")
+        ax.legend()
+        if show: plt.show()
+
     def level_density_plot(self,
             bin_width: int | float = 0.2,
             include_n_levels: int | None = None,
@@ -545,7 +626,8 @@ class ReadKshellOutput:
             E_min: float | int = 0,
             E_max: float | int = np.inf,
             plot: bool = True,
-            save_plot: bool = False
+            save_plot: bool = False,
+            ax: None | plt.Axes = None,
         ):
         """
         Wrapper method to include level density plotting as
@@ -567,7 +649,8 @@ class ReadKshellOutput:
             E_min = E_min,
             E_max = E_max,
             plot = plot,
-            save_plot = save_plot
+            save_plot = save_plot,
+            ax = ax,
         )
 
         return bins, density
@@ -581,7 +664,8 @@ class ReadKshellOutput:
         E_max: float | int = np.inf,
         return_counts: bool = False,
         plot: bool = True,
-        save_plot: bool = False
+        save_plot: bool = False,
+        ax: None | plt.Axes = None,
         ):
         """
         Wrapper method to level_density_plot.
@@ -595,7 +679,8 @@ class ReadKshellOutput:
             E_max = E_max,
             return_counts = return_counts,
             plot = plot,
-            save_plot = save_plot
+            save_plot = save_plot,
+            ax = ax,
         )
 
     def gamma_strength_function_average_plot(self,
