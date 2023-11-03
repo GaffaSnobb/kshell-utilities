@@ -3,6 +3,7 @@ import os, sys, multiprocessing, hashlib, ast, time, re, warnings
 from fractions import Fraction
 from typing import Callable, Iterable
 from itertools import chain
+import numpy.typing as npt
 import numpy as np
 import numba
 import matplotlib.pyplot as plt
@@ -541,7 +542,7 @@ class ReadKshellOutput:
         experimental_angular_momenta: list[int],
         experimental_parities: list[int],
         ax: plt.Axes | None = None,
-    ):
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
         Compare the calculated levels from KSHELL with user-supplied
         experimental data.
@@ -574,8 +575,9 @@ class ReadKshellOutput:
             indices.append(index_counter[(j, p)])
             index_counter[(j, p)] += 1
 
-        experimental_levels = np.zeros((len(experimental_energies), 4))
-        calculated_levels = np.zeros((len(experimental_energies), 4))
+        experimental_levels = np.zeros((len(experimental_energies), 4), dtype=np.float64)
+        calculated_levels = np.zeros((len(experimental_energies), 4), dtype=np.float64)
+        differences = np.zeros(len(experimental_energies), dtype=np.float64)
         
         experimental_levels[:, 0] = experimental_energies
         experimental_levels[:, 1] = experimental_angular_momenta
@@ -592,6 +594,7 @@ class ReadKshellOutput:
 
                 if (j0 == j1) and (p0 == p1) and (idx0 == idx1):
                     e1 -= self.ground_state_energy
+                    differences[i0] = abs(e0 - e1)
                     calculated_levels[i0] = e1, j1, p1, idx1
                     break
             else:
@@ -616,6 +619,8 @@ class ReadKshellOutput:
         ax.plot([], [], color="blue", label="Calculated")
         ax.legend()
         if show: plt.show()
+
+        return experimental_levels, calculated_levels, differences
 
     def level_density_plot(self,
             bin_width: int | float = 0.2,
@@ -1473,7 +1478,7 @@ class ReadKshellOutput:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.png", dpi=300)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.pdf", dpi=600)
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
             msg += f" Got {len(multipole_type)}."
