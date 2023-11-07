@@ -76,11 +76,6 @@ def gamma_strength_function_average(
     multipole_type: str,
     Ex_final_min: float | int = 0,
     Ex_final_max: float | int = np.inf,
-    prefactor_E1: None | float = None,
-    prefactor_M1: None | float = None,
-    prefactor_E2: None | float = None,
-    partial_or_total: str = "partial",
-    include_only_nonzero_in_average: bool = True,
     include_n_levels: float | int = np.inf,
     filter_spins: None | list = None,
     filter_parities: str = "both",
@@ -94,8 +89,6 @@ def gamma_strength_function_average(
     Modified by: GaffaSnobb.
     
     TODO: Figure out the pre-factors.
-    TODO: Use numpy.logical_or to filter levels and transitions to avoid
-    using many if statements in the loops (less readable, though!).
     TODO: Make res.transitions_BXL.ji, res.transitions_BXL.pii, etc.
     class attributes (properties).
 
@@ -137,36 +130,6 @@ def gamma_strength_function_average(
     multipole_type : str
         Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
         Currently only M1 and E1 is implemented.
-
-    prefactor_E1 : None | float
-        E1 pre-factor from the definition of the GSF. Defaults to a
-        standard value if None.
-
-    prefactor_M1 : None | float
-        M1 pre-factor from the definition of the GSF. Defaults to a
-        standard value if None.
-
-    prefactor_E2 : None | float
-        E2 pre-factor from the definition of the GSF. Defaults to a
-        standard value if None.
-
-    partial_or_total : str
-        Choose whether to use the partial level density
-        rho(E_i, J_i, pi_i) or the total level density rho(E_i) for
-        calculating the gamma strength function. Note that the partial
-        level density, the default value, is probably the correct
-        alternative. Using the total level density will introduce an
-        arbitrary scaling depending on how many (J, pi) combinations
-        were included in the calculations.
-
-        This argument is included for easy comparison between the two
-        densities. See the appendix of PhysRevC.98.064321 for details.
-
-    include_only_nonzero_in_average : bool
-        If True (default) only non-zero values are included in the final
-        averaging of the gamma strength function. The correct
-        alternative is to use only the non-zero values, so setting this
-        parameter to False should be done with care.
 
     include_n_levels : float | int
         The number of levels per spin to include. Example:
@@ -270,18 +233,6 @@ def gamma_strength_function_average(
         "E1": 3.4888977e-7,
         "E2": 0.80632e-12,   # PhysRevC.90.064321
     }
-    if prefactor_E1 is not None:
-        """
-        Override the E1 prefactor.
-        """
-        prefactors["E1"] = prefactor_E1
-    
-    if prefactor_M1 is not None:
-        prefactors["M1"] = prefactor_M1
-    
-    if prefactor_E2 is not None:
-        prefactors["E2"] = prefactor_E2
-
     prefactor = prefactors[multipole_type]
 
     # Extract data to a more readable form:
@@ -302,7 +253,6 @@ def gamma_strength_function_average(
     Ex_initial = np.copy(transitions[:, 3])   # To avoid altering the raw data.
     Ex_final = np.copy(transitions[:, 7])
 
-    # if abs(Ex_initial[0]) > 10:
     if Ex_initial[0] < 0:
         """
         Adjust energies relative to the ground state energy if they have
@@ -344,7 +294,6 @@ def gamma_strength_function_average(
     Ex_min_idx = int(Ex_min/bin_width)
     Ex_max_idx = int(Ex_max/bin_width)
     n_bins = int(np.ceil(Ex_max/bin_width)) # Make sure the number of bins cover the whole Ex region.
-    # Ex_max = bin_width*n_bins # Adjust Ex_max to match the round-off in the bin width. NOTE: Unsure if this is needed.
 
     """
     B_pixel_sum[Ex_final_idx, E_gamma_idx, spin_parity_idx] contains the
@@ -399,10 +348,8 @@ def gamma_strength_function_average(
             continue
 
         spin_initial = int(transitions[transition_idx, 0])  # int cast might not be necessary here.
-        spin_final = int(transitions[transition_idx, 4])
 
         if filter_spins is not None:
-            # if (spin_initial not in filter_spins) or (spin_final not in filter_spins):
             if spin_initial/2 not in filter_spins:
                 """
                 Skip transitions to or from levels of total angular momentum
@@ -430,8 +377,6 @@ def gamma_strength_function_average(
         Ex_initial_idx = int(Ex_initial[transition_idx]/bin_width)
         
         n_transitions_array[E_gamma_idx] += 1    # Count the number of transitions involved in this GSF (Porter-Thomas fluctuations).
-        # spin_initial = int(transitions[transition_idx, 0])  # Superfluous int casts?
-        # parity_initial = int(transitions[transition_idx, 1])
         spin_parity_idx = spin_parity_list.index([spin_initial, parity_initial])
 
         B_pixel_sum[Ex_initial_idx, E_gamma_idx, spin_parity_idx] += \
@@ -482,27 +427,6 @@ def gamma_strength_function_average(
 
     level_density_gsf_time = time.perf_counter() - level_density_gsf_time
 
-    if partial_or_total == "total":
-        """
-        Use the total level density, rho(E_i), instead of the partial
-        level density, rho(E_i, J_i, pi_i). Sum over all (J_i, pi_i)
-        pairs and then copy these summed values to all columns in
-        rho_ExJpi.
-        """
-        tmp_sum = rho_ExJpi.sum(axis=1)
-
-        for i in range(rho_ExJpi.shape[1]):
-            """
-            All columns in rho_ExJpi will be identical. This is for
-            compatibility with the following for loop.
-            """
-            rho_ExJpi[:, i] = tmp_sum
-
-        msg = "Using the total level density is not correct and"
-        msg += " should only be used when comparing with the correct"
-        msg += " alternative which is using the partial level density."
-        warnings.warn(msg, RuntimeWarning)
-
     rho_ExJpi /= bin_width # Normalize to bin width, to get density in MeV^-1.
     gsf_time = time.perf_counter()
     for spin_parity_idx in range(n_unique_spin_parity_pairs):
@@ -521,28 +445,18 @@ def gamma_strength_function_average(
     gsf_time = time.perf_counter() - gsf_time
     avg_gsf_time = time.perf_counter()
 
-    if include_only_nonzero_in_average:
-        """
-        Update 20171009 (Midtbø): Took proper care to only average over
-        the non-zero f(Eg,Ex,J,parity_initial) pixels.
+    """
+    Update 20171009 (Midtbø): Took proper care to only average over
+    the non-zero f(Eg,Ex,J,parity_initial) pixels.
 
-        NOTE: Probably not necessary to set an upper limit on gSF
-        due to the input adjustment of Ex_max.
-        """
-        gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
-        gSF_ExJpiavg = div0(
-            numerator = gSF_currentExrange.sum(axis = (0, 2)),
-            denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))
-        )
-    else:
-        """
-        NOTE: Probably not necessary to set an upper limit on gSF
-        due to the input adjustment of Ex_max.
-        """
-        gSF_ExJpiavg = gSF[Ex_min_idx:Ex_max_idx + 1, :, :].mean(axis=(0, 2))
-        msg = "Including non-zero values when averaging the gamma strength"
-        msg += " function is not correct and should be used with care!"
-        warnings.warn(msg, RuntimeWarning)
+    NOTE: Probably not necessary to set an upper limit on gSF
+    due to the input adjustment of Ex_max.
+    """
+    gSF_currentExrange = gSF[Ex_min_idx:Ex_max_idx + 1, :, :]
+    gSF_ExJpiavg = div0(
+        numerator = gSF_currentExrange.sum(axis = (0, 2)),
+        denominator = (gSF_currentExrange != 0).sum(axis = (0, 2))
+    )
     
     avg_gsf_time = time.perf_counter() - avg_gsf_time
 
@@ -568,7 +482,6 @@ def gamma_strength_function_average(
         print(f"{multipole_type = }")
         for elem in skip_counter:
             print(f"Skips: {elem}: {skip_counter[elem]}")
-        # print(f"{skip_counter = }")
         print(f"{transit_total_skips = }")
         print(f"{n_transitions = }")
         print(f"{n_transitions_included = }")

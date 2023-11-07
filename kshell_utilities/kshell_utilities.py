@@ -688,18 +688,13 @@ class ReadKshellOutput:
             ax = ax,
         )
 
-    def gamma_strength_function_average_plot(self,
+    def gsf(self,
         bin_width: float | int = 0.2,
         Ex_min: float | int = 5,
         Ex_max: float | int = 50,
         Ex_final_min: float | int = 0,
         Ex_final_max: float | int = np.inf,
         multipole_type: str = "M1",
-        prefactor_E1: float | None = None,
-        prefactor_M1: float | None = None,
-        prefactor_E2: float | None = None,
-        partial_or_total: str = "partial",
-        include_only_nonzero_in_average: bool = True,
         include_n_levels: int | float = np.inf,
         filter_spins: list | None = None,
         filter_parities: str = "both",
@@ -732,8 +727,6 @@ class ReadKshellOutput:
         is_loaded = False
         gsf_unique_string = f"{bin_width}{Ex_min}{Ex_max}{multipole_type}"
         gsf_unique_string += f"{Ex_final_min}{Ex_final_max}"
-        gsf_unique_string += f"{prefactor_E1}{prefactor_M1}{prefactor_E2}"
-        gsf_unique_string += f"{partial_or_total}{include_only_nonzero_in_average}"
         gsf_unique_string += f"{include_n_levels}{filter_spins}{filter_parities}"
         gsf_unique_id = hashlib.sha1((gsf_unique_string).encode()).hexdigest()
         gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npy"
@@ -769,17 +762,10 @@ class ReadKshellOutput:
                 Ex_final_min = Ex_final_min,
                 Ex_final_max = Ex_final_max,
                 multipole_type = multipole_type,
-                prefactor_E1 = prefactor_E1,
-                prefactor_M1 = prefactor_M1,
-                prefactor_E2 = prefactor_E2,
-                partial_or_total = partial_or_total,
-                include_only_nonzero_in_average = include_only_nonzero_in_average,
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
                 filter_parities = filter_parities,
                 return_n_transitions = return_n_transitions,
-                # plot = plot,
-                # save_plot = save_plot
             )
             if return_n_transitions:
                 bins, gsf, n_transitions = tmp
@@ -802,58 +788,15 @@ class ReadKshellOutput:
             ax.set_xlabel(r"E$_{\gamma}$ [MeV]")
             ax.set_ylabel(f"$\gamma$SF [MeV$^-$$^{unit_exponent}$]")
             if save_plot:
-                fname = f"gsf_{multipole_type}.png"
+                fname = f"gsf_{multipole_type}.pdf"
                 print(f"GSF saved as '{fname}'")
-                fig.savefig(fname=fname, dpi=300)
+                fig.savefig(fname=fname, dpi=600)
             plt.show()
 
         if return_n_transitions:
             return bins, gsf, n_transitions
         else:
             return bins, gsf
-
-    def gsf(self,
-        bin_width: float | int = 0.2,
-        Ex_min: float | int = 5,
-        Ex_max: float | int = 50,
-        Ex_final_min: float | int = 0,
-        Ex_final_max: float | int = np.inf,
-        multipole_type: str = "M1",
-        prefactor_E1: float | None = None,
-        prefactor_M1: float | None = None,
-        prefactor_E2: float | None = None,
-        partial_or_total: str = "partial",
-        include_only_nonzero_in_average: bool = True,
-        include_n_levels: int | float = np.inf,
-        filter_spins: list | None = None,
-        filter_parities: str = "both",
-        return_n_transitions: bool = False,
-        plot: bool = True,
-        save_plot: bool = False
-        ):
-        """
-        Alias for gamma_strength_function_average_plot. See that
-        docstring for details.
-        """
-        return self.gamma_strength_function_average_plot(
-            bin_width = bin_width,
-            Ex_min = Ex_min,
-            Ex_max = Ex_max,
-            Ex_final_min = Ex_final_min,
-            Ex_final_max = Ex_final_max,
-            multipole_type = multipole_type,
-            prefactor_E1 = prefactor_E1,
-            prefactor_M1 = prefactor_M1,
-            prefactor_E2 = prefactor_E2,
-            partial_or_total = partial_or_total,
-            include_only_nonzero_in_average = include_only_nonzero_in_average,
-            include_n_levels = include_n_levels,
-            filter_spins = filter_spins,
-            filter_parities = filter_parities,
-            return_n_transitions = return_n_transitions,
-            plot = plot,
-            save_plot = save_plot
-        )
 
     def porter_thomas(self, multipole_type: str, **kwargs):
         """
@@ -1363,7 +1306,7 @@ class ReadKshellOutput:
                     r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
                 )
 
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.png", dpi=300)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.pdf", dpi=600)
 
         elif len(multipole_type) == 2:
             if j_list_default:
