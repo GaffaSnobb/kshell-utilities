@@ -698,7 +698,6 @@ class ReadKshellOutput:
         include_n_levels: int | float = np.inf,
         filter_spins: list | None = None,
         filter_parities: str = "both",
-        return_n_transitions: bool = False,
         plot: bool = True,
         save_plot: bool = False
         ):
@@ -732,10 +731,9 @@ class ReadKshellOutput:
         gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npy"
         bins_fname = f"{self.npy_path}/{self.base_fname}_gsfbins_{gsf_unique_id}_{self.unique_id}.npy"
         n_transitions_fname = f"{self.npy_path}/{self.base_fname}_gsfntransitions_{gsf_unique_id}_{self.unique_id}.npy"
+        included_transitions_fname = f"{self.npy_path}/{self.base_fname}_gsfincludedtransitions_{gsf_unique_id}_{self.unique_id}.npy"
         
-        fnames = [gsf_fname, bins_fname]
-        if return_n_transitions:
-            fnames.append(n_transitions_fname)
+        fnames = [gsf_fname, bins_fname, n_transitions_fname, included_transitions_fname]
         
         if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file and (self.load_and_save_to_file != "overwrite"):
             """
@@ -745,15 +743,15 @@ class ReadKshellOutput:
             """
             gsf = np.load(file=gsf_fname, allow_pickle=True)
             bins = np.load(file=bins_fname, allow_pickle=True)
-            if return_n_transitions:
-                n_transitions = np.load(file=n_transitions_fname, allow_pickle=True)
+            n_transitions = np.load(file=n_transitions_fname, allow_pickle=True)
+            included_transitions = np.load(file=included_transitions_fname, allow_pickle=True)
             
             msg = f"{self.nucleus} {multipole_type} GSF data loaded from .npy!"
             print(msg)
             is_loaded = True
 
         else:
-            tmp = gamma_strength_function_average(
+            bins, gsf, n_transitions, included_transitions = gamma_strength_function_average(
                 levels = self.levels,
                 transitions = transitions_dict[multipole_type],
                 bin_width = bin_width,
@@ -765,19 +763,13 @@ class ReadKshellOutput:
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
                 filter_parities = filter_parities,
-                return_n_transitions = return_n_transitions,
             )
-            if return_n_transitions:
-                bins, gsf, n_transitions = tmp
-            else:
-                bins, gsf = tmp
 
         if self.load_and_save_to_file and not is_loaded:
             np.save(file=gsf_fname, arr=gsf, allow_pickle=True)
             np.save(file=bins_fname, arr=bins, allow_pickle=True)
-            
-            if return_n_transitions:
-                np.save(file=n_transitions_fname, arr=n_transitions, allow_pickle=True)
+            np.save(file=n_transitions_fname, arr=n_transitions, allow_pickle=True)
+            np.save(file=included_transitions_fname, arr=included_transitions, allow_pickle=True)
 
         if plot:
             unit_exponent = 2*int(multipole_type[-1]) + 1
@@ -793,10 +785,7 @@ class ReadKshellOutput:
                 fig.savefig(fname=fname, dpi=600)
             plt.show()
 
-        if return_n_transitions:
-            return bins, gsf, n_transitions
-        else:
-            return bins, gsf
+        return bins, gsf, n_transitions, included_transitions
 
     def porter_thomas(self, multipole_type: str, **kwargs):
         """
