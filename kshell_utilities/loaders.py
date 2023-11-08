@@ -774,7 +774,7 @@ def _load_transition_probabilities(infile: TextIO) -> tuple[list, int]:
 
         spin_final = float(Fraction(line_split[4]))
         parity_final = _parity_string_to_integer(line_split[5])
-        idx_final = int(line_split[2])
+        idx_final = int(line_split[6])
         Ex_final = float(line_split[7])
 
         E_gamma = float(line_split[8])
