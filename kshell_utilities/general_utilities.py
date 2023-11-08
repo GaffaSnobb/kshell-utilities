@@ -2,13 +2,12 @@ from __future__ import annotations
 import sys, time, warnings
 from fractions import Fraction
 import numpy as np
+import numpy.typing as npt
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
 from .parameters import (
-    flags, elements, latex_plot, spectroscopic_conversion_reversed,
+    flags, elements, latex_plot
 )
-# warnings.filterwarnings("error")    # To catch warnings with try except.
-# from scipy.optimize import curve_fit
 
 def isotope(name: str, A: int):
     protons = elements[name]
@@ -16,18 +15,18 @@ def isotope(name: str, A: int):
     return protons, neutrons
 
 def create_spin_parity_list(
-    spins: np.ndarray,
-    parities: np.ndarray
+    spins: npt.NDArray,
+    parities: npt.NDArray
     ) -> list:
     """
     Pair up input spins and parities in a list of lists.
 
     Parameters
     ----------
-    spins : np.ndarray
+    spins : npt.NDArray
         Array of spins for each energy level.
 
-    parities : np.ndarray
+    parities : npt.NDArray
         Array of corresponding parities for each energy level.
 
     Returns
@@ -68,8 +67,8 @@ def div0(numerator, denominator):
     return res
 
 def gamma_strength_function_average(
-    levels: np.ndarray,
-    transitions: np.ndarray,
+    levels: npt.NDArray,
+    transitions: npt.NDArray,
     bin_width: float | int,
     Ex_min: float | int,
     Ex_max: float | int,
@@ -79,8 +78,7 @@ def gamma_strength_function_average(
     include_n_levels: float | int = np.inf,
     filter_spins: None | list = None,
     filter_parities: str = "both",
-    return_n_transitions: bool = False,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """
     Calculate the gamma strength function averaged over total angular
     momenta, parities, and initial excitation energies.
@@ -88,20 +86,19 @@ def gamma_strength_function_average(
     Author: Jørgen Midtbø.
     Modified by: GaffaSnobb.
     
-    TODO: Figure out the pre-factors.
     TODO: Make res.transitions_BXL.ji, res.transitions_BXL.pii, etc.
     class attributes (properties).
 
     Parameters
     ----------
-    levels : np.ndarray
+    levels : npt.NDArray
         Array containing energy, spin, and parity for each excited
         state. [[E, 2*spin, parity, idx], ...]. idx counts how many
         times a state of that given spin and parity has occurred. The
         first 0+ state will have an idx of 1, the second 0+ will have an
         idx of 2, etc.
 
-    transitions : np.ndarray
+    transitions : npt.NDArray
         Array containing transition data for the specified
         multipolarity.
         OLD:
@@ -127,9 +124,14 @@ def gamma_strength_function_average(
     Ex_max : float | int
         Upper limit for initial level excitation energy, usually in MeV.
 
+    Ex_final_min : float | int
+        Lower limit for final level excitation energy, usually in MeV.
+
+    Ex_final_max : float | int
+        Upper limit for final level excitation energy, usually in MeV.
+
     multipole_type : str
-        Choose whether to calculate for 'E1', 'M1' or 'E2'. NOTE:
-        Currently only M1 and E1 is implemented.
+        Choose whether to calculate for 'E1', 'M1' or 'E2'.
 
     include_n_levels : float | int
         The number of levels per spin to include. Example:
@@ -144,46 +146,24 @@ def gamma_strength_function_average(
         Which parities to include in the GSF. 'both', '+', '-' are
         allowed.
 
-    return_n_transitions : bool
+    Returns
+    -------
+    bins : npt.NDArray
+        The bins corresponding to gSF_ExJpiavg (x values for plot).
+        
+    gSF_ExJpiavg : npt.NDArray
+        The gamma strength function.
+
+    n_transitions_array : npt.NDArray
         Count the number of transitions, as a function of gamma energy,
-        involved in the GSF calculation and return this number as a
-        third return value. For calculating Porter-Thomas fluctuations
-        in the GSF by
+        involved in the GSF calculation. For calculating Porter-Thomas
+        fluctuations in the GSF by
 
             r(E_gamma) = sqrt(2/n(E_gamma))
 
         where n is the number of transitions for each gamma energy, used
-        to calculate the GSF. The value n is called n_transitions_array
-        in the code. See for example DOI: 10.1103/PhysRevC.98.054303 for
-        details.
-
-    plot : bool
-        Toogle plotting on / off.
-
-    save_plot : bool
-        Toogle saving of plot (as .png with dpi=300) on / off.
-
-    Variables
-    ---------
-    Ex : np.ndarray 
-        The excitation energy of all levels.
-
-    Ex_initial : np.ndarray
-        The excitation energy of the initial state of a transition.
-
-    spins : np.ndarray
-        The spins of all levels.
-
-    parities : np.ndarray
-        The parities of all levels.
-
-    Returns
-    -------
-    bins : np.ndarray
-        The bins corresponding to gSF_ExJpiavg (x values for plot).
-        
-    gSF_ExJpiavg : np.ndarray
-        The gamma strength function.
+        to calculate the GSF. See for example DOI:
+        10.1103/PhysRevC.98.054303 for details.
     """
     skip_counter = {    # Debug.
         "Transit: Energy range (less)": 0,
@@ -309,6 +289,7 @@ def gamma_strength_function_average(
     rho_ExJpi = np.zeros((n_bins, n_unique_spin_parity_pairs))  # (Ex, Jpi) matrix to store level density
     gSF = np.zeros((n_bins, n_bins, n_unique_spin_parity_pairs))    
     n_transitions_array = np.zeros(n_bins, dtype=int)  # Count the number of transitions per gamma energy bin.
+    included_transitions = []
     transit_gsf_time = time.perf_counter()
     
     for transition_idx in range(n_transitions):
@@ -373,6 +354,7 @@ def gamma_strength_function_average(
             continue
 
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
+        included_transitions.append(transitions[transition_idx])
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
         Ex_initial_idx = int(Ex_initial[transition_idx]/bin_width)
         
@@ -463,6 +445,7 @@ def gamma_strength_function_average(
     bins = np.linspace(0, Ex_max, n_bins + 1)
     bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
     bins = bins[:len(gSF_ExJpiavg)]
+    included_transitions = np.array(included_transitions)
 
     total_gsf_time = time.perf_counter() - total_gsf_time
     
@@ -490,13 +473,10 @@ def gamma_strength_function_average(
         print(f"{n_levels_included = }")
         print("--------------------------------")
 
-    if return_n_transitions:
-        return bins, gSF_ExJpiavg, n_transitions_array
-    else:
-        return bins, gSF_ExJpiavg
+    return bins, gSF_ExJpiavg, n_transitions_array, included_transitions
 
 def level_plot(
-    levels: np.ndarray,
+    levels: npt.NDArray,
     include_n_levels: int = 1_000,
     filter_spins: None | list = None,
     filter_parity: None | str = None,
@@ -511,7 +491,7 @@ def level_plot(
 
     Parameters
     ----------
-    levels : np.ndarray
+    levels : npt.NDArray
         NxM array of [[energy, j, parity, index], ...]. This is the
         instance attribute 'levels' of ReadKshellOutput. N is the number
         of levels, M is the number of parameters.
@@ -644,7 +624,7 @@ def level_plot(
         plt.show()
 
 def level_density(
-    levels: np.ndarray,
+    levels: npt.NDArray,
     bin_width: int | float,
     include_n_levels: None | int = None,
     filter_spins: None | int | list = None,
@@ -655,13 +635,13 @@ def level_density(
     plot: bool = False,
     save_plot: bool = False,
     ax: None | plt.Axes = None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[npt.NDArray, npt.NDArray]:
     """
     Calculate the level density for a given bin size.
 
     Parameters
     ----------
-    levels : np.ndarray | list
+    levels : npt.NDArray | list
         Nx4 array of [[E, 2*spin, parity, idx], ...] or 1D array / list
         of only energies.
 
@@ -702,10 +682,10 @@ def level_density(
 
     Returns
     -------
-    bins : np.ndarray
+    bins : npt.NDArray
         The corresponding bins (x value for plotting).
 
-    density : np.ndarray
+    density : npt.NDArray
         The level density.
 
     Raises
@@ -728,10 +708,10 @@ def level_density(
         plot = False
         save_plot = False
 
-    if not isinstance(levels, np.ndarray):
+    if not isinstance(levels, npt.NDArray):
         levels = np.array(levels)
 
-    if not isinstance(filter_spins, (int, float, list, type(None), np.ndarray)):
+    if not isinstance(filter_spins, (int, float, list, type(None), npt.NDArray)):
         msg = f"'filter_spins' must be of type: int, float, list, None. Got {type(filter_spins)}."
         raise TypeError(msg)
 
@@ -882,20 +862,20 @@ def level_density(
         return bins, density
 
 def porter_thomas(
-    transitions: np.ndarray,
+    transitions: npt.NDArray,
     Ei: int | float | list,
     BXL_bin_width: int | float,
     j_list: list | None = None,
     Ei_bin_width: int | float = 0.1,
     return_chi2: bool = False,
-) -> tuple[np.ndarray, np.ndarray] | tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[npt.NDArray, npt.NDArray] | tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
     """
     Calculate the distribution of B(XL)/mean(B(XL)) values scaled to
     a chi-squared distribution of 1 degree of freedom.
 
     Parameters
     ----------
-    transitions : np.ndarray
+    transitions : npt.NDArray
         Array containing transition data for the specified
         multipolarity.
 
@@ -924,17 +904,17 @@ def porter_thomas(
 
     Returns
     -------
-    BXL_bins : np.ndarray
+    BXL_bins : npt.NDArray
         The BXL bins (x values).
 
-    BXL_counts : np.ndarray
+    BXL_counts : npt.NDArray
         The number of counts in each BXL_bins bin (y values).
 
-    rv.pdf(BXL_bins) : np.ndarray
+    rv.pdf(BXL_bins) : npt.NDArray
         The chi-squared distribution y values.
     """
     pt_prepare_data_time = time.perf_counter()
-    if isinstance(Ei, (list, tuple, np.ndarray)):
+    if isinstance(Ei, (list, tuple, npt.NDArray)):
         """
         If Ei defines a lower and an upper limit.
         """
