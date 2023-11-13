@@ -131,6 +131,7 @@ def load_obtd(
         actually contain OBTD information which would have been skipped.
         """
         msg = f"No OBTDs found in {path.split('/')[-1]}! Skipping..."
+        print(msg)
         return
 
     key = (j_i, pi_i, j_f, pi_f)
@@ -147,6 +148,7 @@ def load_obtd(
         skip one of them.
         """
         msg = f"OBTDs for {key} already exists! Skipping file {path.split('/')[-1]}..."
+        print(msg)
         return
 
     # obtd = np.zeros(shape=(n_elements, 5, n_initial_levels*n_final_levels), dtype=np.float64)
