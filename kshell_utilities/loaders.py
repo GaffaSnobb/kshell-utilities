@@ -1,5 +1,5 @@
 from __future__ import annotations
-import time, sys, ast, warnings
+import time, sys, ast, warnings, re
 from fractions import Fraction
 from typing import TextIO
 import numpy as np
@@ -13,6 +13,180 @@ from .parameters import (
 from .partition_tools import (
     _calculate_configuration_parity, _sanity_checks, configuration_energy
 )
+
+def load_obtd(
+    path: str,
+    obtd_dict: dict[tuple[int, ...]],
+) -> None:
+    """
+    Read one-body transition densities from the OBTD files from KSHELL.
+    The OBTD is defined as
+    ```
+        \text{OBTD} = \langle \Psi_f | c_\alpha^\dagger c_\beta | \Psi_i \rangle.
+    ```
+
+    Take for example the file `OBTD_L_V50_GCLSTsdpfsdgix5pn_j0p_V50_GCLSTsdpfsdgix5pn_j2p.dat`.
+    It contains OBTDs from all 0+ levels to all 1+ levels (remember that
+    the angular momentum is stored as 2 times its value to avoid
+    fractions). The OBTD values will be stored in a 3D NDArray. Each 2D
+    slice in the array contains the OBTD data for one of the 0+ levels
+    to one of the 1+ levels. The other 2D slices thus contain OBTD data
+    for the other 0+ to 1+ levels. In the case of 200 0+ levels and 200
+    1+ levels, there will be 200*200 2D slices in the array.
+
+    The `obtd_dict` provides a view to the 2D slices based on the dict's
+    keys which are explained below.
+
+    Parameters
+    ----------
+    path : str
+        Path (with filename) to the one-body transition density file.
+
+    obtd_dict : dict[tuple[int, ...]]
+        Each key is a tuple of `(j_i, pi_i, idx_i, j_f, pi_f, idx_f)`
+        and each value is a view of the correct 2D slice of the `obtd`
+        Numpy array which stores the OBTD values. A view of the entire
+        3D matrix is also provided by the key (j_i, pi_i, j_f, pi_f).
+
+    Variables
+    ---------
+    obtd : NDArray
+        A 3D array. Each 2D slice has columns of the following values:
+
+        ```
+        i  j      OBTD    <i||L||j>  OBTD*<||>
+        1  1     0.00000     5.79655     0.00000
+        1  2     0.00000     1.54919     0.00000
+        1  9     0.00000     0.00000     0.00000
+        1 10     0.00000     0.00000     0.00000
+        1 11     0.00000     0.00000     0.00000
+        2  1     0.00000    -1.54919     0.00000
+        ...
+        ```
+
+        I think that `i` and `j` are the same as `\alpha` and `\beta` in
+        the definition of the OBTD, not completely sure yet. I do know
+        that `i` and `j` refer to orbitals (not m substates) in the
+        model space. The dim of the array will be (no. OBTDs per
+        transition, 5, the number of 0+ levels times the number of 1+
+        levels). In the case of the example file, the dim is exactly
+        (92, 5, 200*200). NOTE: Currently, I removed the two final
+        columns as I dont have any use for them yet, and if I store
+        <i||L||j>, what about <i||S||j>?
+    """
+
+    timing = time.perf_counter()
+    sect_header_pattern = r'J1=\s*(\d+)/2\s*\(\s*(\d+)\)\s*J2=\s*(\d+)/2\s*\(\s*(\d+)\)'
+    filename_pattern = r'_j(\d+)(p|n)'
+    filename_match = re.findall(filename_pattern, path.split("/")[-1])
+    j_i = int(filename_match[0][0])
+    pi_i = +1 if (filename_match[0][1] == "p") else -1
+    j_f = int(filename_match[1][0])
+    pi_f = +1 if (filename_match[1][1] == "p") else -1
+
+    n_initial_levels = 0
+    n_final_levels = 0
+    with open(path, "r") as infile:
+        """
+        The file is first iterated once to extract some needed metadata
+        about how many elements and how many transitions there are.
+        """
+        for line in infile:
+            if "# of elements" in line:
+                """
+                This is the number of OBTDs per transition.
+                """
+                n_elements = int(line.split("=")[-1])
+                break
+
+        for line in infile:
+            if "w.f." in line:
+                """
+                NOTE: I could seek to the end of the file and backtrack
+                a bit instead of reading through the entire file just to
+                get two numbers at the very end.
+
+                Example:
+                w.f.  J1=  0/2(    1)     J2=  2/2(    1)   <----- This one!
+                B(L;=>), B(L ;<=)      0.05162     0.01721
+                <||L||>      1    2     0.39870    -0.26442
+                ...
+                """
+                match_ = re.search(sect_header_pattern, line)
+                if not match_:
+                    msg = "Unexpected pattern in OBTD file!"
+                    raise RuntimeError(msg)
+                
+                _, n_initial_levels, _, n_final_levels = map(int, match_.groups())
+
+    # obtd = np.zeros(shape=(n_elements, 5, n_initial_levels*n_final_levels), dtype=np.float64)
+    obtd = np.zeros(shape=(n_elements, 3, n_initial_levels*n_final_levels), dtype=np.float64)
+    key = (j_i, pi_i, j_f, pi_f)
+    assert key not in obtd_dict, f"OBTDs for {key} already exists!"
+    obtd_dict[(j_i, pi_i, j_f, pi_f)] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
+    
+    with open(path, "r") as infile:
+        for transit_idx in range(n_initial_levels*n_final_levels):
+            for line in infile:
+                if "w.f." in line:
+                    """
+                    Example:
+                    w.f.  J1=  0/2(    1)     J2=  2/2(    1)   <----- This one!
+                    B(L;=>), B(L ;<=)      0.05162     0.01721
+                    <||L||>      1    2     0.39870    -0.26442
+                    ...
+                    """
+                    match_ = re.search(sect_header_pattern, line)
+                    if not match_:
+                        msg = "Unexpected pattern in OBTD file!"
+                        raise RuntimeError(msg)
+                    
+                    j_i_current, idx_i_current, j_f_current, idx_f_current = map(int, match_.groups())
+                    idx_i_current -= 1  # Make indices start from 0.
+                    idx_f_current -= 1
+                    key = (j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)
+                    
+                    assert j_i_current == j_i   # Check that the ang. momentum in the filename agrees with the contents of the file.
+                    assert j_f_current == j_f
+                    assert idx_i_current < n_initial_levels
+                    assert idx_f_current < n_final_levels
+                    assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
+                    obtd_dict[(j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)] = obtd[:, :, transit_idx]
+                    
+                    break
+
+            for line in infile:
+                """
+                Find the header of a section. Example:
+
+                w.f.  J1=  0/2(    1)     J2=  2/2(    2)
+                B(L;=>), B(L ;<=)      0.05162     0.01721
+                <||L||>      1    2     0.39870    -0.26442
+
+                i  j      OBTD    <i||L||j>  OBTD*<||>      <----- This one!
+                1  1     0.00000     5.79655     0.00000
+                1  2     0.00000     1.54919     0.00000
+                1  9     0.00000     0.00000     0.00000
+                ...
+
+                NOTE: Only the three first columns are currently read.
+                Dont know if I will have use for the final two columns
+                but they can easily be added later. But then there is
+                also the issue of storing <i||S||j> too.
+                """
+                if "OBTD" in line: break
+
+            for obtd_idx in range(n_elements):
+                obtd[obtd_idx, :, transit_idx] = [float(elem) for elem in infile.readline().split()[:3]]
+                obtd[obtd_idx, 0, transit_idx] -= 1 # Make indices start from 0.
+                obtd[obtd_idx, 1, transit_idx] -= 1
+    
+    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0)])
+    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, j_f, pi_f)][:, :, 0])
+    assert np.all(obtd[:, :, -1] == obtd_dict[(j_i, pi_i, n_initial_levels - 1, j_f, pi_f, n_final_levels - 1)])
+    
+    timing = time.perf_counter() - timing
+    print(f"obtd load time: {timing:.3f} s")
 
 def load_interaction(
     filename_interaction: str,
