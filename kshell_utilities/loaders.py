@@ -119,10 +119,38 @@ def load_obtd(
                 
                 _, n_initial_levels, _, n_final_levels = map(int, match_.groups())
 
+    if (n_initial_levels == 0) or (n_final_levels == 0):
+        """
+        For example, in the file
+
+        OBTD_E2_V50_GCLSTsdpfsdgix5pn_j0p_V50_GCLSTsdpfsdgix5pn_j2p.dat
+
+        KSHELL has only written the header of the file, but no content.
+        Make sure at no dict entry is made for key (0, +1, 2, +1) from
+        this file because subsequent files with the same key might
+        actually contain OBTD information which would have been skipped.
+        """
+        msg = f"No OBTDs found in {path.split('/')[-1]}! Skipping..."
+        return
+
+    key = (j_i, pi_i, j_f, pi_f)
+    if key in obtd_dict:
+        """
+        For example, the files
+        
+        OBTD_L_V50_GCLSTsdpfsdgix5pn_j8p_V50_GCLSTsdpfsdgix5pn_j8p.dat
+        OBTD_S_V50_GCLSTsdpfsdgix5pn_j8p_V50_GCLSTsdpfsdgix5pn_j8p.dat
+
+        contain the exact same OBTDs so we do not need to read both
+        files. NOTE: Since these files contain different information
+        about L and S, I might read both files in the future. For now,
+        skip one of them.
+        """
+        msg = f"OBTDs for {key} already exists! Skipping file {path.split('/')[-1]}..."
+        return
+
     # obtd = np.zeros(shape=(n_elements, 5, n_initial_levels*n_final_levels), dtype=np.float64)
     obtd = np.zeros(shape=(n_elements, 3, n_initial_levels*n_final_levels), dtype=np.float64)
-    key = (j_i, pi_i, j_f, pi_f)
-    assert key not in obtd_dict, f"OBTDs for {key} already exists!"
     obtd_dict[(j_i, pi_i, j_f, pi_f)] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
     
     with open(path, "r") as infile:
