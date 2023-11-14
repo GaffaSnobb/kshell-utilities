@@ -708,10 +708,10 @@ def level_density(
         plot = False
         save_plot = False
 
-    if not isinstance(levels, npt.NDArray):
+    if not isinstance(levels, np.ndarray):
         levels = np.array(levels)
 
-    if not isinstance(filter_spins, (int, float, list, type(None), npt.NDArray)):
+    if not isinstance(filter_spins, (int, float, list, type(None), np.ndarray)):
         msg = f"'filter_spins' must be of type: int, float, list, None. Got {type(filter_spins)}."
         raise TypeError(msg)
 
