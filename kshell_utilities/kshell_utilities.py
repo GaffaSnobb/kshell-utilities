@@ -159,19 +159,18 @@ class ReadKshellOutput:
             msg += f" Got '{self.load_and_save_to_file}'."
             raise ValueError(msg)
         
-        if self.load_and_save_to_file:
-            try:
-                os.mkdir(self.npy_path)
-            except FileExistsError:
-                pass
+        try:
+            os.mkdir(self.npy_path)
+        except FileExistsError:
+            pass
 
-            with open(f"{self.npy_path}/README.txt", "w") as outfile:
-                msg = "This directory contains binary numpy data of KSHELL summary data."
-                msg += " The purpose is to speed up subsequent runs which use the same summary data."
-                msg += " It is safe to delete this entire directory if you have the original summary text file, "
-                msg += "though at the cost of having to read the summary text file over again which may take some time."
-                msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
-                outfile.write(msg)
+        with open(f"{self.npy_path}/README.txt", "w") as outfile:
+            msg = "This directory contains binary numpy data of KSHELL summary data."
+            msg += " The purpose is to speed up subsequent runs which use the same summary data."
+            msg += " It is safe to delete this entire directory if you have the original summary text file, "
+            msg += "though at the cost of having to read the summary text file over again which may take some time."
+            msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
+            outfile.write(msg)
 
         if os.path.isdir(self.path):
             """
@@ -517,18 +516,7 @@ class ReadKshellOutput:
         KshellDataStructureError
             If the `KSHELL` file has unexpected structure / syntax.
         """
-        levels_fname = f"{self.npy_path}/{self.base_fname}_levels_{self.unique_id}.npy"
-        transitions_BM1_fname = f"{self.npy_path}/{self.base_fname}_transitions_BM1_{self.unique_id}.npy"
-        transitions_BE2_fname = f"{self.npy_path}/{self.base_fname}_transitions_BE2_{self.unique_id}.npy"
-        transitions_BE1_fname = f"{self.npy_path}/{self.base_fname}_transitions_BE1_{self.unique_id}.npy"
-        debug_fname = f"{self.npy_path}/{self.base_fname}_debug_{self.unique_id}.npy"
-
         transitions_fname = f"{self.npy_path}/{self.base_fname}_transitions_{self.unique_id}.npz"
-
-        fnames = [
-            levels_fname, transitions_BE2_fname, transitions_BM1_fname,
-            transitions_BE1_fname, debug_fname
-        ]
 
         if self.load_and_save_to_file != "overwrite":
             """
@@ -546,21 +534,6 @@ class ReadKshellOutput:
                 msg += " to re-read data from the summary file."
                 print(msg)
                 return
-            # if all(os.path.isfile(fname) for fname in fnames) and self.load_and_save_to_file:
-            #     """
-            #     If all files exist, load them. If any of the files do
-            #     not exist, all will be generated.
-            #     """
-            #     self.levels = np.load(file=levels_fname, allow_pickle=True)
-            #     self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
-            #     self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
-            #     self.transitions_BE1 = np.load(file=transitions_BE1_fname, allow_pickle=True)
-            #     self.debug = np.load(file=debug_fname, allow_pickle=True)
-            #     msg = "Summary data loaded from .npy!"
-            #     msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
-            #     msg += " to re-read data from the summary file."
-            #     print(msg)
-            #     return
 
         parallel_args = [
             [self.path_summary, "Energy", "replace_this_entry_with_loader", 0],
