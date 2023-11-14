@@ -631,11 +631,6 @@ class ReadKshellOutput:
                 transitions_BE1 = self.transitions_BE1,
                 debug = self.debug,
             )
-            # np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
-            # np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
-            # np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
-            # np.save(file=transitions_BE1_fname, arr=self.transitions_BE1, allow_pickle=True)
-            # np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
         include_n_levels: int = 1000,
