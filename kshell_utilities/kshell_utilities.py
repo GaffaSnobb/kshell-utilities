@@ -1,10 +1,13 @@
 from __future__ import annotations
 import os, sys, multiprocessing, hashlib, ast, time, re, warnings
 from fractions import Fraction
+from collections import defaultdict
 from typing import Callable, Iterable
 from itertools import chain
 import numpy.typing as npt
 import numpy as np
+from numpy.typing import NDArray
+from numpy.lib.npyio import NpzFile
 import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -17,13 +20,17 @@ from .general_utilities import (
 )
 from .loaders import (
     _generic_loader, _load_energy_levels, _load_transition_probabilities,
-    _load_transition_probabilities_old, _load_transition_probabilities_jem
+    _load_transition_probabilities_old, _load_transition_probabilities_jem,
+    _load_obtd_parallel_wrapper, _load_obtd,
 )
 
 def _generate_unique_identifier(path: str) -> str:
     """
     Generate a unique identifier based on the shell script and the
     save_input file from KSHELL.
+
+    NOTE: Could probably remove all of the needlessly complicated stuff
+    and just use the path!
 
     Parameters
     ----------
@@ -138,10 +145,11 @@ class ReadKshellOutput:
         # self.truncation = None
         self.nucleus = None
         self.interaction = None
-        self.levels = None
-        self.transitions_BM1 = None
-        self.transitions_BE2 = None
-        self.transitions_BE1 = None
+        self.levels = NDArray | None
+        self.transitions_BM1 = NDArray | None
+        self.transitions_BE2 = NDArray | None
+        self.transitions_BE1 = NDArray | None
+        self.obtd_dict: dict[tuple[int, ...], NDArray] | None
         self.npy_path = "tmp"   # Directory for storing .npy files.
         # Debug.
         self.negative_spin_counts = np.array([0, 0, 0, 0])  # The number of skipped -1 spin states for [levels, BM1, BE2, BE1].
@@ -150,6 +158,20 @@ class ReadKshellOutput:
             msg = "Allowed values for 'load_and_save_to_file' are: 'True', 'False', 'overwrite'."
             msg += f" Got '{self.load_and_save_to_file}'."
             raise ValueError(msg)
+        
+        if self.load_and_save_to_file:
+            try:
+                os.mkdir(self.npy_path)
+            except FileExistsError:
+                pass
+
+            with open(f"{self.npy_path}/README.txt", "w") as outfile:
+                msg = "This directory contains binary numpy data of KSHELL summary data."
+                msg += " The purpose is to speed up subsequent runs which use the same summary data."
+                msg += " It is safe to delete this entire directory if you have the original summary text file, "
+                msg += "though at the cost of having to read the summary text file over again which may take some time."
+                msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
+                outfile.write(msg)
 
         if os.path.isdir(self.path):
             """
@@ -203,8 +225,13 @@ class ReadKshellOutput:
         self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
         self._extract_info_from_summary_fname()
         self._read_summary()
-        self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2")
         
+        if os.path.isdir(self.path):
+            self._read_obtd()
+        else:
+            self.obtd_dict = None
+
+        self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2")
         self.ground_state_energy = self.levels[0, 0]
         
         try:
@@ -223,6 +250,145 @@ class ReadKshellOutput:
             self.N = None
         
         self.check_data()
+
+    def _read_obtd(self, run_test: bool = False):
+        """
+        Read one-body transition densities from the OBTD files.
+
+        Assume that `master_keys[0] = (0, +1, 2, +1)`. This key provides
+        a view of an entire 3D array of OBTDs where the initial levels
+        are 0+ while the final levels are 1+ (remember that j is stored
+        as 2j). Each 2D slice contains OBTDs for one of the 0+ -> 1+
+        transitions. The order of the 2D slices are the same order as
+        the transitions are structured in the OBTD KSHELL text file. If
+        we assume 200 0+ and 200 1+ levels the structure is:
+            
+            0: 0+(0) -> 1+(0)
+            1: 0+(0) -> 1+(1)
+            ...
+            199: 0+(0) -> 1+(199)
+            200: 0+(1) -> 1+(0)
+            201: 0+(1) -> 1+(1)
+            ...
+            39800: 0+(200) -> 1+(0)
+            39801: 0+(200) -> 1+(1)
+            ...
+            39999: 0+(200) -> 1+(200)
+
+        `keys` provides easy access to each 2D slice based on the index
+        of the initial and final levels. For example, (0, +1, 50, 2, +1,
+        159) gives a view to the 2D slice which contains the OBTDs for
+        0+(50) -> 1+(159).
+        """
+        obtd_fname = f"{self.npy_path}/{self.base_fname}_obtd_{self.unique_id}.npz"
+
+        if self.load_and_save_to_file != "overwrite":
+            """
+            Do not load files if overwrite parameter has been passed.
+            """
+            if os.path.isfile(obtd_fname) and self.load_and_save_to_file:
+                obtd_npz: NpzFile = np.load(file=obtd_fname, allow_pickle=False)
+                obtd_dict: dict[tuple[int, ...], NDArray] = {}
+                keys_with_transit_idx: NDArray = obtd_npz["keys_with_transit_idx"]
+
+                npz_keys = [k for k in obtd_npz.keys() if (k != "keys_with_transit_idx")]
+                for npz_key in npz_keys:
+                    """
+                    Map the OBTD arrays to the correct `obtd_dict` keys.
+                    np.savez requires that the keys are type str while
+                    they originally are tuples of ints. ast.literal_eval
+                    converts them back to tuples of ints.
+                    """
+                    obtd_dict[ast.literal_eval(npz_key)] = obtd_npz[npz_key]
+
+                for key_with_transit_idx in keys_with_transit_idx:
+                    """
+                    This loop does not load additional information, but
+                    maps the correct 2D slices to the correct dict keys.
+                    
+                    `key_with_transit_idx = (ji, pii, idxi, jf, pif, idxf)` (to 2D slice)
+                    `master_key = (ji, pii, jf, pif)` (to entire 3D array, already set in the previous loop)
+                    """
+                    key_as_tuple = tuple(key_with_transit_idx[:-1])
+                    transition_idx = key_with_transit_idx[-1]
+                    
+                    master_key = (key_as_tuple[0], key_as_tuple[1], key_as_tuple[3], key_as_tuple[4])
+                    assert str(master_key) in npz_keys
+                    
+                    obtd_dict[key_as_tuple] = obtd_dict[master_key][:, :, transition_idx]   # Create view of a 2D slice.
+
+                print("OBTD data loaded from .npz!")
+
+                if not run_test:
+                    self.obtd_dict = obtd_dict
+                    return
+
+        path_groups = defaultdict(list)
+        obtd_fnames = [p for p in os.listdir(self.path) if (p.startswith("OBTD") and os.path.isfile(f"{self.path}/{p}"))]
+        
+        if not obtd_fnames:
+            print(f"No OBTD file found in {self.path}!")
+            return
+        
+        self.obtd_dict: dict[tuple[int, ...], NDArray] = {}
+        
+        if flags["parallel"]:
+            for fname in obtd_fnames:
+                """
+                Group filenames of equal j_i, pi_i, j_f, pi_f into lists. This
+                is to make sure that files of equal j_i, pi_i, j_f, pi_f are
+                read by the same process. If OBTD values for a certain set of
+                j_i, pi_i, j_f, pi_f are already loaded, subsequent files of the
+                same j_i, pi_i, j_f, pi_f will be skipped. If however different
+                processes get files of the same j_i, pi_i, j_f, pi_f, then the
+                OBTDs will be read twice.
+                """
+                occurrences = tuple(re.findall(r'_j(\d+)(p|n)', fname))
+                path_groups[occurrences].append(f"{self.path}/{fname}")
+
+            with multiprocessing.Pool() as pool:
+                dicts = pool.map(_load_obtd_parallel_wrapper, path_groups.values())
+
+            for dict_ in dicts:
+                self.obtd_dict.update(dict_)
+
+        else:
+            for fname in obtd_fnames:
+                _load_obtd(path=f"{self.path}/{fname}", obtd_dict=self.obtd_dict)
+
+        if run_test:
+            """
+            Temporary test implementation until I find a better way to
+            do it. In this case, the OBTD data is both loaded from npz
+            and text, then the two OBTD dictionaries are verified to be
+            identical, except for the length 7 keys of the text loaded
+            OBTD dict. Those keys are only needed in the dictionary
+            which is saved, not in the one that is loaded because the
+            one which is loaded will not be used to overwrite the
+            already saved OBTD data. If that makes sense.
+            """
+            assert np.all(self.obtd_dict[(8, +1, 10, +1)] == obtd_dict[(8, +1, 10, +1)])
+            assert np.all(self.obtd_dict[(8, +1, 8, +1)] == obtd_dict[(8, +1, 8, +1)])
+
+            assert [k for k in self.obtd_dict.keys() if (len(k) == 4)] == [k for k in obtd_dict.keys() if (len(k) == 4)]
+            assert [k for k in self.obtd_dict.keys() if (len(k) == 6)] == [k for k in obtd_dict.keys() if (len(k) == 6)]
+
+            for key in [k for k in self.obtd_dict.keys() if (len(k) == 4)]:
+                assert np.all(self.obtd_dict[key] == obtd_dict[key])
+
+            for key in [k for k in self.obtd_dict.keys() if (len(k) == 6)]:
+                assert np.all(self.obtd_dict[key] == obtd_dict[key])
+
+        keys_with_transit_idx = np.array([key for key in self.obtd_dict.keys() if len(key) == 7])   # ji, pii, idxi, jf, pif, idxf, transit idx
+        master_dict = {str(key): value for key, value in self.obtd_dict.items() if len(key) == 4}   # Keys of len(4) are (ji, pii, jf, pif) with the complete 3D arrays as values.
+
+        if self.load_and_save_to_file:
+            np.savez_compressed(
+            # np.savez(
+                file = obtd_fname,
+                keys_with_transit_idx = keys_with_transit_idx,
+                **master_dict,
+            )
 
     def _extract_info_from_ptn_fname(self):
         """
@@ -351,29 +517,13 @@ class ReadKshellOutput:
         KshellDataStructureError
             If the `KSHELL` file has unexpected structure / syntax.
         """
-        # npy_path = "tmp"
-        # base_fname = self.path.split("/")[-1][:-4]
-        # unique_id = _generate_unique_identifier(self.path)
-
-        if self.load_and_save_to_file:
-            try:
-                os.mkdir(self.npy_path)
-            except FileExistsError:
-                pass
-
-            with open(f"{self.npy_path}/README.txt", "w") as outfile:
-                msg = "This directory contains binary numpy data of KSHELL summary data."
-                msg += " The purpose is to speed up subsequent runs which use the same summary data."
-                msg += " It is safe to delete this entire directory if you have the original summary text file, "
-                msg += "though at the cost of having to read the summary text file over again which may take some time."
-                msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
-                outfile.write(msg)
-        
         levels_fname = f"{self.npy_path}/{self.base_fname}_levels_{self.unique_id}.npy"
         transitions_BM1_fname = f"{self.npy_path}/{self.base_fname}_transitions_BM1_{self.unique_id}.npy"
         transitions_BE2_fname = f"{self.npy_path}/{self.base_fname}_transitions_BE2_{self.unique_id}.npy"
         transitions_BE1_fname = f"{self.npy_path}/{self.base_fname}_transitions_BE1_{self.unique_id}.npy"
         debug_fname = f"{self.npy_path}/{self.base_fname}_debug_{self.unique_id}.npy"
+
+        transitions_fname = f"{self.npy_path}/{self.base_fname}_transitions_{self.unique_id}.npz"
 
         fnames = [
             levels_fname, transitions_BE2_fname, transitions_BM1_fname,
@@ -384,21 +534,33 @@ class ReadKshellOutput:
             """
             Do not load files if overwrite parameter has been passed.
             """
-            if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file:
-                """
-                If all files exist, load them. If any of the files do
-                not exist, all will be generated.
-                """
-                self.levels = np.load(file=levels_fname, allow_pickle=True)
-                self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
-                self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
-                self.transitions_BE1 = np.load(file=transitions_BE1_fname, allow_pickle=True)
-                self.debug = np.load(file=debug_fname, allow_pickle=True)
-                msg = "Summary data loaded from .npy!"
+            if os.path.isfile(transitions_fname) and self.load_and_save_to_file:
+                transitions_npz: NpzFile = np.load(file=transitions_fname, allow_pickle=False)
+                self.levels = transitions_npz["levels"]
+                self.transitions_BM1 = transitions_npz["transitions_BM1"]
+                self.transitions_BE2 = transitions_npz["transitions_BE2"]
+                self.transitions_BE1 = transitions_npz["transitions_BE1"]
+                self.debug = transitions_npz["debug"]
+                msg = "Summary data loaded from .npz!"
                 msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
                 msg += " to re-read data from the summary file."
                 print(msg)
                 return
+            # if all(os.path.isfile(fname) for fname in fnames) and self.load_and_save_to_file:
+            #     """
+            #     If all files exist, load them. If any of the files do
+            #     not exist, all will be generated.
+            #     """
+            #     self.levels = np.load(file=levels_fname, allow_pickle=True)
+            #     self.transitions_BM1 = np.load(file=transitions_BM1_fname, allow_pickle=True)
+            #     self.transitions_BE2 = np.load(file=transitions_BE2_fname, allow_pickle=True)
+            #     self.transitions_BE1 = np.load(file=transitions_BE1_fname, allow_pickle=True)
+            #     self.debug = np.load(file=debug_fname, allow_pickle=True)
+            #     msg = "Summary data loaded from .npy!"
+            #     msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
+            #     msg += " to re-read data from the summary file."
+            #     print(msg)
+            #     return
 
         parallel_args = [
             [self.path_summary, "Energy", "replace_this_entry_with_loader", 0],
@@ -488,11 +650,19 @@ class ReadKshellOutput:
             self.levels[:, 1] /= 2  # JEM style syntax has 2*J already. Without this correction it would be 4*J.
 
         if self.load_and_save_to_file:
-            np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
-            np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
-            np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
-            np.save(file=transitions_BE1_fname, arr=self.transitions_BE1, allow_pickle=True)
-            np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
+            np.savez_compressed(
+                file = transitions_fname,
+                levels = self.levels,
+                transitions_BM1 = self.transitions_BM1,
+                transitions_BE2 = self.transitions_BE2,
+                transitions_BE1 = self.transitions_BE1,
+                debug = self.debug,
+            )
+            # np.save(file=levels_fname, arr=self.levels, allow_pickle=True)
+            # np.save(file=transitions_BM1_fname, arr=self.transitions_BM1, allow_pickle=True)
+            # np.save(file=transitions_BE2_fname, arr=self.transitions_BE2, allow_pickle=True)
+            # np.save(file=transitions_BE1_fname, arr=self.transitions_BE1, allow_pickle=True)
+            # np.save(file=debug_fname, arr=self.debug, allow_pickle=True)
 
     def level_plot(self,
         include_n_levels: int = 1000,
@@ -2269,7 +2439,7 @@ def loadtxt(
 
     loadtxt_time = time.perf_counter() - loadtxt_time
     if flags["debug"]:
-        print(f"{loadtxt_time = } s")
+        print(f"{loadtxt_time = :.2f} s")
 
     return res
 
