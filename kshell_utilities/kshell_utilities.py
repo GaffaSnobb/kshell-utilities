@@ -898,15 +898,8 @@ class ReadKshellOutput:
         gsf_unique_string += f"{Ex_final_min}{Ex_final_max}"
         gsf_unique_string += f"{include_n_levels}{filter_spins}{filter_parities}"
         gsf_unique_id = hashlib.sha1((gsf_unique_string).encode()).hexdigest()
-        # gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npy"
-        # bins_fname = f"{self.npy_path}/{self.base_fname}_gsfbins_{gsf_unique_id}_{self.unique_id}.npy"
-        # n_transitions_fname = f"{self.npy_path}/{self.base_fname}_gsfntransitions_{gsf_unique_id}_{self.unique_id}.npy"
-        # included_transitions_fname = f"{self.npy_path}/{self.base_fname}_gsfincludedtransitions_{gsf_unique_id}_{self.unique_id}.npy"
-        
-        # fnames = [gsf_fname, bins_fname, n_transitions_fname, included_transitions_fname]
+        gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npz"
 
-        gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npy"
-        
         if os.path.isfile(gsf_fname) and self.load_and_save_to_file and (self.load_and_save_to_file != "overwrite"):
             """
             If all these conditions are met, all arrays will be loaded
@@ -921,20 +914,6 @@ class ReadKshellOutput:
             msg = f"{self.nucleus} {multipole_type} GSF data loaded from .npy!"
             print(msg)
             is_loaded = True
-        # if all([os.path.isfile(fname) for fname in fnames]) and self.load_and_save_to_file and (self.load_and_save_to_file != "overwrite"):
-        #     """
-        #     If all these conditions are met, all arrays will be loaded
-        #     from file. If any of these conditions are NOT met, all
-        #     arrays will be re-calculated.
-        #     """
-        #     gsf = np.load(file=gsf_fname, allow_pickle=True)
-        #     bins = np.load(file=bins_fname, allow_pickle=True)
-        #     n_transitions = np.load(file=n_transitions_fname, allow_pickle=True)
-        #     included_transitions = np.load(file=included_transitions_fname, allow_pickle=True)
-            
-        #     msg = f"{self.nucleus} {multipole_type} GSF data loaded from .npy!"
-        #     print(msg)
-        #     is_loaded = True
 
         else:
             bins, gsf, n_transitions, included_transitions = gamma_strength_function_average(
@@ -952,11 +931,6 @@ class ReadKshellOutput:
             )
 
         if self.load_and_save_to_file and not is_loaded:
-            # np.save(file=gsf_fname, arr=gsf, allow_pickle=True)
-            # np.save(file=bins_fname, arr=bins, allow_pickle=True)
-            # np.save(file=n_transitions_fname, arr=n_transitions, allow_pickle=True)
-            # np.save(file=included_transitions_fname, arr=included_transitions, allow_pickle=True)
-
             np.savez_compressed(
                 file = gsf_fname,
                 gsf = gsf,
