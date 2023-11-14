@@ -14,7 +14,7 @@ from .partition_tools import (
     _calculate_configuration_parity, _sanity_checks, configuration_energy
 )
 
-def load_obtd(
+def _load_obtd(
     path: str,
     obtd_dict: dict[tuple[int, ...]],
 ) -> None:
@@ -134,8 +134,8 @@ def load_obtd(
         print(msg)
         return
 
-    key = (j_i, pi_i, j_f, pi_f)
-    if key in obtd_dict:
+    master_key = (j_i, pi_i, j_f, pi_f)
+    if master_key in obtd_dict:
         """
         For example, the files
         
@@ -147,13 +147,13 @@ def load_obtd(
         about L and S, I might read both files in the future. For now,
         skip one of them.
         """
-        msg = f"OBTDs for {key} already exists! Skipping file {path.split('/')[-1]}..."
+        msg = f"OBTDs for {master_key} already exists! Skipping file {path.split('/')[-1]}..."
         print(msg)
         return
 
     # obtd = np.zeros(shape=(n_elements, 5, n_initial_levels*n_final_levels), dtype=np.float64)
     obtd = np.zeros(shape=(n_elements, 3, n_initial_levels*n_final_levels), dtype=np.float64)
-    obtd_dict[(j_i, pi_i, j_f, pi_f)] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
+    obtd_dict[master_key] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
     
     with open(path, "r") as infile:
         for transit_idx in range(n_initial_levels*n_final_levels):
@@ -175,13 +175,17 @@ def load_obtd(
                     idx_i_current -= 1  # Make indices start from 0.
                     idx_f_current -= 1
                     key = (j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)
+                    key_with_transit_idx = key + (transit_idx,) # This key is used for np.load and np.save. Need the transit index to know which 2D slice.
                     
                     assert j_i_current == j_i   # Check that the ang. momentum in the filename agrees with the contents of the file.
                     assert j_f_current == j_f
                     assert idx_i_current < n_initial_levels
                     assert idx_f_current < n_final_levels
                     assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
-                    obtd_dict[(j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)] = obtd[:, :, transit_idx]
+                    assert key_with_transit_idx not in obtd_dict
+                    
+                    obtd_dict[key] = obtd[:, :, transit_idx]
+                    obtd_dict[key_with_transit_idx] = obtd[:, :, transit_idx]
                     
                     break
 
@@ -212,11 +216,23 @@ def load_obtd(
                 obtd[obtd_idx, 1, transit_idx] -= 1
     
     assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0)])
+    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0, 0)])
     assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, j_f, pi_f)][:, :, 0])
     assert np.all(obtd[:, :, -1] == obtd_dict[(j_i, pi_i, n_initial_levels - 1, j_f, pi_f, n_final_levels - 1)])
+    print(f"OBTD {path.split('/')[-1]} loaded", end="")
     
     timing = time.perf_counter() - timing
-    print(f"obtd load time: {timing:.3f} s")
+    if flags["debug"]:
+        print(f" in {timing:.2f} s", end="")
+
+    print()
+
+def _load_obtd_parallel_wrapper(paths: list[str]) -> dict[tuple[int, ...]]:
+    obtd_dict: dict[tuple[int, ...]] = {}
+    for path in paths:
+        _load_obtd(path=path, obtd_dict=obtd_dict)
+
+    return obtd_dict
 
 def load_interaction(
     filename_interaction: str,
