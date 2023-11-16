@@ -3,6 +3,7 @@ import time, sys, ast, warnings, re
 from fractions import Fraction
 from typing import TextIO
 import numpy as np
+from numpy.typing import NDArray
 from .kshell_exceptions import KshellDataStructureError
 from .data_structures import (
     Interaction, Partition, OrbitalParameters, Configuration
@@ -13,6 +14,172 @@ from .parameters import (
 from .partition_tools import (
     _calculate_configuration_parity, _sanity_checks, configuration_energy
 )
+
+def _load_transition_logfile(
+    path: str
+):
+    """
+    Please note that the structure of the loaded data is a bit different
+    from how it appears in the logfile.
+
+    Structure when loaded:
+    [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+    2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+    B(.., i->f), B(.., f<-i)]
+    """
+    transitions_E1: list[list[float]] = []
+    transitions_M1: list[list[float]] = []
+    transitions_E2: list[list[float]] = []
+    transitions: list[list[float]]
+
+    with open(path, "r") as infile:
+        for line in infile:
+            if "left  Z,N,A,M,prty:" in line:
+                """
+                left  Z,N,A,M,prty:   23  27  50   2   1
+                right Z,N,A,M,prty:   23  27  50   4  -1
+                """
+                tmp = line.split()
+                pi_f = int(tmp[-1])
+                j_f_expected = int(tmp[-2])
+
+                tmp = infile.readline().split()
+                pi_i = int(tmp[-1])
+                j_i_expected = int(tmp[-2])
+                
+                break
+    
+    with open(path, "r") as infile:
+        for _ in range(3):
+            """
+            Technically there should never be three tables (E1, M1, E2)
+            in any logfile since a ji -> jf which supports M1 does not
+            support E1. However, there might be the case where just the
+            header and then an empty table is written to the file in
+            which case some information might be skipped if we do not do
+            this three times.
+            """
+            for line in infile:
+                if ("E1 transition" in line) or ("M1 transition" in line) or ("E2 transition" in line):
+                    multipolarity = line.split()[0]
+                    infile.readline()   # Skip header.
+
+                    if multipolarity == "E1":
+                        transitions = transitions_E1
+                    elif multipolarity == "M1":
+                        transitions = transitions_M1
+                    elif multipolarity == "E2":
+                        transitions = transitions_E2
+                    else:
+                        msg = f"Invalid multipolarity from file '{path}'! Got '{multipolarity}'."
+                        raise KshellDataStructureError(msg)
+                    break
+            
+            for line in infile:
+                tmp = line.split() # ['2', '1', '-393.605', '4', '1', '-392.585', '1.021', '0.00401764', '0.00000538', '0.00000323', '0.00000000']
+                
+                try:
+                    j_f = int(tmp[0])
+                except IndexError:
+                    """
+                    Reached blank line after the table of values.
+                    """
+                    break
+
+                idx_f = int(tmp[1]) - 1
+                E_f = float(tmp[2])
+
+                j_i = int(tmp[3])
+                idx_i = int(tmp[4]) - 1
+                E_i = float(tmp[5])
+
+                E_gamma = float(tmp[6])
+                # M_red = float(tmp[7])   # Not in use.
+                B_if = float(tmp[8])
+                B_fi = float(tmp[9])
+                # Mom = float(tmp[10])    # Not in use.
+
+                assert j_f == j_f_expected
+                assert j_i == j_i_expected
+
+                transitions.append([
+                    j_i, pi_i, idx_i, E_i, j_f, pi_f, idx_f, E_f, E_gamma, B_if, B_fi
+                ])
+
+    return transitions_E1, transitions_M1, transitions_E2
+
+def _load_energy_logfile(
+    path: str
+) -> NDArray:
+    """
+    Read KSHELL energy logfiles. NOTE: I needed to read additional info
+    from the log files and decided it is easier to completely skip
+    generating a summary file and just read straight from the log files.
+    Everything is temporary stored as binary Numpy arrays for fast
+    loading and it seemed unnecessary to do two steps of data
+    restructuring.
+
+    The data is stored in a 2D numpy array with each row as:
+    ```
+        [E, 2*spin, parity, idx, Hcm]
+    ```
+    `idx` will for each individual energy log file array be the same as
+    the index and it will correspond to the energy order of which the
+    levels appear. It is needed when several energy log file arrays are
+    concatenated so that we can keep track of the energy order per j pi.
+    """
+    with open(path, "r") as infile:
+        for line in infile:
+            if "N_EIGEN" in line:
+                """
+                The number of energy eigenstates in this file is stored
+                as:
+                N_EIGEN =         200,
+                """
+                tmp = line.split("=")[-1]
+                tmp = tmp.split(",")[0]
+                tmp = tmp.strip()
+                n_eigen = int(tmp)
+                break
+
+        for line in infile:
+            if ("M =" in line) and ("parity =" in line):
+                tmp = line.split()  # ['M', '=', '0/2', ':', 'parity', '=', '+']
+                j_expected = int(Fraction(tmp[2])*2)
+                parity_expected = +1 if (tmp[6] == "+") else -1
+                break
+
+        levels = np.zeros(shape=(n_eigen, 5), dtype=np.float64)
+        idx_prev = -1    # Has to have some starting value.
+        E_prev = -np.inf
+
+        for line in infile:
+            if "-------------------------------------------------" in line:
+                tmp = infile.readline().split() # ['1', '<H>:', '-392.15904', '<JJ>:', '-0.00000', 'J:', '0/2', 'prty', '1']
+                idx_current = int(tmp[0]) - 1
+                E_current = float(tmp[2])
+                j = int(Fraction(tmp[6])*2)
+                parity = int(tmp[8])
+                tmp = infile.readline().split() # ['<Hcm>:', '0.00000', '<TT>:', '6.00000', 'T:', '4/2']
+                Hcm = float(tmp[1])
+
+                assert j == j_expected
+                assert parity == parity_expected
+                assert idx_prev < idx_current
+                assert E_prev < E_current
+
+                levels[idx_current] = E_current, j, parity, idx_current, Hcm
+
+                idx_prev = idx_current
+                E_prev = E_current
+
+            if idx_prev == (n_eigen - 1):
+                """
+                All energy eigenstates have been loaded.
+                """
+                break
+
+    return levels
 
 def _load_obtd(
     path: str,
