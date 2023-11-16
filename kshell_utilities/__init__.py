@@ -23,3 +23,4 @@ from .script_editing import edit_and_queue_executables
 from .partition_editor import partition_editor, test_partition_editor, test_partition_editor_2
 from . import loaders
 from . import data_structures
+from . import test_loaders
