@@ -14,7 +14,7 @@ setup(
     url = 'https://github.com/GaffaSnobb/kshell-utilities',
     author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
-    packages = ['kshell_utilities', 'tests'],
+    packages = ['kshell_utilities'],
     install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'vum'],
 
     classifiers = [
