@@ -1,0 +1,145 @@
+nprocs  512    myrank    0
+OpenMP  # of threads= 32
+ nprocs = nprocs_reduce x nprocs_shift   512 =   16 x   32
+ # of vectors to shift at once   32
+
+ &INPUT
+ FN_INT  = GCLSTsdpfsdgix5pn.snt                                                                                                     
+                                                                                                                                     
+   ,
+ HW_TYPE =           2,
+ FN_PTN_L        = V50_GCLSTsdpfsdgix5pn_p.ptn                                                                                       
+                                                                                                                                     
+           ,
+ FN_LOAD_WAVE_L  = V50_GCLSTsdpfsdgix5pn_j2p.wav                                                                                     
+                                                                                                                                     
+           ,
+ FN_PTN_R        = V50_GCLSTsdpfsdgix5pn_n.ptn                                                                                       
+                                                                                                                                     
+           ,
+ FN_LOAD_WAVE_R  = V50_GCLSTsdpfsdgix5pn_j4n.wav                                                                                     
+                                                                                                                                     
+           ,
+ EFF_CHARGE      =   1.50000000000000     ,  0.500000000000000     ,
+ GL      =   1.10000000000000     , -0.100000000000000     ,
+ GS      =   5.02700000000000     ,  -3.44300000000000     ,
+ E1_CHARGE       = 2*0.000000000000000E+000  ,
+ E3_CHARGE       = 2*0.000000000000000E+000  ,
+ MASS    =           0,
+ IS_FERMI_TRN    = F,
+ IS_OBTD = T,
+ IS_TBTD = F,
+ NPROCS_REDUCE   =          16,
+ NV_SHIFT        =          32,
+ IHW_PROJ        =          -1,
+ N_EIG_LR_PAIR   = 2000*-1
+ /
+compile conf. kwf, kdim, kmbit, nmbit =  8  8  8  1
+
+fn_load_wave_l = V50_GCLSTsdpfsdgix5pn_j2p.wav
+fn_load_wave_r = V50_GCLSTsdpfsdgix5pn_j4n.wav
+ 
+ proton  core  8, orbit: 0s_1/2 0p_3/2 0p_1/2
+ neutron core  8, orbit: 0s_1/2 0p_3/2 0p_1/2
+ 
+ model space
+   k,  n,  l,  j, tz,  p, 2n+l
+   1   0   2   5  -1   1   2   p 0d_5/2
+   2   0   2   3  -1   1   2   p 0d_3/2
+   3   1   0   1  -1   1   2   p 1s_1/2
+   4   0   3   7  -1  -1   3   p 0f_7/2
+   5   0   3   5  -1  -1   3   p 0f_5/2
+   6   1   1   3  -1  -1   3   p 1p_3/2
+   7   1   1   1  -1  -1   3   p 1p_1/2
+   8   0   4   9  -1   1   4   p 0g_9/2
+   9   0   4   7  -1   1   4   p 0g_7/2
+  10   1   2   5  -1   1   4   p 1d_5/2
+  11   1   2   3  -1   1   4   p 1d_3/2
+  12   2   0   1  -1   1   4   p 2s_1/2
+  13   0   2   5   1   1   2   n 0d_5/2
+  14   0   2   3   1   1   2   n 0d_3/2
+  15   1   0   1   1   1   2   n 1s_1/2
+  16   0   3   7   1  -1   3   n 0f_7/2
+  17   0   3   5   1  -1   3   n 0f_5/2
+  18   1   1   3   1  -1   3   n 1p_3/2
+  19   1   1   1   1  -1   3   n 1p_1/2
+  20   0   4   9   1   1   4   n 0g_9/2
+  21   0   4   7   1   1   4   n 0g_7/2
+  22   1   2   5   1   1   4   n 1d_5/2
+  23   1   2   3   1   1   4   n 1d_3/2
+  24   2   0   1   1   1   4   n 2s_1/2
+ 
+set left partition_file=V50_GCLSTsdpfsdgix5pn_p.ptn
+Max 2*J =  44
+ 
+pn= 1   # of mbits=           1140
+pn= 2   # of mbits=          75714
+
+init_partition  time it took was:     0.747 sec
+
+Memory usage in partition        1.71 MB
+ partition distribution based on counted dim.         512
+ partition distribution based on counted dim.         512
+
+loadbalancing cost max/min       14196.00000       13445.00000
+
+set right partition_file=V50_GCLSTsdpfsdgix5pn_n.ptn
+Max 2*J =  52
+ 
+pn= 1   # of mbits=          64977
+pn= 2   # of mbits=        2598556
+
+init_partition  time it took was:     0.585 sec
+
+Memory usage in partition       39.62 MB
+ partition distribution based on counted dim.         512
+ partition distribution based on counted dim.         512
+
+loadbalancing cost max/min     1084491.00000     1084487.00000
+
+N. of valence protons and neutrons =  15 19   mass= 50   z,n-core     8    8
+TBME mass dependence (mass/  42)^ -0.30000000
+ hbar_omega: set by 45A^(-1/3)-25A^(-2/3) MeV
+hbar_omega =   10.37286 MeV;     b =    1.99951 fm
+ all combination of states to be computed.
+Memory for left global Lanczos vector:     0.051 GB
+Memory / process is:     0.000 GB 
+ 
+Memory for right global Lanczos vector:     4.137 GB
+Memory / process is:     0.008 GB 
+ 
+Total Memory / process is:     1.889 GB 
+ 
+wave functions load from V50_GCLSTsdpfsdgix5pn_j2p.wav # of wf  200
+time I/O     10.262 GB  /      7.297 sec. =      1.41 GB/s
+
+wave functions load from V50_GCLSTsdpfsdgix5pn_j4n.wav # of wf  200
+time I/O    827.398 GB  /      9.511 sec. =     87.00 GB/s
+
+
+max. working area for pn-int.:      1.431GB        1000000
+split partition threshold dim.            200  max. # of split ptn  32
+ # of split partitions       23 /          458
+left  Z,N,A,M,prty:   23  27  50   2   1
+right Z,N,A,M,prty:   23  27  50   4  -1
+
+ E1 transition  e^2 fm^2  e1_charge=  0.5400 -0.4600 parity  1 -1
+  2Jf   idx  Ef        2Ji   idx  Ei          Ex        Mred.           B(EM )->        B(EM)<-         Mom.
+   2     1   -393.605   4     1   -392.585     1.021      0.00401764      0.00000538      0.00000323      0.00000000
+   2   200   -384.604   4   180   -387.120    -2.516     -0.00020814      0.00000001      0.00000001      0.00000000
+   2   200   -384.604   4   181   -387.096    -2.492     -0.00075887      0.00000019      0.00000012      0.00000000
+   2   200   -384.604   4   182   -387.087    -2.483     -0.00580541      0.00001123      0.00000674      0.00000000
+   2   200   -384.604   4   183   -387.072    -2.467      0.00041595      0.00000006      0.00000003      0.00000000
+   2   200   -384.604   4   184   -387.060    -2.456     -0.00157249      0.00000082      0.00000049      0.00000000
+   2   200   -384.604   4   185   -387.056    -2.451      0.00165812      0.00000092      0.00000055      0.00000000
+ 
+ M1 transition  e^2 fm^2  e1_charge=  0.5400 -0.4600 parity  1 -1
+  2Jf   idx  Ef        2Ji   idx  Ei          Ex        Mred.           B(EM )->        B(EM)<-         Mom.
+   2     1   -393.605   4     1   -392.585     1.021      0.00401764      0.00000538      0.00000323      0.00000000
+   2     1   -393.605   4     2   -392.297     1.308     -0.01556801      0.00008079      0.00004847      0.00000000
+
+ E2 transition  e^2 fm^2  e1_charge=  0.5400 -0.4600 parity  1 -1
+  2Jf   idx  Ef        2Ji   idx  Ei          Ex        Mred.           B(EM )->        B(EM)<-         Mom.
+   2   200   -384.604   4   191   -387.016    -2.411     -0.00219113      0.00000160      0.00000096      0.00000000
+   2   200   -384.604   4   192   -387.010    -2.406     -0.00217375      0.00000158      0.00000095      0.00000000
+   2   200   -384.604   4   193   -387.005    -2.401      0.00434570      0.00000630      0.00000378      0.00000000
