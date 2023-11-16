@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from .collect_logs import collect_logs
 from .kshell_exceptions import KshellDataStructureError
-from .parameters import atomic_numbers, flags
+from .parameters import elements_reversed, flags
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
     isotope
@@ -21,7 +21,11 @@ from .general_utilities import (
 from .loaders import (
     _generic_loader, _load_energy_levels, _load_transition_probabilities,
     _load_transition_probabilities_old, _load_transition_probabilities_jem,
-    _load_obtd_parallel_wrapper, _load_obtd,
+    _load_obtd_parallel_wrapper, _load_obtd, _load_energy_logfile,
+    _load_transition_logfile
+)
+from .test_loaders import (
+    test_load_energy_logfile, test_load_transition_logfile
 )
 
 def _generate_unique_identifier(path: str) -> str:
@@ -111,7 +115,11 @@ class ReadKshellOutput:
     transitions_BE2 : np.ndarray
         Transition data for BE2 transitions. Same structure as BE1.
     """
-    def __init__(self, path: str, load_and_save_to_file: bool, old_or_new: str):
+    def __init__(self,
+        path: str,
+        load_and_save_to_file: bool,
+        old_or_new: str,
+    ):
         """
         Parameters
         ----------
@@ -133,7 +141,6 @@ class ReadKshellOutput:
             J_i    Ex_i     J_f    Ex_f   dE        B(M1)->         B(M1)<- 
             2+(11) 18.393 2+(10) 17.791 0.602 0.1(  0.0) 0.1( 0.0)
         """
-
         self.path = path.rstrip("/")    # Just in case, prob. not necessary.
         self.load_and_save_to_file = load_and_save_to_file
         self.old_or_new = old_or_new
@@ -149,8 +156,10 @@ class ReadKshellOutput:
         self.transitions_BM1 = NDArray | None
         self.transitions_BE2 = NDArray | None
         self.transitions_BE1 = NDArray | None
-        self.obtd_dict: dict[tuple[int, ...], NDArray] | None
+        self.obtd_dict: dict[tuple[int, ...], NDArray] | None = None
         self.npy_path = "tmp"   # Directory for storing .npy files.
+        # self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
+        self.unique_id = hashlib.sha1(self.path.encode()).hexdigest()   # NOTE: Pretty sure that just using the path is completely unique.
         # Debug.
         self.negative_spin_counts = np.array([0, 0, 0, 0])  # The number of skipped -1 spin states for [levels, BM1, BE2, BE1].
 
@@ -166,89 +175,166 @@ class ReadKshellOutput:
 
         with open(f"{self.npy_path}/README.txt", "w") as outfile:
             msg = "This directory contains binary numpy data of KSHELL summary data."
-            msg += " The purpose is to speed up subsequent runs which use the same summary data."
-            msg += " It is safe to delete this entire directory if you have the original summary text file, "
+            msg += " The purpose is to speed up subsequent runs which use the same data."
+            msg += " It is safe to delete this entire directory if you have the original log files or the summary text file, "
             msg += "though at the cost of having to read the summary text file over again which may take some time."
             msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
             outfile.write(msg)
 
+
         if os.path.isdir(self.path):
-            """
-            If input 'path' is a directory. Look for summaries.
-            """
-            summaries = [i for i in os.listdir(self.path) if "summary" in i]
-
-            if not summaries:
-                """
-                No summaries found, call collect_logs.
-                """
-                self.fname_summary = collect_logs(
-                    path = self.path,
-                    old_or_new = "both"
-                )
-                self.path_summary = f"{self.path}/{self.fname_summary}"
-
-            elif len(summaries) > 1:
-                msg = f"Several summaries found in {self.path}. Please specify path"
-                msg += " directly to the summary file you want to load."
-                raise RuntimeError(msg)
-
-            else:
-                self.fname_summary = summaries[0]   # Just filename.
-                self.path_summary = f"{self.path}/{summaries[0]}"    # Complete path (maybe relative).
+            self._read_logfiles()
+            self._read_obtd()
 
         elif os.path.isfile(self.path):
             """
-            'path' is a single file, not a directory.
+            'path' is a single summary file, not a directory.
             """
             self.fname_summary = path.split("/")[-1]       # Just filename.
             self.path_summary = self.path    # Complete path (maybe relative).
+            self._extract_info_from_summary_fname()
+            self._read_summary()
+            self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npy tmp files.
 
         else:
-            msg = f"{self.path} is not a file or a directory!"
-            tmp_directory = self.path.rsplit('/', 1)[0]
-            if os.path.isdir(tmp_directory):
-                summaries = [i for i in os.listdir(tmp_directory) if "summary" in i]
-                if summaries:
-                    msg += f" {len(summaries)} summary files were found in {tmp_directory}."
-                    msg += f" {summaries}"
-                
-                logs = [i for i in os.listdir(tmp_directory) if i.startswith("log_")]
-                if logs and (not summaries):
-                    msg += f" Logs found in '{tmp_directory}'. Set path to '{tmp_directory}'"
-                    msg += " to collect logs and load the summary file."
-
+            msg = f"{self.path} is an invalid path!"
             raise RuntimeError(msg)
-
-        self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npy tmp files.
-        self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
-        self._extract_info_from_summary_fname()
-        self._read_summary()
-        
-        if os.path.isdir(self.path):
-            self._read_obtd()
-        else:
-            self.obtd_dict = None
 
         self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2")
         self.ground_state_energy = self.levels[0, 0]
         
-        try:
-            self.A = int("".join(filter(str.isdigit, self.nucleus)))
-            self.Z, self.N = isotope(
-                name = "".join(filter(str.isalpha, self.nucleus)).lower(),
-                A = self.A
-            )
-        except ValueError:
-            """
-            Prob. because the summary filename does not contain the name
-            of the isotope.
-            """
-            self.A = None
-            self.Z = None
-            self.N = None
-        
         self.check_data()
+
+    def _read_logfiles(self):
+        """
+        First create a base name for loading / saving the .npz files.
+        A typical base name is V50_GCLSTsdpfsdgix5pn. Information about
+        the nucleus and the interaction name is read from one of the
+        energy log files.
+
+        After that, this method checks if there exists a .npz file with
+        that name. If it does, load it. If it doesnt, read data from all
+        the logfiles in `path` and save the results as .npz.
+        """
+        transition_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" in f))])
+        level_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" not in f))])
+
+        with open(f"{self.path}/{level_log_fnames[0]}", "r") as infile:
+            """
+            Extract interaction name and name of nucleus from one of the
+            energy logfiles.
+            """
+            msg = (
+                f"'{level_log_fnames[0]}' has bad syntax! Cannot extract"
+                " interaction name and nucleon information!"
+            )
+            for line in infile:
+                if "FN_INT  = " in line:
+                    interaction_name = line.split("=")[-1]
+                    interaction_name = interaction_name.split(".")[0].strip()
+                    break
+            else:
+                raise KshellDataStructureError(msg)
+
+            for line in infile:
+                """
+                N. of valence protons and neutrons =  15 19   mass= 50   n,z-core     8    8
+                """
+                if "N. of valence protons and neutrons =" in line:
+                    n_valence_pn, n_core_pn = line.split("=")[1:]
+                    n_valence_pn = [int(v) for v in n_valence_pn.split()[:-1]]
+                    n_core_pn = [int(c) for c in n_core_pn.split()[-2:]]
+                    break
+
+            else:
+                raise KshellDataStructureError(msg)
+            
+        mass = sum(n_valence_pn + n_core_pn)
+        n_protons = n_valence_pn[0] + n_core_pn[0]
+        n_neutrons = n_valence_pn[1] + n_core_pn[1]
+        nucleus_name = f"{elements_reversed[n_protons].capitalize()}{mass}"
+        self.base_fname = f"{nucleus_name}_{interaction_name}"
+        transitions_levels_fname = f"{self.npy_path}/{self.base_fname}_transitions_levels_{self.unique_id}.npz"
+        
+        self.A = mass
+        self.Z = n_protons
+        self.N = n_neutrons
+        self.nucleus = nucleus_name
+
+        if self.load_and_save_to_file != "overwrite":
+            """
+            Do not load files if overwrite parameter has been passed.
+            """
+            if os.path.isfile(transitions_levels_fname) and self.load_and_save_to_file:
+                transitions_npz: NpzFile = np.load(file=transitions_levels_fname, allow_pickle=False)
+                self.levels = transitions_npz["levels"]
+                self.transitions_BM1 = transitions_npz["transitions_BM1"]
+                self.transitions_BE2 = transitions_npz["transitions_BE2"]
+                self.transitions_BE1 = transitions_npz["transitions_BE1"]
+                msg = "Summary data loaded from .npz!"
+                msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
+                msg += " to re-read data from the summary file."
+                print(msg)
+                return
+        
+        levels = []
+
+        for i, level_log_fname in enumerate(level_log_fnames):
+            """
+            Load energy levels.
+            """
+            levels.append(_load_energy_logfile(
+                path = f"{self.path}/{level_log_fname}"
+            ))
+            msg = (
+                f"({i+1}/{len(level_log_fnames)}) {level_log_fname}"
+                f"\n    Levels: {len(levels[i])}"
+            )
+            print(msg)
+
+        self.levels = np.concatenate(levels)
+        self.levels = self.levels[np.argsort(self.levels[:, 0])]   # Sort the levels based on energy.
+
+        transitions_BE1 = []
+        transitions_BM1 = []
+        transitions_BE2 = []
+
+        for i, transition_log_fname in enumerate(transition_log_fnames):
+            """
+            Load transitions.
+            """
+            tmp = _load_transition_logfile(
+                path = f"{self.path}/{transition_log_fname}"
+            )
+            if tmp[0]:
+                """
+                Empty lists messes up np.concatenate.
+                """
+                transitions_BE1.append(tmp[0])
+            if tmp[1]:
+                transitions_BM1.append(tmp[1])
+            if tmp[2]:
+                transitions_BE2.append(tmp[2])
+            msg = (
+                f"({i+1}/{len(transition_log_fnames)}) {transition_log_fname}"
+                f"\n    E1: {len(tmp[0])}"
+                f"\n    M1: {len(tmp[1])}"
+                f"\n    E2: {len(tmp[2])}"
+            )
+            print(msg)
+
+        self.transitions_BE1 = np.concatenate(transitions_BE1)
+        self.transitions_BM1 = np.concatenate(transitions_BM1)
+        self.transitions_BE2 = np.concatenate(transitions_BE2)
+
+        if self.load_and_save_to_file:
+            np.savez_compressed(
+                file = transitions_levels_fname,
+                levels = self.levels,
+                transitions_BM1 = self.transitions_BM1,
+                transitions_BE2 = self.transitions_BE2,
+                transitions_BE1 = self.transitions_BE1,
+            )
 
     def _read_obtd(self, run_test: bool = False):
         """
@@ -516,14 +602,14 @@ class ReadKshellOutput:
         KshellDataStructureError
             If the `KSHELL` file has unexpected structure / syntax.
         """
-        transitions_fname = f"{self.npy_path}/{self.base_fname}_transitions_{self.unique_id}.npz"
+        transitions_levels_fname = f"{self.npy_path}/{self.base_fname}_transitions_levels_{self.unique_id}.npz"
 
         if self.load_and_save_to_file != "overwrite":
             """
             Do not load files if overwrite parameter has been passed.
             """
-            if os.path.isfile(transitions_fname) and self.load_and_save_to_file:
-                transitions_npz: NpzFile = np.load(file=transitions_fname, allow_pickle=False)
+            if os.path.isfile(transitions_levels_fname) and self.load_and_save_to_file:
+                transitions_npz: NpzFile = np.load(file=transitions_levels_fname, allow_pickle=False)
                 self.levels = transitions_npz["levels"]
                 self.transitions_BM1 = transitions_npz["transitions_BM1"]
                 self.transitions_BE2 = transitions_npz["transitions_BE2"]
@@ -624,7 +710,7 @@ class ReadKshellOutput:
 
         if self.load_and_save_to_file:
             np.savez_compressed(
-                file = transitions_fname,
+                file = transitions_levels_fname,
                 levels = self.levels,
                 transitions_BM1 = self.transitions_BM1,
                 transitions_BE2 = self.transitions_BE2,
