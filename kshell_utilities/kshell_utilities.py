@@ -11,7 +11,6 @@ from numpy.lib.npyio import NpzFile
 import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
-from .collect_logs import collect_logs
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import elements_reversed, flags
 from .general_utilities import (
@@ -104,7 +103,6 @@ class ReadKshellOutput:
         self.transitions_BE1 = NDArray | None
         self.obtd_dict: dict[tuple[int, ...], NDArray] | None = None
         self.npy_path = "tmp"   # Directory for storing .npy files.
-        # self.unique_id = _generate_unique_identifier(self.path) # Unique identifier for .npy files.
         self.unique_id = hashlib.sha1(self.path.encode()).hexdigest()   # NOTE: Pretty sure that just using the path is completely unique.
         # Debug.
         self.negative_spin_counts = np.array([0, 0, 0, 0])  # The number of skipped -1 spin states for [levels, BM1, BE2, BE1].
@@ -139,7 +137,7 @@ class ReadKshellOutput:
             self.path_summary = self.path    # Complete path (maybe relative).
             self._extract_info_from_summary_fname()
             self._read_summary()
-            self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npy tmp files.
+            self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npz tmp files.
 
         else:
             msg = f"{self.path} is an invalid path!"
@@ -216,9 +214,8 @@ class ReadKshellOutput:
                 self.transitions_BM1 = transitions_npz["transitions_BM1"]
                 self.transitions_BE2 = transitions_npz["transitions_BE2"]
                 self.transitions_BE1 = transitions_npz["transitions_BE1"]
-                msg = "Summary data loaded from .npz!"
-                msg += " Use loadtxt parameter load_and_save_to_file = 'overwrite'"
-                msg += " to re-read data from the summary file."
+                msg = "Level and transition data loaded from .npz!"
+                msg += " Delete the tmp/ directory to re-read data from the log files."
                 print(msg)
                 return
             
@@ -2233,11 +2230,11 @@ class ReadKshellOutput:
             print(msg)
             return np.zeros(0)
         
-        mixing_pairs_fname = f"{self.npy_path}/{self.base_fname}_mixing_pairs_B{B_left}_B{B_right}_{self.unique_id}.npy"
+        mixing_pairs_fname = f"{self.npy_path}/{self.base_fname}_mixing_pairs_B{B_left}_B{B_right}_{self.unique_id}.npz"
 
         if os.path.isfile(mixing_pairs_fname) and self.load_and_save_to_file and (self.load_and_save_to_file != "overwrite"):
-            print(f"Mixing pairs loaded from .npy!")
-            mixing_pairs = np.load(file=mixing_pairs_fname, allow_pickle=True)
+            mixing_pairs = np.load(file=mixing_pairs_fname, allow_pickle=False)["mixing_pairs"]
+            print(f"Mixing pairs loaded from .npz!")
             return mixing_pairs        
         
         @numba.njit
@@ -2309,10 +2306,16 @@ class ReadKshellOutput:
         )
         mixing_pairs.sort(key=lambda tup: tup[0][8])    # Sort wrt. gamma energy.
         mixing_pairs = np.array(mixing_pairs)
+        
         if self.load_and_save_to_file:
-            np.save(file=mixing_pairs_fname, arr=mixing_pairs, allow_pickle=True)
+            np.savez_compressed(
+                file = mixing_pairs_fname,
+                mixing_pairs = mixing_pairs,
+            )
+        
         mixing_pairs_time = time.perf_counter() - mixing_pairs_time
         print(f"{mixing_pairs_time = :.3f} s")
+        
         return mixing_pairs
 
     def mixing_ratio(self,
