@@ -14,6 +14,39 @@ from .parameters import (
 from .partition_tools import (
     _calculate_configuration_parity, _sanity_checks, configuration_energy
 )
+WEISSKOPF_THRESHOLD: float = -0.001
+
+def _weisskopf_unit(multipole_type: str, mass: int) -> float:
+    """
+    Generate the Weisskopf unit_weisskopf for input multipolarity and
+    mass. Ref. Bohr and Mottelson, Vol.1, p. 389.
+
+    Parameters
+    ----------
+    multipole_type : str
+        The electromagnetic character and angular momentum of the gamma
+        radiation. Examples: 'E1', 'M1', 'E2'.
+
+    mass : int
+        Mass of the nucleus.
+
+    Returns
+    -------
+    B_weisskopf : float
+        Reduced transition probability in the Weisskopf estimate.
+    """
+    l = int(multipole_type[1:])
+    if multipole_type[0].upper() == "E":
+        B_weisskopf = 1.2**(2*l)/(4*np.pi)*(3/(l + 3))**2*mass**(2*l/3)  
+    
+    elif multipole_type[0].upper() == "M":
+        B_weisskopf = 10/np.pi*1.2**(2*l - 2)*(3/(l + 3))**2*mass**((2*l - 2)/3) 
+
+    else:
+        msg = f"Got invalid multipole type: '{multipole_type}'."
+        raise ValueError(msg)
+    
+    return B_weisskopf
 
 def _load_transition_logfile(
     path: str
@@ -42,10 +75,16 @@ def _load_transition_logfile(
                 tmp = line.split()
                 pi_f = int(tmp[-1])
                 j_f_expected = int(tmp[-2])
+                mass = int(tmp[-3])
 
                 tmp = infile.readline().split()
                 pi_i = int(tmp[-1])
                 j_i_expected = int(tmp[-2])
+
+                if (pi_i == pi_f) and (j_f_expected == j_i_expected):
+                    is_diag = True
+                else:
+                    is_diag = False
                 
                 break
     
@@ -73,6 +112,11 @@ def _load_transition_logfile(
                     else:
                         msg = f"Invalid multipolarity from file '{path}'! Got '{multipolarity}'."
                         raise KshellDataStructureError(msg)
+                    
+                    B_weisskopf = _weisskopf_unit(
+                        multipole_type = multipolarity,
+                        mass = mass,
+                    )
                     break
             
             for line in infile:
@@ -88,19 +132,37 @@ def _load_transition_logfile(
 
                 idx_f = int(tmp[1]) - 1
                 E_f = float(tmp[2])
-
                 j_i = int(tmp[3])
                 idx_i = int(tmp[4]) - 1
                 E_i = float(tmp[5])
-
                 E_gamma = float(tmp[6])
                 # M_red = float(tmp[7])   # Not in use.
-                B_if = float(tmp[8])
-                B_fi = float(tmp[9])
+                B_if = float(tmp[8])    # Decay.
+                B_fi = float(tmp[9])    # Excite.
                 # Mom = float(tmp[10])    # Not in use.
+
+                B_weisskopf_if  = B_if/B_weisskopf
+                B_weisskopf_fi = B_fi/B_weisskopf
+                
+                if (j_f == j_i) and (idx_f == idx_i): continue
+                if is_diag and (E_gamma < 0): continue
+                if (B_weisskopf_if < WEISSKOPF_THRESHOLD): continue # NOTE: I might not need the Weisskoppf stuff.
+                if (B_weisskopf_fi < WEISSKOPF_THRESHOLD): continue
+                if abs(E_f) < 1e-3: E_f = 0.
+                if abs(E_i) < 1e-3: E_i = 0.
 
                 assert j_f == j_f_expected
                 assert j_i == j_i_expected
+
+                if E_gamma < 0:
+                    """
+                    TODO: Ask about why this occurs. Why not remove these?
+                    """
+                    j_f, j_i = j_i, j_f
+                    idx_f, idx_i = idx_i, idx_f
+                    E_f, E_i = E_i, E_f
+                    B_if, B_fi = B_fi, B_if
+                    E_gamma = -E_gamma
 
                 transitions.append([
                     j_i, pi_i, idx_i, E_i, j_f, pi_f, idx_f, E_f, E_gamma, B_if, B_fi
