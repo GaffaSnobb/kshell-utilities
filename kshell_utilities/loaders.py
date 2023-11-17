@@ -141,11 +141,28 @@ def _load_transition_logfile(
                 B_fi = float(tmp[9])    # Excite.
                 # Mom = float(tmp[10])    # Not in use.
 
+                pi_i_current = pi_i
+                pi_f_current = pi_f
+
                 B_weisskopf_if  = B_if/B_weisskopf
                 B_weisskopf_fi = B_fi/B_weisskopf
                 
-                if (j_f == j_i) and (idx_f == idx_i): continue
-                if is_diag and (E_gamma < 0): continue
+                if (j_f == j_i) and (idx_f == idx_i):
+                    """
+                    This means that the initial and final level is the
+                    same level. These entries in the log files are
+                    needed for the moments, but not needed for
+                    transitions because they are not transitions.
+                    """
+                    continue
+
+                if is_diag and (E_gamma < 0):
+                    """
+                    In case where the left and right wavefunctions are
+                    the same, both up and down transitions are shown.
+                    """
+                    continue
+
                 if (B_weisskopf_if < WEISSKOPF_THRESHOLD): continue # NOTE: I might not need the Weisskoppf stuff.
                 if (B_weisskopf_fi < WEISSKOPF_THRESHOLD): continue
                 if abs(E_f) < 1e-3: E_f = 0.
@@ -156,16 +173,18 @@ def _load_transition_logfile(
 
                 if E_gamma < 0:
                     """
-                    TODO: Ask about why this occurs. Why not remove these?
+                    In case where the left and right wavefunctions are
+                    different, only up or down transition are shown. 
                     """
                     j_f, j_i = j_i, j_f
                     idx_f, idx_i = idx_i, idx_f
                     E_f, E_i = E_i, E_f
                     B_if, B_fi = B_fi, B_if
+                    pi_f_current, pi_i_current = pi_i_current, pi_f_current
                     E_gamma = -E_gamma
 
                 transitions.append([
-                    j_i, pi_i, idx_i, E_i, j_f, pi_f, idx_f, E_f, E_gamma, B_if, B_fi
+                    j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_if, B_fi
                 ])
 
     return transitions_E1, transitions_M1, transitions_E2
