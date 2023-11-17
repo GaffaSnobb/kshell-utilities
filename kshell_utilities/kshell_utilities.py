@@ -28,60 +28,6 @@ from .test_loaders import (
     test_load_energy_logfile, test_load_transition_logfile
 )
 
-def _generate_unique_identifier(path: str) -> str:
-    """
-    Generate a unique identifier based on the shell script and the
-    save_input file from KSHELL.
-
-    NOTE: Could probably remove all of the needlessly complicated stuff
-    and just use the path!
-
-    Parameters
-    ----------
-    path : str
-        The path to a summary file or a directory with a summary file.
-    """
-    shell_file_content = ""
-    save_input_content = ""
-    msg = "Not able to generate unique identifier!"
-    if os.path.isfile(path):
-        """
-        If a file is specified, extract the directory from the path.
-        """
-        directory = path.rsplit("/", 1)[0]
-        if directory == path:
-            """
-            Example: path is 'summary.txt'
-            """
-            directory = "."
-    
-    elif os.path.isdir(path):
-        directory = path
-
-    for elem in os.listdir(directory):
-        """
-        Loop over all elements in the directory and find the shell
-        script and save_input file.
-        """
-        try:
-            if elem.endswith(".sh"):
-                with open(f"{directory}/{elem}", "r") as infile:
-                    shell_file_content += infile.read()
-                    
-            elif "save_input_ui.txt" in elem:
-                with open(f"{directory}/{elem}", "r") as infile:
-                    save_input_content += infile.read()
-        except UnicodeDecodeError:
-            msg = f"Skipping {elem} for tmp file unique identifier due to UnicodeDecodeError."
-            msg += " Are you sure this file is supposed to be in this directory?"
-            print(msg)
-            continue
-
-    if (shell_file_content == "") and (save_input_content == ""):
-        print(msg)
-
-    return hashlib.sha1((shell_file_content + save_input_content + path).encode()).hexdigest()
-
 class ReadKshellOutput:
     """
     Read `KSHELL` data files and store the values as instance
@@ -275,6 +221,9 @@ class ReadKshellOutput:
                 msg += " to re-read data from the summary file."
                 print(msg)
                 return
+            
+        test_load_energy_logfile()
+        test_load_transition_logfile()
         
         levels = []
 
@@ -335,6 +284,27 @@ class ReadKshellOutput:
         self.transitions_BM1[:, 7] -= ground_state_energy
         self.transitions_BE2[:, 3] -= ground_state_energy
         self.transitions_BE2[:, 7] -= ground_state_energy
+        
+        BE1_initial_mask = np.abs(self.transitions_BE1[:, 3]) < 1e-3
+        BE1_final_mask = np.abs(self.transitions_BE1[:, 7]) < 1e-3
+        BM1_initial_mask = np.abs(self.transitions_BM1[:, 3]) < 1e-3
+        BM1_final_mask = np.abs(self.transitions_BM1[:, 7]) < 1e-3
+        BE2_initial_mask = np.abs(self.transitions_BE2[:, 3]) < 1e-3
+        BE2_final_mask = np.abs(self.transitions_BE2[:, 7]) < 1e-3
+        
+        n_BE1_initial_corrections = np.sum(BE1_initial_mask)
+        n_BE1_final_corrections = np.sum(BE1_final_mask)
+        n_BM1_initial_corrections = np.sum(BM1_initial_mask)
+        n_BM1_final_corrections = np.sum(BM1_final_mask)
+        n_BE2_initial_corrections = np.sum(BE2_initial_mask)
+        n_BE2_final_corrections = np.sum(BE2_final_mask)
+
+        self.transitions_BE1[:, 3][BE1_initial_mask] = 0    # NOTE: I set these values to 0 because that was done in collect_logs.py. I dont have a good explanation for it yet.
+        self.transitions_BE1[:, 7][BE1_final_mask] = 0
+        self.transitions_BM1[:, 3][BM1_initial_mask] = 0
+        self.transitions_BM1[:, 7][BM1_final_mask] = 0
+        self.transitions_BE2[:, 3][BE2_initial_mask] = 0
+        self.transitions_BE2[:, 7][BE2_final_mask] = 0
 
         if self.load_and_save_to_file:
             np.savez_compressed(
@@ -344,6 +314,17 @@ class ReadKshellOutput:
                 transitions_BE2 = self.transitions_BE2,
                 transitions_BE1 = self.transitions_BE1,
             )
+
+        if flags["debug"]:
+            msg = (
+                f"{n_BE1_initial_corrections} initial levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
+                f"{n_BE1_final_corrections} final levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
+                f"{n_BM1_initial_corrections} initial levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
+                f"{n_BM1_final_corrections} final levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
+                f"{n_BE2_initial_corrections} initial levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
+                f"{n_BE2_final_corrections} final levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
+            )
+            print(msg)
 
     def _read_obtd(self, run_test: bool = False):
         """
