@@ -181,7 +181,6 @@ class ReadKshellOutput:
             msg += " The ksutil.loadtxt parameter load_and_save_to_file = 'overwrite' will force a re-write of the binary numpy data."
             outfile.write(msg)
 
-
         if os.path.isdir(self.path):
             self._read_logfiles()
             self._read_obtd()
@@ -295,6 +294,9 @@ class ReadKshellOutput:
         self.levels = np.concatenate(levels)
         self.levels = self.levels[np.argsort(self.levels[:, 0])]   # Sort the levels based on energy.
 
+        assert np.min(self.levels[:, 0]) == self.levels[0, 0]
+        ground_state_energy = self.levels[0, 0]
+
         transitions_BE1 = []
         transitions_BM1 = []
         transitions_BE2 = []
@@ -326,6 +328,13 @@ class ReadKshellOutput:
         self.transitions_BE1 = np.concatenate(transitions_BE1)
         self.transitions_BM1 = np.concatenate(transitions_BM1)
         self.transitions_BE2 = np.concatenate(transitions_BE2)
+
+        self.transitions_BE1[:, 3] -= ground_state_energy
+        self.transitions_BE1[:, 7] -= ground_state_energy
+        self.transitions_BM1[:, 3] -= ground_state_energy
+        self.transitions_BM1[:, 7] -= ground_state_energy
+        self.transitions_BE2[:, 3] -= ground_state_energy
+        self.transitions_BE2[:, 7] -= ground_state_energy
 
         if self.load_and_save_to_file:
             np.savez_compressed(
