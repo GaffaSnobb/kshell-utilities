@@ -81,7 +81,7 @@ def test_load_transition_logfile():
         [2, -1, 4, -391.405, 2, -1, 0, -392.049, 0.644, 23.93839124, 23.93839124],
         [2, -1, 5, -391.138, 2, -1, 0, -392.049, 0.912, 1.99307071, 1.99307071]
     ]
-
+    assert len(expected_transitions_E2) == len(transitions_E2)
     for expected, calculated in zip(expected_transitions_E2, transitions_E2):
         assert expected == calculated, f"{expected = }, {calculated = }"
 
@@ -109,6 +109,9 @@ def test_load_transition_logfile():
         [2, 1, 199, -384.604, 4, -1, 191, -387.01, 2.406, 9.5e-07, 1.58e-06],
         [2, 1, 199, -384.604, 4, -1, 192, -387.005, 2.401, 3.78e-06, 6.3e-06],
     ]
+    assert len(expected_transitions_E2) == len(transitions_E2)
+    assert len(expected_transitions_E1) == len(transitions_E1)
+    assert len(expected_transitions_M1) == len(transitions_M1)
     for expected, calculated in zip(expected_transitions_E1, transitions_E1):
         assert expected == calculated, f"{expected = }, {calculated = }"
 
