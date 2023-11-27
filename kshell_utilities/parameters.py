@@ -3,6 +3,7 @@ from .data_structures import OrbitalOrder
 
 GS_FREE_PROTON = 5.585
 GS_FREE_NEUTRON = -3.826
+DPI = 600   # DPI for plots.
 flags = {"debug": False, "parallel": True}
 
 def debug_mode(switch):
@@ -26,12 +27,18 @@ def latex_plot():
     })
 
 spectroscopic_conversion: dict[int, str] = {
-    0: "s", 1: "p", 2: "d", 3: "f", 4: "g", 5: "h"
+    0: "s",
+    1: "p",
+    2: "d",
+    3: "f",
+    4: "g",
+    5: "h",
 }
-
 spectroscopic_conversion_reversed: dict[str, int] = {
     "s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5
 }
+def orbital_labels(n, l, j):
+    return f"${n}{spectroscopic_conversion[l]}" + r"_{\frac{" +  f"{j}" + r"}{2}}$"
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
