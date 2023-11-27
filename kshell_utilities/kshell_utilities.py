@@ -362,8 +362,11 @@ class ReadKshellOutput:
                 obtd_npz: NpzFile = np.load(file=obtd_fname, allow_pickle=False)
                 obtd_dict: dict[tuple[int, ...], NDArray] = {}
                 keys_with_transit_idx: NDArray = obtd_npz["keys_with_transit_idx"]
+                self.orbit_numbers: NDArray = obtd_npz["orbit_numbers"]
 
-                npz_keys = [k for k in obtd_npz.keys() if (k != "keys_with_transit_idx")]
+                excluded_keys = ["orbit_numbers", "keys_with_transit_idx"]
+
+                npz_keys = [k for k in obtd_npz.keys() if (k not in excluded_keys)]
                 for npz_key in npz_keys:
                     """
                     Map the OBTD arrays to the correct `obtd_dict` keys.
@@ -428,6 +431,54 @@ class ReadKshellOutput:
             for fname in obtd_fnames:
                 _load_obtd(path=f"{self.path}/{fname}", obtd_dict=self.obtd_dict)
 
+        orbit_numbers: list[list[int]] = []
+        for fname in obtd_fnames:
+            with open(f"{self.path}/{fname}", "r") as infile:
+                """
+                #  --- orbit numbers ---
+                #   idx      n,   l,  2j,  2tz
+                #     1      0    2    5   -1
+                #     2      0    2    3   -1
+                #     3      1    0    1   -1
+                ...
+                """
+                for line in infile:
+                    if "--- orbit numbers ---" in line:
+                        break
+
+                else:
+                    """
+                    Check another OBTD file for orbit numbers.
+                    """
+                    continue
+                
+                infile.readline()   # Skip header.
+
+                for line in infile:
+                    """
+                    #   idx      n,   l,  2j,  2tz
+                    #     1      0    2    5   -1
+                    ...
+                    """
+                    tmp = [int(e) for e in line.split()[1:]]
+                    
+                    try:
+                        tmp[0] -= 1 # Make indices start from 0.
+                    except IndexError:
+                        break
+                    
+                    orbit_numbers.append(tmp)
+
+            self.orbit_numbers = np.array(orbit_numbers)
+            break   # Break the obtd_fnames loop.
+
+        else:
+            msg = (
+                f"Could not read orbit numbers from any of theOBTD files!"
+                " Orbit numbers are required for OBTD plotting."
+            )
+            raise KshellDataStructureError(msg)
+
         if run_test:
             """
             Temporary test implementation until I find a better way to
@@ -459,6 +510,7 @@ class ReadKshellOutput:
             # np.savez(
                 file = obtd_fname,
                 keys_with_transit_idx = keys_with_transit_idx,
+                orbit_numbers = self.orbit_numbers,
                 **master_dict,
             )
 
