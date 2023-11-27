@@ -12,7 +12,7 @@ import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
 from .kshell_exceptions import KshellDataStructureError
-from .parameters import elements_reversed, flags
+from .parameters import elements_reversed, flags, DPI, orbital_labels
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
     isotope
@@ -962,7 +962,7 @@ class ReadKshellOutput:
         filter_spins: list | None = None,
         filter_parities: str = "both",
         plot: bool = True,
-        save_plot: bool = False
+        save_plot: bool = False,
         ):
         """
         Wrapper method to include gamma ray strength function
@@ -1043,7 +1043,7 @@ class ReadKshellOutput:
             if save_plot:
                 fname = f"gsf_{multipole_type}.pdf"
                 print(f"GSF saved as '{fname}'")
-                fig.savefig(fname=fname, dpi=600)
+                fig.savefig(fname=fname, dpi=DPI)
             plt.show()
 
         return bins, gsf, n_transitions, included_transitions
@@ -1222,7 +1222,7 @@ class ReadKshellOutput:
                 axd["upper"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}.png", dpi=300)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}.png", dpi=DPI)
         
         elif len(multipole_type) == 2:
             fig, axd = plt.subplot_mosaic([
@@ -1323,7 +1323,7 @@ class ReadKshellOutput:
 
             axd["lower right"].set_yticklabels([])
             axd["lower right"].set_ylim(axd["lower left"].get_ylim())
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.png", dpi=300)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.png", dpi=DPI)
 
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
@@ -1556,7 +1556,7 @@ class ReadKshellOutput:
                     r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
                 )
 
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.pdf", dpi=600)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.pdf", dpi=DPI)
 
         elif len(multipole_type) == 2:
             if j_list_default:
@@ -1671,7 +1671,7 @@ class ReadKshellOutput:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.pdf", dpi=600)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.pdf", dpi=DPI)
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
             msg += f" Got {len(multipole_type)}."
@@ -1877,7 +1877,7 @@ class ReadKshellOutput:
             cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
 
             if save_plot:
-                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=300)
+                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=DPI)
         
         if plot:
             plt.show()
@@ -2424,10 +2424,168 @@ class ReadKshellOutput:
             if save_plot:
                 fname = f"mixing_ratio_E2_M1.png"
                 print(f"Mixing ratio plot saved as '{fname}'")
-                fig.savefig(fname=fname, dpi=300)
+                fig.savefig(fname=fname, dpi=DPI)
             plt.show()
 
         return bins[:-1], ratios
+
+    def obtd(self,
+        E_gamma_min: float | int = 0,
+        E_gamma_max: float | int = 3,
+        multipole_type: str = "M1",
+        axs: None | list[plt.Axes] = None,
+        gsf_bin_width: float | int = 0.2,
+        gsf_Ex_min: float | int = 5,
+        gsf_Ex_max: float | int = 50,
+        gsf_Ex_final_min: float | int = 0,
+        gsf_Ex_final_max: float | int = np.inf,
+        gsf_include_n_levels: int | float = np.inf,
+        gsf_filter_spins: list | None = None,
+        gsf_filter_parities: str = "both",
+    ):
+        """
+        Make a heatmap of the one-body transition density (OBTD)
+        contributions in all of the transitions within some gamma energy
+        interval in the GSF.
+        
+        Parameters
+        ----------
+        E_gamma_min : float | int, optional
+            Minimum gamma energy, by default 0 MeV. For choosing what
+            part of the GSF choose transitions from.
+
+        E_gamma_max : float | int, optional
+            Maximum gamma energy, by default 3 MeV. For choosing what
+            part of the GSF choose transitions from.
+
+        ax : None | list[plt.Axes], optional
+            If None, create a new figure. If a list of plt.Axes, plot on
+            the given axes. One ax for protons, one for neutrons.
+
+        For the rest of the parameters, see the docstring for
+        `gamma_strength_function`.
+        """
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
+        n_proton_orbitals = len(proton_orb_indices)
+        n_neutron_orbitals = len(neutron_orb_indices)
+        n_orbitals = n_proton_orbitals + n_neutron_orbitals
+
+        _, _, _, included_M1_transitions = self.gsf(
+            bin_width = gsf_bin_width,
+            Ex_min = gsf_Ex_min,
+            Ex_max = gsf_Ex_max,
+            Ex_final_min = gsf_Ex_final_min,
+            Ex_final_max = gsf_Ex_final_max,
+            multipole_type = multipole_type,
+            include_n_levels = gsf_include_n_levels,
+            filter_spins = gsf_filter_spins,
+            filter_parities = gsf_filter_parities,
+            plot = False,
+            save_plot = False,
+        )
+        mask_max = included_M1_transitions[:, 8] < E_gamma_max
+        mask_min = included_M1_transitions[:, 8] > E_gamma_min
+        mask = np.logical_and(mask_max, mask_min)
+        included_M1_transitions: NDArray[np.float64] = included_M1_transitions[mask]
+
+        included_transitions_keys: list[tuple(int, ...)] = []
+        obtd_skips: set[tuple[int, ...]] = set()
+
+        for transition_idx in range(len(included_M1_transitions)):
+            j_i, pi_i, idx_i, Ex_i, j_f, pi_f, idx_f, Ex_f, E_gamma, B_if, B_fi = included_M1_transitions[transition_idx]
+            j_i   = int(j_i)    # int casts are not very important, just for more clear printing.
+            pi_i  = int(pi_i)
+            idx_i = int(idx_i)
+            j_f   = int(j_f)
+            pi_f  = int(pi_f)
+            idx_f = int(idx_f)
+            master_key = (j_i, pi_i, j_f, pi_f)
+            key = (j_i, pi_i, idx_i, j_f, pi_f, idx_f)  # Keys for the OBTD dict.
+            
+            if master_key not in self.obtd_dict.keys():
+                """
+                There might not exist OBTDs for all possible transitions.
+                If the master key does not exist, any keys with the same
+                (j_i, pi_i, j_f, pi_f) should not exist either.
+                """
+                obtd_skips.add(master_key)
+                continue
+            
+            included_transitions_keys.append(key)
+
+        assert len(included_transitions_keys) == len(set(included_transitions_keys)), "Duplicate keys detected! Each key should only appear once!"
+
+        print(f"\nCould not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the current LEE energy range ([{E_gamma_min}, {E_gamma_max}] MeV):")
+        for skip in obtd_skips:
+            print(skip)
+        print()
+
+        obtd_summary = np.zeros(shape=(n_orbitals, n_orbitals), dtype=np.float64)
+
+        for key in included_transitions_keys:
+            """
+            Sum the absolute values of the OBTDs for each transition.
+            """
+            orb_idx_final, orb_idx_initial, obtd = self.obtd_dict[key].T
+            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+
+        obtd_summary /= np.sum(obtd_summary)
+        obtd_summary *= 100
+
+        proton_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
+        neutron_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+        
+        proton_data = np.round(obtd_summary[:n_proton_orbitals, :n_proton_orbitals], decimals=3)
+        neutron_data = np.round(obtd_summary[n_proton_orbitals:n_orbitals, n_proton_orbitals:n_orbitals], decimals=3)
+
+        vmin = None
+        vmax = None
+
+        if axs is None:
+            axs = [None, None]
+            figs = [None, None]
+
+        else:
+            figs = [None, None]
+        
+        for labels, data, nucleon, fig, ax in zip(
+            [proton_orb_labels, neutron_orb_labels],
+            [proton_data, neutron_data],
+            ["proton", "neutron"],
+            figs,
+            axs,
+        ):
+            """
+            Plot the OBTDs for protons and neutrons separately.
+            """
+            if ax is None:
+                fig, ax = plt.subplots(figsize=(7, 6.4))
+            
+            heatmap = sns.heatmap(
+                data = data,
+                linewidth = 0.5,
+                annot = True,
+                cmap = "magma",
+                xticklabels = labels,
+                yticklabels = labels,
+                ax = ax,
+                vmin = vmin,
+                vmax = vmax,
+            )
+            cbar = heatmap.collections[0].colorbar
+            cbar.set_label(
+                r"\% of total",
+                rotation = 90
+            )
+            vmin = cbar.vmin    # Make sure proton and neutron heatmaps have the same scale.
+            vmax = cbar.vmax
+            
+            ax.tick_params(axis="y", rotation=0)
+            ax.set_title(f"{nucleon.capitalize()} orbitals\n{np.sum(data):.1f} \% of total")
+            if fig is not None:
+                fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)
+                plt.show()
 
     @property
     def help(self):
