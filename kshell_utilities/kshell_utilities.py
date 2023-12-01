@@ -12,7 +12,9 @@ import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
 from .kshell_exceptions import KshellDataStructureError
-from .parameters import elements_reversed, flags, DPI, orbital_labels
+from .parameters import (
+    elements_reversed, flags, DPI, orbital_labels, FIGSIZE
+)
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
     isotope
@@ -36,7 +38,7 @@ class ReadKshellOutput:
     ----------
     levels : np.ndarray
         Array containing energy, spin, and parity for each excited
-        state. [[E, 2*spin, parity, idx], ...]. idx counts how many
+        state. [[E, 2*spin, parity, idx, Hcm], ...]. idx counts how many
         times a state of that given spin and parity has occurred. The
         first 0+ state will have an idx of 1, the second 0+ will have an
         idx of 2, etc.
@@ -805,6 +807,7 @@ class ReadKshellOutput:
         experimental_angular_momenta: list[int],
         experimental_parities: list[int],
         ax: plt.Axes | None = None,
+        colors: list[str] | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
         Compare the calculated levels from KSHELL with user-supplied
@@ -832,7 +835,7 @@ class ReadKshellOutput:
             The index counter keeps tabs on how many levels there are with
             each (j, p) pair.
             """
-            index_counter[(j, p)] = 1
+            index_counter[(j, p)] = 0
 
         for j, p in zip(experimental_angular_momenta, experimental_parities):
             indices.append(index_counter[(j, p)])
@@ -853,7 +856,7 @@ class ReadKshellOutput:
             """
             e0, j0, p0, idx0 = experimental_levels[i0]
             for i1 in range(self.levels.shape[0]):
-                e1, j1, p1, idx1 = self.levels[i1]
+                e1, j1, p1, idx1 = self.levels[i1, :4]
 
                 if (j0 == j1) and (p0 == p1) and (idx0 == idx1):
                     e1 -= self.ground_state_energy
@@ -868,18 +871,21 @@ class ReadKshellOutput:
         if ax is None:
             fig, ax = plt.subplots()
 
+        if colors is None:
+            colors = ["red", "blue"]
+
         level_plot(
             levels = experimental_levels,
             ax = ax,
-            color = "red",
+            color = colors[0],
         )
         level_plot(
             levels = calculated_levels,
             ax = ax,
-            color = "blue",
+            color = colors[1],
         )
-        ax.plot([], [], color="red", label="Experimental")
-        ax.plot([], [], color="blue", label="Calculated")
+        ax.plot([], [], color=colors[1], label="Calculated")
+        ax.plot([], [], color=colors[0], label="Experimental")
         ax.legend()
         if show: plt.show()
 
@@ -963,7 +969,7 @@ class ReadKshellOutput:
         filter_parities: str = "both",
         plot: bool = True,
         save_plot: bool = False,
-        ):
+    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """
         Wrapper method to include gamma ray strength function
         calculations as an attribute to this class. Includes saving
@@ -2423,8 +2429,8 @@ class ReadKshellOutput:
             ax.set_xlabel(r"$E_{\gamma}$ [MeV]")
             if save_plot:
                 fname = f"mixing_ratio_E2_M1.png"
-                print(f"Mixing ratio plot saved as '{fname}'")
                 fig.savefig(fname=fname, dpi=DPI)
+                print(f"Mixing ratio plot saved as '{fname}'")
             plt.show()
 
         return bins[:-1], ratios
@@ -2560,7 +2566,7 @@ class ReadKshellOutput:
             Plot the OBTDs for protons and neutrons separately.
             """
             if ax is None:
-                fig, ax = plt.subplots(figsize=(7, 6.4))
+                fig, ax = plt.subplots(figsize=FIGSIZE)
             
             heatmap = sns.heatmap(
                 data = data,
@@ -2586,6 +2592,44 @@ class ReadKshellOutput:
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)
                 plt.show()
+
+    def com(self,
+        j_list: list[int] | None = None,
+        ax: plt.Axes | None = None,
+    ):
+        """
+        Plot the centre-of-mass motion (?) for each level.
+
+        Parameters
+        ----------
+        j_list: list[int] | None = None
+            Plot only levels of total angular momenta in this list. If
+            None, all are plotted.
+
+        ax: plt.Axes | None = None
+            ax to plot on.
+        """
+        show_plot = True if (ax is None) else False
+        if j_list is not None:
+            mask = np.full(self.levels.shape[0], False, dtype=bool)
+            for j in j_list:
+                mask = np.logical_or(self.levels[:, 1] == 2*j, mask)
+        
+        else:
+            mask = np.full(self.levels.shape[0], True, dtype=bool)
+
+        energies_sdpfmu = self.levels[mask][:, 0] - self.ground_state_energy
+        Hcm_sdpfmu = self.levels[mask][:, 4]
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        
+        ax.plot(energies_sdpfmu, Hcm_sdpfmu, ".")
+        ax.set_xlabel(r"$E$ [MeV]")
+        ax.set_ylabel(r"$H_{\mathrm{com}}$")
+
+        if show_plot:
+            plt.show()
 
     @property
     def help(self):
