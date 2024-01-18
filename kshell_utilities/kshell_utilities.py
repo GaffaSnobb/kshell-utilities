@@ -138,8 +138,8 @@ class ReadKshellOutput:
             self.fname_summary = path.split("/")[-1]       # Just filename.
             self.path_summary = self.path    # Complete path (maybe relative).
             self._extract_info_from_summary_fname()
-            self._read_summary()
             self.base_fname = self.fname_summary.split(".")[0] # Base filename for .npz tmp files.
+            self._read_summary()
 
         else:
             msg = f"{self.path} is an invalid path!"
@@ -401,7 +401,9 @@ class ReadKshellOutput:
                     return
 
         path_groups = defaultdict(list)
-        obtd_fnames = [p for p in os.listdir(self.path) if (p.startswith("OBTD") and os.path.isfile(f"{self.path}/{p}"))]
+        obtd_fnames = [p for p in os.listdir(self.path) if (p.startswith("OBTD") and p.startswith("OBTD_L_") and os.path.isfile(f"{self.path}/{p}"))]   # p.startswith("OBTD_L_") is a temporary hack to make sure to include only M1 OBTDs.
+        # print(obtd_fnames)
+        # sys.exit()
         
         if not obtd_fnames:
             print(f"No OBTD file found in {self.path}!")
@@ -765,6 +767,7 @@ class ReadKshellOutput:
         filter_parity: str | None = None,
         color: str | None = "black",
         use_relative_energy: bool = True,
+        ax: None | plt.Axes = None,
         ):
         """
         Wrapper method to include level plot as an attribute to this
@@ -800,6 +803,7 @@ class ReadKshellOutput:
             filter_spins = filter_spins,
             filter_parity = filter_parity,
             color = color,
+            ax = ax,
         )
 
     def level_scheme_experimental_vs_calculated(self,
