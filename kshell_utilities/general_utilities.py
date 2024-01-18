@@ -1060,6 +1060,14 @@ def nuclear_shell_model(
     show_spectroscopic_notation: bool = True,
     show_interactions: bool = True,
     show_cores: bool = True,
+    show_16o_core: bool = True,
+    show_40ca_core: bool = True,
+    show_56ni_core: bool = True,
+    show_usd: bool = True,
+    show_gxpf: bool = True,
+    show_jun45: bool = True,
+    show_sdpfsdg: bool = True,
+    show_sdpfmu: bool = True,
 ):
     """
     Generate a diagram of the nuclear shell model shell structure.
@@ -1072,15 +1080,15 @@ def nuclear_shell_model(
     x_text_offset = x_offset - 0.5
 
     first_layer_labels = [
-        r"$1s$", r"$1p$", r"$1d$", r"$2s$", r"$1f$", r"$2p$", r"$1g$",
-        r"$2d$", r"$3s$"
+        r"$0s$", r"$0p$", r"$0d$", r"$1s$", r"$0f$", r"$1p$", r"$0g$",
+        r"$1d$", r"$2s$"
     ]
     first_layer_y = [1, 2.4, 4.2, 4.45, 6.3, 6.8, 9, 10.0, 10.5]
     second_layer_labels = [
-        r"$1s_{1/2}$", r"$1p_{3/2}$", r"$1p_{1/2}$", r"$1d_{5/2}$",
-        r"$2s_{1/2}$", r"$1d_{3/2}$", r"$1f_{7/2}$", r"$2p_{3/2}$",
-        r"$1f_{5/2}$", r"$2p_{1/2}$", r"$1g_{9/2}$", r"$2d_{5/2}$",
-        r"$1g_{7/2}$", r"$3s_{1/2}$", r"$2d_{3/2}$"
+        r"$0s_{1/2}$", r"$0p_{3/2}$", r"$0p_{1/2}$", r"$0d_{5/2}$",
+        r"$1s_{1/2}$", r"$0d_{3/2}$", r"$0f_{7/2}$", r"$1p_{3/2}$",
+        r"$0f_{5/2}$", r"$1p_{1/2}$", r"$0g_{9/2}$", r"$1d_{5/2}$",
+        r"$0g_{7/2}$", r"$2s_{1/2}$", r"$1d_{3/2}$"
     ]
     second_layer_y = [
         first_layer_y[0], first_layer_y[1] - 0.15, first_layer_y[1] + 0.15,
@@ -1106,12 +1114,19 @@ def nuclear_shell_model(
         [2 + x_offset, first_layer_y[7], 2.5 + x_offset, second_layer_y[13]],
         [2 + x_offset, first_layer_y[8], 2.5 + x_offset, second_layer_y[14]],
     ]
-    core_layer_labels = [
-        r"$^{16}$O", r"$^{40}$Ca", r"$^{56}$Ni"
-    ]
-    core_layer_y = [
-        second_layer_y[2] + 0.5, second_layer_y[5] + 0.5, second_layer_y[6] + 0.5
-    ]
+    core_layer_labels = []
+    core_layer_y = []
+    if show_16o_core:
+        core_layer_labels.append(r"$^{16}$O")
+        core_layer_y.append(second_layer_y[2] + 0.5)
+
+    if show_40ca_core:
+        core_layer_labels.append(r"$^{40}$Ca")
+        core_layer_y.append(second_layer_y[5] + 0.5)
+
+    if show_56ni_core:
+        core_layer_labels.append(r"$^{56}$Ni")
+        core_layer_y.append(second_layer_y[6] + 0.5)
 
     occupations = [
         2, 4, 2, 6, 2, 4, 8, 4, 6, 2, 10, 6, 8, 2, 4
@@ -1193,7 +1208,8 @@ def nuclear_shell_model(
             )
             fig.text(
                 x = 0.73 + x_text_offset,
-                y = y/14 + 0.064,
+                # y = y/14 + 0.064,
+                y = y/14 + 0.054,
                 s = "---------",
                 fontsize = fontsize - 1
             )
@@ -1203,86 +1219,91 @@ def nuclear_shell_model(
         x2 = 1.25
         y1 = 4.9
         y2 = 3.83
-        ax.vlines(
-            x = x2,
-            ymin = y2,
-            ymax = y1,
-            color = "darkorange",
-        )
-        fig.text(
-            x = 0.15,
-            y = 0.37,
-            s = "USD",
-            fontsize = 12,
-            rotation = "vertical",
-            color = "darkorange"
-        )
+        if show_usd:
+            ax.vlines(
+                x = x2,
+                ymin = y2,
+                ymax = y1,
+                color = "darkorange",
+            )
+            fig.text(
+                x = 0.15,
+                y = 0.37,
+                s = "USD",
+                fontsize = 12,
+                rotation = "vertical",
+                color = "darkorange"
+            )
         # GXPF
         y3 = 7.5
         y4 = 5.6
-        ax.vlines(
-            x = x2,
-            ymin = y4,
-            ymax = y3,
-            color = "firebrick",
-        )
-        fig.text(
-            x = 0.15,
-            y = 0.52,
-            s = "GXPF",
-            fontsize = 12,
-            rotation = "vertical",
-            color = "firebrick"
-        )
+        if show_gxpf:
+            ax.vlines(
+                x = x2,
+                ymin = y4,
+                ymax = y3,
+                color = "firebrick",
+            )
+            fig.text(
+                x = 0.15,
+                y = 0.52,
+                s = "GXPF",
+                fontsize = 12,
+                rotation = "vertical",
+                color = "firebrick"
+            )
         # SDPF-MU
         x4 = x2 - 0.04
-        ax.vlines(
-            x = x4,
-            ymin = y2,
-            ymax = y3,
-            color = "royalblue",
-        )
-        fig.text(
-            x = 0.14,
-            y = 0.42,
-            s = "SDPF-MU",
-            fontsize = 12,
-            rotation = "vertical",
-            color = "royalblue"
-        )
+        if show_sdpfmu:
+            ax.vlines(
+                x = x4,
+                ymin = y2,
+                ymax = y3,
+                color = "royalblue",
+            )
+            fig.text(
+                x = 0.14,
+                y = 0.42,
+                s = "SDPF-MU",
+                fontsize = 12,
+                rotation = "vertical",
+                color = "royalblue"
+            )
         #JUN45
         y7 = 6.5
         y8 = 8.2
         x6 = x4 - 0.04
-        ax.vlines(
-            x = x6,
-            ymin = y8,
-            ymax = y7,
-            color = "green",
-        )
-        fig.text(
-            x = 0.14,
-            y = 0.59,
-            s = "JUN45",
-            fontsize = 12,
-            rotation = "vertical",
-            color = "green"
-        )
+        if show_jun45:
+            ax.vlines(
+                x = x6,
+                ymin = y8,
+                ymax = y7,
+                color = "green",
+            )
+            fig.text(
+                x = 0.14,
+                y = 0.59,
+                s = "JUN45",
+                fontsize = 12,
+                rotation = "vertical",
+                color = "green"
+            )
         # SDPF-SDG
-        ax.vlines(
-            x = x6 - 0.04,
-            ymin = y2,
-            ymax = 11,
-            color = "mediumorchid",
-        )
-        fig.text(
-            x = 0.15,
-            y = 0.66,
-            s = "SDPF-SDG",
-            fontsize = 12,
-            rotation = "vertical",
-            color = "mediumorchid"
-        )
+        if show_sdpfsdg:
+            ax.vlines(
+                x = x6 - 0.04,
+                ymin = y2,
+                ymax = 11,
+                color = "mediumorchid",
+            )
+            fig.text(
+                x = 0.15,
+                y = 0.66,
+                s = "SDPF-SDG",
+                fontsize = 12,
+                rotation = "vertical",
+                color = "mediumorchid"
+            )
     # Spectroscopic notation
     if show_spectroscopic_notation:
         fig.text(
