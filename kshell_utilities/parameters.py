@@ -18,13 +18,14 @@ def latex_plot():
     plt.rcParams.update({
         "text.usetex": True,
         "font.family": "serif",
-        "font.serif": ["roman"],
-        "legend.fontsize": 14,
-        "xtick.labelsize": 15,
-        "ytick.labelsize": 15,
-        "axes.labelsize": 14,
-        "axes.titlesize": 15,
-        "figure.titlesize": 15
+        # "font.serif": ["roman"],
+        "font.size": 2*10,
+        # "legend.fontsize": 14,
+        # "xtick.labelsize": 15,
+        # "ytick.labelsize": 15,
+        # "axes.labelsize": 14,
+        # "axes.titlesize": 15,
+        # "figure.titlesize": 15
     })
 
 spectroscopic_conversion: dict[int, str] = {
