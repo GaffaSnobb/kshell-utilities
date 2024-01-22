@@ -24,3 +24,4 @@ from .partition_editor import partition_editor, test_partition_editor, test_part
 from . import loaders
 from . import data_structures
 from . import test_loaders
+from .other_tools import calculate_figsize
