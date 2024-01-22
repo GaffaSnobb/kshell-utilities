@@ -484,6 +484,7 @@ def level_plot(
     color: None | str = None,
     line_width: float = 0.4,
     x_offset_scale: float = 1.0,
+    alpha: float = 0.5,
     ):
     """
     Generate a level plot for a single isotope. Total angukar momentum
@@ -526,6 +527,9 @@ def level_plot(
         To scale the x offset for the hlines. This is used to fit
         columns for both integer and half integer angular momenta, as
         well as both parities.
+
+    alpha : float
+        alpha value for the hlines in the level scheme plot.
     """
     ax_input = False if (ax is None) else True
     energies = levels[:, 0]
@@ -612,7 +616,7 @@ def level_plot(
             xmin = spins[i] - line_width + x_offset*parities[i]*0.9,
             xmax = spins[i] + line_width + x_offset*parities[i]*0.9,
             color = color,
-            alpha = 0.5,
+            alpha = alpha,
         )
 
     ax.set_xticks(spin_scope)
