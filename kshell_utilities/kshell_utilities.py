@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, sys, multiprocessing, hashlib, ast, time, re, warnings
+import os, sys, multiprocessing, hashlib, ast, time, re, warnings, functools
 from fractions import Fraction
 from collections import defaultdict
 from typing import Callable, Iterable
@@ -882,11 +882,13 @@ class ReadKshellOutput:
             levels = experimental_levels,
             ax = ax,
             color = colors[0],
+            alpha = 1,
         )
         level_plot(
             levels = calculated_levels,
             ax = ax,
             color = colors[1],
+            alpha = 1,
         )
         ax.plot([], [], color=colors[1], label="Calculated")
         ax.plot([], [], color=colors[0], label="Experimental")
@@ -2697,6 +2699,79 @@ class ReadKshellOutput:
         """
         Insert more checks under...
         """
+
+    def level_table(self,
+        j_filter: list | None = None,
+        parity_filter: int | str | None = None,
+        n_levels: int | float = np.inf,
+        n_levels_per_j_pi: int | float = np.inf,
+    ):
+        """
+        Print a nicely formatted table of levels.
+
+        Parameters
+        ----------
+        j_filter : list | None
+            Choose which angular momenta to include in the list.
+
+        parity_filter : int | str | None
+            Choose which parity to include.
+
+        n_levels : int | float
+            Choose how many levels to include in the table.
+
+        n_levels_per_j_pi : int | float
+            Choose how many levels per angular momentum and parity to
+            include in the list.
+
+        Attributes
+        ----------
+        levels : np.ndarray
+            Array containing energy, spin, and parity for each excited
+            state. [[E, 2*spin, parity, idx, Hcm], ...]. idx counts how
+            many times a state of that given spin and parity has
+            occurred. The first 0+ state will have an idx of 1, the
+            second 0+ will have an idx of 2, etc.
+        """
+        levels = np.copy(self.levels)
+        
+        if j_filter is not None:
+            """
+            Create masks for each requested j value and combine all
+            masks. Use the combined mask to slice levels.
+            """
+            j_filter = [int(2*j) for j in j_filter]
+            combined_mask = levels[:, 1] == j_filter[0]
+            for j in j_filter:
+                combined_mask = np.logical_or(combined_mask, levels[:, 1] == j)
+
+            levels = levels[combined_mask]
+
+        if parity_filter is not None:
+            if isinstance(parity_filter, str):
+                parity_filter = +1 if (parity_filter == "+") else -1
+            
+            levels = levels[levels[:, 2] == parity_filter]
+        
+        counter = 0
+        print(
+            "index       E          Erel      pi   j"
+        )
+        for level in levels:
+            if counter > n_levels: break
+            counter += 1
+            
+            E, j, pi, idx, Hcm = level
+            if idx > n_levels_per_j_pi: continue
+            j = Fraction(int(j), 2)
+            idx = int(idx)
+            print(
+                f"{idx:5d}:   "
+                f"{E:8.5f}   "
+                f"{E - self.ground_state_energy:8.5f}   "
+                f"{'+' if (pi == +1) else '-'}    "
+                f"{j}"
+            )
 
 def loadtxt(
     path: str,
