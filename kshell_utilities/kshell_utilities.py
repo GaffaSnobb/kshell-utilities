@@ -174,7 +174,7 @@ class ReadKshellOutput:
                 " interaction name and nucleon information!"
             )
             for line in infile:
-                if "FN_INT  = " in line:
+                if "FN_INT" in line:    # Changed from "FN_INT = ".
                     interaction_name = line.split("=")[-1]
                     interaction_name = interaction_name.split(".")[0].strip()
                     break
@@ -238,6 +238,7 @@ class ReadKshellOutput:
                 f"\n    Levels: {len(levels[i])}"
             )
             print(msg)
+            # sys.exit()
 
         self.levels = np.concatenate(levels)
         self.levels = self.levels[np.argsort(self.levels[:, 0])]   # Sort the levels based on energy.
@@ -2454,6 +2455,7 @@ class ReadKshellOutput:
         gsf_include_n_levels: int | float = np.inf,
         gsf_filter_spins: list | None = None,
         gsf_filter_parities: str = "both",
+        preliminary: bool = False,
     ):
         """
         Make a heatmap of the one-body transition density (OBTD)
@@ -2473,6 +2475,9 @@ class ReadKshellOutput:
         ax : None | list[plt.Axes], optional
             If None, create a new figure. If a list of plt.Axes, plot on
             the given axes. One ax for protons, one for neutrons.
+
+        preliminary : bool
+            Toggle text "PRELIMINARY" over the plot.
 
         For the rest of the parameters, see the docstring for
         `gamma_strength_function`.
@@ -2584,6 +2589,7 @@ class ReadKshellOutput:
                 ax = ax,
                 vmin = vmin,
                 vmax = vmax,
+                annot_kws = {"size": 11},
             )
             cbar = heatmap.collections[0].colorbar
             cbar.set_label(
@@ -2595,6 +2601,7 @@ class ReadKshellOutput:
             
             ax.tick_params(axis="y", rotation=0)
             ax.set_title(f"{nucleon.capitalize()} orbitals\n{np.sum(data):.1f} \% of total")
+            if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)
                 plt.show()

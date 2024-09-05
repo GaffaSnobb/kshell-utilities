@@ -216,12 +216,23 @@ def _load_energy_logfile(
                 The number of energy eigenstates in this file is stored
                 as:
                 N_EIGEN =         200,
+
+                update 2024-09-05: Or sometimes without whitespaces:
+                N_EIGEN=200
+                
+                ε=ε=ε=ε=ε=ε=┌(;￣◇￣)┘ <-- Me
                 """
                 tmp = line.split("=")[-1]
                 tmp = tmp.split(",")[0]
                 tmp = tmp.strip()
-                n_eigen = int(tmp)
+                n_eigen = int(tmp)  # NOTE: This might not always be true!
                 break
+
+        else:
+            msg = (
+                f"Could not extract 'N_EIGEN' from '{path}'!"
+            )
+            raise KshellDataStructureError(msg)
 
         for line in infile:
             if ("M =" in line) and ("parity =" in line):
@@ -230,14 +241,35 @@ def _load_energy_logfile(
                 parity_expected = +1 if (tmp[6] == "+") else -1
                 break
 
+        else:
+            msg = (
+                f"Could not extract 'M' and / or 'parity' from '{path}'!"
+            )
+            raise KshellDataStructureError(msg)
+
         levels = np.zeros(shape=(n_eigen, 5), dtype=np.float64)
         idx_prev = -1    # Has to have some starting value.
         E_prev = -np.inf
+        idx_current = None
 
         for line in infile:
             if "-------------------------------------------------" in line:
                 tmp = infile.readline().split() # ['1', '<H>:', '-392.15904', '<JJ>:', '-0.00000', 'J:', '0/2', 'prty', '1']
-                idx_current = int(tmp[0]) - 1
+                try:
+                    idx_current = int(tmp[0]) - 1
+                except ValueError as e:
+                    msg = (
+                        f"ValueError in '{path}'! "
+                        f"Likely because 'N_EIGEN = {n_eigen}' does not match "
+                        f"with the actual number of eigenstates in the file. "
+                        f"Trying to continue anyway... "
+                        f"Original error: {e.__str__()}."
+                    )
+                    print()
+                    warnings.warn(msg, RuntimeWarning)
+                    print()
+                    break
+                
                 E_current = float(tmp[2])
                 j = int(Fraction(tmp[6])*2)
                 parity = int(tmp[8])
@@ -260,7 +292,36 @@ def _load_energy_logfile(
                 """
                 break
 
-    return levels
+        else:
+            if idx_current is None:
+                """
+                This means that no energy eigenvalues are listed in the file.
+                This is likely caused by something going wrong in the KSHELL
+                calculations, in particular that there is a very small M-dim
+                and that no energy eigenvalues could be calculated. There is
+                not really anything wrong with the syntax in this case, so
+                we'll let the program continue.
+                """
+                msg = (
+                    f"No energy eigenvalues in '{path}'! Something wrong with "
+                    " the KSHELL calculations?"
+                )
+                print()
+                warnings.warn(msg, RuntimeWarning)
+                print()
+                return np.zeros(shape=(0, 5), dtype=np.float64)
+            else:
+                """
+                In this case, some energy eigenvales have been read from the
+                file, but no `break` was ever reached. This is a syntax error.
+                """
+                msg = (
+                    f"No `break` reached for '{path}'! Check the syntax of the"
+                    " file."
+                )
+                raise KshellDataStructureError(msg)
+
+    return levels[:idx_current+1]   # Slicing by 'idx_current' for the cases where 'N_EIGEN' is not actually the number of eigenstates.
 
 def _load_obtd(
     path: str,
