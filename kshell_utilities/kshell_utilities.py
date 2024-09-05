@@ -161,8 +161,8 @@ class ReadKshellOutput:
         that name. If it does, load it. If it doesnt, read data from all
         the logfiles in `path` and save the results as .npz.
         """
-        transition_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" in f))])
-        level_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" not in f))])
+        transition_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" in f) and f.endswith(".txt"))])
+        level_log_fnames = sorted([f for f in os.listdir(self.path) if (("log_" in f) and ("_tr_" not in f) and f.endswith(".txt"))])
 
         with open(f"{self.path}/{level_log_fnames[0]}", "r") as infile:
             """
