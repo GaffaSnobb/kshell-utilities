@@ -401,44 +401,90 @@ class ReadKshellOutput:
                     self.obtd_dict = obtd_dict
                     return
 
-        path_groups = defaultdict(list)
-        obtd_fnames = [p for p in os.listdir(self.path) if (p.startswith("OBTD") and p.startswith("OBTD_L_") and os.path.isfile(f"{self.path}/{p}"))]   # p.startswith("OBTD_L_") is a temporary hack to make sure to include only M1 OBTDs.
-        # print(obtd_fnames)
-        # sys.exit()
+        obtd_fnames_L: list[str] = []
+        obtd_fnames_S: list[str] = []
+        obtd_paths: list[list[str]] = []   # Will contain pairs of L and S filenames with the same angular momentum and parity.
+
+        for fname in os.listdir(self.path):
+            if os.path.isfile(f"{self.path}/{fname}") and fname.startswith("OBTD"):
+                """
+                Include only actual files and only OBTD files.
+                """
+                if fname.startswith("OBTD_L_"):
+                    """
+                    Pick out OBTD files corresponding only to M1 transitions.
+                    There are separate files for the orbital and spin parts of
+                    the M1 operator.
+                    """
+                    obtd_fnames_L.append(fname)
+
+                elif fname.startswith("OBTD_S_"):
+                    """
+                    Pick out OBTD files corresponding only to M1 transitions.
+                    There are separate files for the orbital and spin parts of
+                    the M1 operator.
+                    """
+                    obtd_fnames_S.append(fname)
+
+        for fname_L in obtd_fnames_L:
+            """
+            Try to match L and S files with the same angular momentum and spin.
+            By pairing them, L and S files with the same angular momentum and
+            spin will be handled by the same process in the parallelisation.
+            """
+            fname_S = fname_L.replace("_L_", "_S_") # Each orbital OBTD file should have a partner spin file (M1 = gl*L + gs*S).
+            
+            try:
+                """
+                Make an L, S pair of OBTD filenames if `filename_S` exists.
+                """
+                obtd_fnames_S.remove(fname_S)
+                obtd_paths.append([f"{self.path}/{fname_L}", f"{self.path}/{fname_S}"])
+            
+            except ValueError:
+                msg = (
+                    f"Could not find 'S' partner for {fname_L}!"
+                )
+                print(msg)
+                obtd_paths.append([f"{self.path}/{fname_L}"])
+
+        for fname_S in obtd_fnames_S:
+            """
+            At this point, `obtd_fnames_S` might be empty but there might also
+            be a few left over filenames which were not matched with an L
+            partner. Make sure to add them to the final list.
+            """
+            obtd_paths.append([f"{self.path}/{fname_S}"])
         
-        if not obtd_fnames:
+        if not obtd_paths:
             print(f"No OBTD file found in {self.path}!")
             return
         
         self.obtd_dict: dict[tuple[int, ...], NDArray] = {}
         
         if flags["parallel"]:
-            for fname in obtd_fnames:
-                """
-                Group filenames of equal j_i, pi_i, j_f, pi_f into lists. This
-                is to make sure that files of equal j_i, pi_i, j_f, pi_f are
-                read by the same process. If OBTD values for a certain set of
-                j_i, pi_i, j_f, pi_f are already loaded, subsequent files of the
-                same j_i, pi_i, j_f, pi_f will be skipped. If however different
-                processes get files of the same j_i, pi_i, j_f, pi_f, then the
-                OBTDs will be read twice.
-                """
-                occurrences = tuple(re.findall(r'_j(\d+)(p|n)', fname))
-                path_groups[occurrences].append(f"{self.path}/{fname}")
-
             with multiprocessing.Pool() as pool:
-                dicts = pool.map(_load_obtd_parallel_wrapper, path_groups.values())
+                dicts = pool.map(_load_obtd_parallel_wrapper, obtd_paths)
 
             for dict_ in dicts:
                 self.obtd_dict.update(dict_)
 
         else:
-            for fname in obtd_fnames:
+            """
+            Serial.
+            """
+            for fname in obtd_paths:
                 _load_obtd(path=f"{self.path}/{fname}", obtd_dict=self.obtd_dict)
 
         orbit_numbers: list[list[int]] = []
-        for fname in obtd_fnames:
-            with open(f"{self.path}/{fname}", "r") as infile:
+
+        for obtd_path in [item for sublist in obtd_paths for item in sublist]:  # Flatten obtd_paths and iterate through it.
+            """
+            This loop should never proceed beyond the first element because all
+            of the OBTD files should have the orbit information at the
+            beginning.
+            """
+            with open(obtd_path, "r") as infile:
                 """
                 #  --- orbit numbers ---
                 #   idx      n,   l,  2j,  2tz
@@ -475,11 +521,11 @@ class ReadKshellOutput:
                     orbit_numbers.append(tmp)
 
             self.orbit_numbers = np.array(orbit_numbers)
-            break   # Break the obtd_fnames loop.
+            break   # Break the obtd_paths loop.
 
         else:
             msg = (
-                f"Could not read orbit numbers from any of theOBTD files!"
+                f"Could not read orbit numbers from any of the OBTD files!"
                 " Orbit numbers are required for OBTD plotting."
             )
             raise KshellDataStructureError(msg)
@@ -920,7 +966,7 @@ class ReadKshellOutput:
         See level_density in general_utilities.py for parameter
         information.
         """
-        bins, density = level_density(
+        return level_density(
             levels = self.levels,
             bin_width = bin_width,
             include_n_levels = include_n_levels,
@@ -933,8 +979,6 @@ class ReadKshellOutput:
             save_plot = save_plot,
             ax = ax,
         )
-
-        return bins, density
 
     def nld(self,
         bin_width: int | float = 0.2,
@@ -2501,12 +2545,13 @@ class ReadKshellOutput:
             plot = False,
             save_plot = False,
         )
+        # included_M1_transitions[:, 9] are the B decay values.
         mask_max = included_M1_transitions[:, 8] < E_gamma_max
         mask_min = included_M1_transitions[:, 8] > E_gamma_min
         mask = np.logical_and(mask_max, mask_min)
         included_M1_transitions: NDArray[np.float64] = included_M1_transitions[mask]
 
-        included_transitions_keys: list[tuple(int, ...)] = []
+        included_transitions_keys: list[tuple[int, ...]] = []
         obtd_skips: set[tuple[int, ...]] = set()
 
         for transition_idx in range(len(included_M1_transitions)):
@@ -2533,7 +2578,7 @@ class ReadKshellOutput:
 
         assert len(included_transitions_keys) == len(set(included_transitions_keys)), "Duplicate keys detected! Each key should only appear once!"
 
-        print(f"\nCould not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the current LEE energy range ([{E_gamma_min}, {E_gamma_max}] MeV):")
+        print(f"\nCould not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the current energy range ([{E_gamma_min}, {E_gamma_max}] MeV):")
         for skip in obtd_skips:
             print(skip)
         print()
@@ -2544,11 +2589,12 @@ class ReadKshellOutput:
             """
             Sum the absolute values of the OBTDs for each transition.
             """
-            orb_idx_final, orb_idx_initial, obtd = self.obtd_dict[key].T
-            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+            orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
+            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
 
-        obtd_summary /= np.sum(obtd_summary)
-        obtd_summary *= 100
+        # obtd_summary /= np.sum(obtd_summary)
+        # obtd_summary *= 100
 
         proton_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
         neutron_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
@@ -2592,15 +2638,15 @@ class ReadKshellOutput:
                 annot_kws = {"size": 11},
             )
             cbar = heatmap.collections[0].colorbar
-            cbar.set_label(
-                r"\% of total",
-                rotation = 90
-            )
+            # cbar.set_label(
+            #     r"\% of total",
+            #     rotation = 90
+            # )
             vmin = cbar.vmin    # Make sure proton and neutron heatmaps have the same scale.
             vmax = cbar.vmax
             
             ax.tick_params(axis="y", rotation=0)
-            ax.set_title(f"{nucleon.capitalize()} orbitals\n{np.sum(data):.1f} \% of total")
+            # ax.set_title(f"{nucleon.capitalize()} orbitals\n{np.sum(data):.1f} \% of total")
             if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)

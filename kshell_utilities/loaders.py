@@ -393,6 +393,19 @@ def _load_obtd(
     j_f = int(filename_match[1][0])
     pi_f = +1 if (filename_match[1][1] == "p") else -1
 
+    if "_L_" in path.split("/")[-1]:
+        col_idx = 3
+    
+    elif "_S_" in path.split("/")[-1]:
+        col_idx = 4
+    
+    else:
+        msg = (
+            "OBTD file name does not contain '_L_' or '_S_' and thus the type "
+            "cannot be determined!"
+        )
+        raise KshellDataStructureError(msg)
+
     n_initial_levels = 0
     n_final_levels = 0
     with open(path, "r") as infile:
@@ -405,7 +418,7 @@ def _load_obtd(
                 """
                 This is the number of OBTDs per transition.
                 """
-                n_elements = int(line.split("=")[-1])
+                n_obtds_per_transition = int(line.split("=")[-1])
                 break
 
         for line in infile:
@@ -444,33 +457,31 @@ def _load_obtd(
         return
 
     master_key = (j_i, pi_i, j_f, pi_f)
-    if master_key in obtd_dict:
-        """
-        For example, the files
-        
-        OBTD_L_V50_GCLSTsdpfsdgix5pn_j8p_V50_GCLSTsdpfsdgix5pn_j8p.dat
-        OBTD_S_V50_GCLSTsdpfsdgix5pn_j8p_V50_GCLSTsdpfsdgix5pn_j8p.dat
-
-        contain the exact same OBTDs so we do not need to read both
-        files. NOTE: Since these files contain different information
-        about L and S, I might read both files in the future. For now,
-        skip one of them.
-        """
-        msg = f"OBTDs for {master_key} already exists! Skipping file {path.split('/')[-1]}..."
-        print(msg)
-        return
-
-    # obtd = np.zeros(shape=(n_elements, 5, n_initial_levels*n_final_levels), dtype=np.float64)
-    obtd = np.zeros(shape=(n_elements, 3, n_initial_levels*n_final_levels), dtype=np.float64)
-    obtd_dict[master_key] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
     
+    try:
+        """
+        `master_key` key might already exist because there are '_L_' and '_S_'
+        OBTD files which contain the same OBTDs. However, the files contain
+        different matrix elements so it is OK if the key already exists.
+        """
+        obtd = obtd_dict[master_key]
+    except KeyError:
+        obtd = np.zeros(shape=(n_obtds_per_transition, 5, n_initial_levels*n_final_levels), dtype=np.float32)   # 5 is to save: i  j  OBTD  <i||L||j>  <i||S||j>
+        obtd_dict[master_key] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
+
     with open(path, "r") as infile:
         for transit_idx in range(n_initial_levels*n_final_levels):
             for line in infile:
+                """
+                Find the line in the file with info about the initial and final
+                state of the transition and create keys for the OBTD dictionary
+                based on those values. This loop is broken when a line starting
+                with 'w.f.' is found.
+                """
                 if "w.f." in line:
                     """
                     Example:
-                    w.f.  J1=  0/2(    1)     J2=  2/2(    1)   <----- This one!
+                    w.f.  J1=  0/2(    1)     J2=  2/2(    1)  <----- This one!
                     B(L;=>), B(L ;<=)      0.05162     0.01721
                     <||L||>      1    2     0.39870    -0.26442
                     ...
@@ -490,11 +501,21 @@ def _load_obtd(
                     assert j_f_current == j_f
                     assert idx_i_current < n_initial_levels
                     assert idx_f_current < n_final_levels
-                    assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
-                    assert key_with_transit_idx not in obtd_dict
+                    # assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
+                    # assert key_with_transit_idx not in obtd_dict
+
+                    if key in obtd_dict:
+                        """
+                        `key` can already exist because there are separate
+                        files for '_L_' and '_S_'. Doing a sanity check just to
+                        be sure ...
+                        """
+                        assert np.all(obtd_dict[key] == obtd[:, :, transit_idx])
+                        assert np.all(obtd_dict[key_with_transit_idx] == obtd[:, :, transit_idx])
                     
-                    obtd_dict[key] = obtd[:, :, transit_idx]
-                    obtd_dict[key_with_transit_idx] = obtd[:, :, transit_idx]
+                    else:
+                        obtd_dict[key] = obtd[:, :, transit_idx]
+                        obtd_dict[key_with_transit_idx] = obtd[:, :, transit_idx]
                     
                     break
 
@@ -519,8 +540,22 @@ def _load_obtd(
                 """
                 if "OBTD" in line: break
 
-            for obtd_idx in range(n_elements):
-                obtd[obtd_idx, :, transit_idx] = [float(elem) for elem in infile.readline().split()[:3]]
+            for obtd_idx in range(n_obtds_per_transition):
+                """
+                Iterate over all of the OBTDs for one transition. Example:
+
+                i  j      OBTD    <i||L||j>  OBTD*<||>
+                1  1    -0.00033     5.79655    -0.00192
+                1  2     0.03337     1.54919     0.05169
+                1  9     0.00000     0.00000     0.00000
+                ...
+
+                The matrix element <i||L||j> or <i||S||j> is placed in a column
+                dependent on if it is L or S.
+                """
+                tmp = infile.readline().split()
+                obtd[obtd_idx, :3, transit_idx] = [float(elem) for elem in tmp[:3]] # This is: i  j  OBTD
+                obtd[obtd_idx, col_idx, transit_idx] = float(tmp[3])    # This is: <i||L||j> or <i||S||j>.
                 obtd[obtd_idx, 0, transit_idx] -= 1 # Make indices start from 0.
                 obtd[obtd_idx, 1, transit_idx] -= 1
     
