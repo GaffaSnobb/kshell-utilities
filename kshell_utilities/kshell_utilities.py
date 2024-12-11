@@ -2489,6 +2489,8 @@ class ReadKshellOutput:
     def obtd(self,
         E_gamma_min: float | int = 0,
         E_gamma_max: float | int = 3,
+        B_decay_min: float | int = 0,
+        B_decay_max: float | int = np.inf,
         multipole_type: str = "M1",
         axs: None | list[plt.Axes] = None,
         gsf_bin_width: float | int = 0.2,
@@ -2546,10 +2548,30 @@ class ReadKshellOutput:
             save_plot = False,
         )
         # included_M1_transitions[:, 9] are the B decay values.
-        mask_max = included_M1_transitions[:, 8] < E_gamma_max
-        mask_min = included_M1_transitions[:, 8] > E_gamma_min
-        mask = np.logical_and(mask_max, mask_min)
+        E_gamma_mask_max = included_M1_transitions[:, 8] < E_gamma_max
+        E_gamma_mask_min = included_M1_transitions[:, 8] > E_gamma_min
+        
+        B_decay_mask_max = included_M1_transitions[:, 9] < B_decay_max
+        B_decay_mask_min = included_M1_transitions[:, 9] > B_decay_min
+
+        mask = np.logical_and(
+            np.logical_and(E_gamma_mask_max, E_gamma_mask_min),
+            np.logical_and(B_decay_mask_max, B_decay_mask_min)
+        )
+
+        print("\nSuggestions to B decay value limits (BEFORE E_gamma and B_decay limits are considered):")
+        print(f"B decay max: {max(included_M1_transitions[:, 9])}")
+        print(f"B decay min: {min(included_M1_transitions[:, 9])}")
+        print(f"B decay mean: {np.mean(included_M1_transitions[:, 9])}")
+        print(f"Number of included transitions in the OBTD calc: {len(included_M1_transitions)}")
+        
         included_M1_transitions: NDArray[np.float64] = included_M1_transitions[mask]
+
+        print("\nSuggestions to B decay value limits (AFTER E_gamma and B_decay limits are considered):")
+        print(f"B decay max: {max(included_M1_transitions[:, 9])}")
+        print(f"B decay min: {min(included_M1_transitions[:, 9])}")
+        print(f"B decay mean: {np.mean(included_M1_transitions[:, 9])}")
+        print(f"Number of included transitions in the OBTD calc: {len(included_M1_transitions)}")
 
         included_transitions_keys: list[tuple[int, ...]] = []
         obtd_skips: set[tuple[int, ...]] = set()
@@ -2584,17 +2606,40 @@ class ReadKshellOutput:
         print()
 
         obtd_summary = np.zeros(shape=(n_orbitals, n_orbitals), dtype=np.float64)
+        matrix_element_skips = 0
+        n_obtds = 0
 
         for key in included_transitions_keys:
             """
             Sum the absolute values of the OBTDs for each transition.
+
+            Consider the sum where the OBTD shows up (specifically for M1):
+
+            < psi_f || M1 || psi_i > = sum_{alpha, beta} < alpha || M1 || beta > * OBTD
+
+            M1 = gl*L + gs*S
+
+            If one OBTD in one term of the sum is large then we could say
+            that that single-particle transition contributes a lot,
+            however, if the matrix element < alpha || M1 || beta > is zero
+            it might be a stretch to say that the OBTD contributes a lot
+            because it will be zeroed by the mulitplication. We might want
+            to skip that term completely in the OBTD analysis.
             """
             orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
-            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
-            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
+            n_obtds += obtd.size
 
-        # obtd_summary /= np.sum(obtd_summary)
-        # obtd_summary *= 100
+            matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
+            matrix_element_skips += sum(matrix_elem_mask)
+            obtd[matrix_elem_mask] = 0
+
+            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
+
+        print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
+
+        obtd_summary /= np.sum(obtd_summary)
+        obtd_summary *= 100
 
         proton_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
         neutron_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
