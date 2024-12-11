@@ -353,6 +353,10 @@ def gamma_strength_function_average(
             skip_counter["Transit: Parity"] += 1
             continue
 
+        """
+        NOTE: Should I check `transitions[transition_idx, 9]` (the B decay
+        value) and skip transitions which are zero?
+        """
         # Get bin index for E_gamma and Ex. Indices are defined with respect to the lower bin edge.
         included_transitions.append(transitions[transition_idx])
         E_gamma_idx = int(transitions[transition_idx, 8]/bin_width)
