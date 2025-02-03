@@ -379,9 +379,7 @@ def _load_obtd(
         model space. The dim of the array will be (no. OBTDs per
         transition, 5, the number of 0+ levels times the number of 1+
         levels). In the case of the example file, the dim is exactly
-        (92, 5, 200*200). NOTE: Currently, I removed the two final
-        columns as I dont have any use for them yet, and if I store
-        <i||L||j>, what about <i||S||j>?
+        (92, 5, 200*200).
     """
 
     timing = time.perf_counter()
@@ -532,11 +530,6 @@ def _load_obtd(
                 1  2     0.00000     1.54919     0.00000
                 1  9     0.00000     0.00000     0.00000
                 ...
-
-                NOTE: Only the three first columns are currently read.
-                Dont know if I will have use for the final two columns
-                but they can easily be added later. But then there is
-                also the issue of storing <i||S||j> too.
                 """
                 if "OBTD" in line: break
 
