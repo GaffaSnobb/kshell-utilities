@@ -345,7 +345,7 @@ def gamma_strength_function_average(
         parity_initial = transitions[transition_idx, 1]
         parity_final = transitions[transition_idx, 5]
 
-        if (parity_initial not in filter_parities) or (parity_final not in filter_parities):
+        if (parity_initial not in filter_parities):# or (parity_final not in filter_parities):
             """
             Skip initial or final parities which are not in the filter
             list. NOTE: Might be wrong to filter on the final parity.
