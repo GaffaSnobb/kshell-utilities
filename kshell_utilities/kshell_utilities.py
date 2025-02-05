@@ -2528,6 +2528,14 @@ class ReadKshellOutput:
         For the rest of the parameters, see the docstring for
         `gamma_strength_function`.
         """
+        if multipole_type != "M1":
+            msg = (
+                f"OBTD plot for {multipole_type} has not yet been implemented."
+                " Transition rules must be manually dealt with and I have only"
+                " done that for M1 thus far."
+            )
+            raise NotImplementedError(msg)
+
         proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
         neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
         n_proton_orbitals = len(proton_orb_indices)
@@ -2625,16 +2633,26 @@ class ReadKshellOutput:
             it might be a stretch to say that the OBTD contributes a lot
             because it will be zeroed by the mulitplication. We might want
             to skip that term completely in the OBTD analysis.
+
+            UPDATE: I'm quite sure that the L and the S terms being zero are
+            the transition selection rules for M1 transitions that are being
+            taken into account. The OBTD does not have a dependency on any
+            transition operator so the transition rules have to come from
+            somewhere else, and there are only two terms in the sum above,
+            which implies that the selection rules emerge from the transition
+            operator matrix element.
             """
             orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
             n_obtds += obtd.size
 
             matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
             matrix_element_skips += sum(matrix_elem_mask)
-            obtd[matrix_elem_mask] = 0
+            obtd[matrix_elem_mask] = 0    # Pretty sure that what happens here is that transition selection rules for M1 are being respected.
 
             obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
             # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
+            # print(f"{key = }")
+            # break
 
         print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
 
