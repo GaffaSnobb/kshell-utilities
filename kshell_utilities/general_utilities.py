@@ -345,6 +345,16 @@ def gamma_strength_function_average(
         parity_initial = transitions[transition_idx, 1]
         parity_final = transitions[transition_idx, 5]
 
+        if multipole_type in ["M1", "E2"]:
+            assert parity_initial == parity_final
+
+        elif multipole_type == "E1":
+            assert parity_initial != parity_final
+
+        else:
+            msg = "Should not be able to get to this point!"
+            raise RuntimeError(msg)
+
         if (parity_initial not in filter_parities):# or (parity_final not in filter_parities):
             """
             Skip initial or final parities which are not in the filter
