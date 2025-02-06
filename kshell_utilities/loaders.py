@@ -467,6 +467,7 @@ def _load_obtd(
         obtd = np.zeros(shape=(n_obtds_per_transition, 5, n_initial_levels*n_final_levels), dtype=np.float32)   # 5 is to save: i  j  OBTD  <i||L||j>  <i||S||j>
         obtd_dict[master_key] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
 
+    n_moment_skips = 0
     with open(path, "r") as infile:
         for transit_idx in range(n_initial_levels*n_final_levels):
             for line in infile:
@@ -490,6 +491,8 @@ def _load_obtd(
                         raise RuntimeError(msg)
                     
                     j_i_current, idx_i_current, j_f_current, idx_f_current = map(int, match_.groups())
+                    is_moment = (j_i == j_f) and (pi_i == pi_f) and (idx_i_current == idx_f_current)    # Not a transition but a moment.
+                    n_moment_skips += is_moment
                     idx_i_current -= 1  # Make indices start from 0.
                     idx_f_current -= 1
                     key = (j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)
@@ -547,6 +550,15 @@ def _load_obtd(
                 dependent on if it is L or S.
                 """
                 tmp = infile.readline().split()
+                if is_moment:
+                    """
+                    This is not a transition but the moment of the state. To
+                    make sure that the file pointer is at the correct location
+                    to read the next OBTDs I chose to put a continue here
+                    instead of breaking off the operation at an earlier point.
+                    """
+                    continue
+
                 obtd[obtd_idx, :3, transit_idx] = [float(elem) for elem in tmp[:3]] # This is: i  j  OBTD
                 obtd[obtd_idx, col_idx, transit_idx] = float(tmp[3])    # This is: <i||L||j> or <i||S||j>.
                 obtd[obtd_idx, 0, transit_idx] -= 1 # Make indices start from 0.
@@ -556,7 +568,7 @@ def _load_obtd(
     assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0, 0)])
     assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, j_f, pi_f)][:, :, 0])
     assert np.all(obtd[:, :, -1] == obtd_dict[(j_i, pi_i, n_initial_levels - 1, j_f, pi_f, n_final_levels - 1)])
-    print(f"OBTD {path.split('/')[-1]} loaded", end="")
+    print(f"OBTD {path.split('/')[-1]} loaded ({n_moment_skips} moments skipped)", end="")
     
     timing = time.perf_counter() - timing
     if flags["debug"]:
