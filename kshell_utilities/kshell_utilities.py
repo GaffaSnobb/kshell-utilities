@@ -2488,7 +2488,7 @@ class ReadKshellOutput:
 
     def obtd(self,
         E_gamma_min: float | int = 0,
-        E_gamma_max: float | int = 3,
+        E_gamma_max: float | int = np.inf,
         B_decay_min: float | int = 0,
         B_decay_max: float | int = np.inf,
         multipole_type: str = "M1",
