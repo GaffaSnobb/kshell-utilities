@@ -28,6 +28,9 @@ from .loaders import (
 from .test_loaders import (
     test_load_energy_logfile, test_load_transition_logfile
 )
+from .onebody_transition_density_tools import (
+    get_included_transitions_obtd_dict_keys
+)
 
 class ReadKshellOutput:
     """
@@ -2486,6 +2489,166 @@ class ReadKshellOutput:
 
         return bins[:-1], ratios
 
+    def obtd_2(self,
+        orbitals: list[tuple[str, str]],
+        E_gamma_min: float | int = 0,
+        E_gamma_max: float | int = np.inf,
+        B_decay_min: float | int = 0,
+        B_decay_max: float | int = np.inf,
+        multipole_type: str = "M1",
+        axs: None | list[plt.Axes] = None,
+        gsf_bin_width: float | int = 0.2,
+        gsf_Ex_min: float | int = 5,
+        gsf_Ex_max: float | int = 50,
+        gsf_Ex_final_min: float | int = 0,
+        gsf_Ex_final_max: float | int = np.inf,
+        gsf_include_n_levels: int | float = np.inf,
+        gsf_filter_spins: list | None = None,
+        gsf_filter_parities: str = "both",
+        preliminary: bool = False,
+    ):
+        if multipole_type != "M1":
+            msg = (
+                f"OBTD plot for {multipole_type} has not yet been implemented."
+                " Transition rules must be manually dealt with and I have only"
+                " done that for M1 thus far."
+            )
+            raise NotImplementedError(msg)
+        
+        _, _, _, included_transitions = self.gsf(
+            bin_width = gsf_bin_width,
+            Ex_min = gsf_Ex_min,
+            Ex_max = gsf_Ex_max,
+            Ex_final_min = gsf_Ex_final_min,
+            Ex_final_max = gsf_Ex_final_max,
+            multipole_type = multipole_type,
+            include_n_levels = gsf_include_n_levels,
+            filter_spins = gsf_filter_spins,
+            filter_parities = gsf_filter_parities,
+            plot = False,
+            save_plot = False,
+        )
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
+        n_proton_orbitals = len(proton_orb_indices)
+        n_neutron_orbitals = len(neutron_orb_indices)
+        n_orbitals = n_proton_orbitals + n_neutron_orbitals
+        
+        proton_orb_labels_latex = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
+        neutron_orb_labels_latex = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+
+        proton_orb_labels = ["p" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
+        neutron_orb_labels = ["n" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+
+        orbit_label_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels, range(n_proton_orbitals, n_orbitals))}
+
+        E_gamma_mask_max = included_transitions[:, 8] < E_gamma_max
+        E_gamma_mask_min = included_transitions[:, 8] > E_gamma_min
+
+        E_gamma_mask = np.logical_and(
+            E_gamma_mask_min,
+            E_gamma_mask_max,
+        )
+
+        included_transitions = included_transitions[E_gamma_mask]
+
+        B_decay_min = np.min(included_transitions[:, 9])
+        B_decay_max = np.max(included_transitions[:, 9])
+
+        print(f"{B_decay_min = }")
+        print(f"{B_decay_max = }")
+
+        B_decay_range = np.linspace(B_decay_min, B_decay_max, 10)
+        n_B_intervals = len(B_decay_range) - 1
+        obtd_summaries = np.zeros(shape=(n_orbitals, n_orbitals, n_B_intervals), dtype=np.float64)
+
+        for i in range(n_B_intervals):
+            """
+            Filter transitions based on `B_decay_range` intervals.
+            """
+            B_decay_low = B_decay_range[i]
+            B_decay_high = B_decay_range[i + 1]
+
+            B_decay_mask = np.logical_and(
+                included_transitions[:, 9] > B_decay_low,   # Hmm... Include 0?
+                included_transitions[:, 9] <= B_decay_high,
+            )
+            if np.sum(B_decay_mask) == 0:
+                msg = (
+                    "There are no transitions within the B decay interval:"
+                    f" [{B_decay_low}, {B_decay_high}]."
+                )
+                print(msg)
+                continue
+
+            included_transitions_keys: list[tuple[int, ...]] = get_included_transitions_obtd_dict_keys(
+                included_transitions = included_transitions[B_decay_mask],
+                obtd_dict_keys = self.obtd_dict.keys(),
+            )
+
+            if not included_transitions_keys:
+                msg = (
+                    "There are no OBTDs for the transitions within the B decay"
+                    f" interval: [{B_decay_low}, {B_decay_high}]."
+                )
+                print(msg)
+                continue
+
+            matrix_element_skips = 0
+            n_obtds = 0
+            obtd_summary = obtd_summaries[:, :, i]
+
+            for key in included_transitions_keys:
+                orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
+                obtd_tmp = np.copy(obtd)    # Don't wanna alter the original data.
+                n_obtds += obtd.size
+
+                matrix_elem_mask = np.logical_and(
+                    matrix_elem_l == 0,
+                    matrix_elem_s == 0,
+                )
+                matrix_element_skips += sum(matrix_elem_mask)
+                obtd_tmp[matrix_elem_mask] = 0    # Pretty sure that what happens here is that transition selection rules for M1 are being respected.
+
+                obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd_tmp)
+
+            obtd_summary /= np.sum(obtd_summary)
+            obtd_summary *= 100
+            print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
+
+        for annihilate_orbital, creation_orbital in orbitals:
+            trailing_zero_idx = n_B_intervals
+
+            annihilate_idx = orbit_label_to_idx_map[annihilate_orbital]
+            creation_idx = orbit_label_to_idx_map[creation_orbital]
+            
+            for i in obtd_summaries[annihilate_idx, creation_idx, ::-1]:
+                """
+                Find the index of the last non-zero B value.
+
+                We cannot say anything about the relative OBTDs if they are zero.
+                They would sum to zero and yield a relative OBTD of 0% which is
+                likely incorrect. Better to just remove them.
+
+                It is likely to encounter trailing zeros rather than anywhere else
+                in the array because there are drastically fewer transitions of
+                large B than small B.
+                """
+                if i != 0:
+                    break
+                else:
+                    trailing_zero_idx -= 1
+
+            print(f"{n_B_intervals - trailing_zero_idx} trailing zeros were removed.")
+            axs[0].plot(B_decay_range[:-1][:trailing_zero_idx], obtd_summaries[annihilate_idx, creation_idx, :trailing_zero_idx], "o--", label=(annihilate_orbital, creation_orbital))
+        
+        axs[0].set_ylabel(r"OBTD $[\%]$")
+        axs[0].set_xlabel(r"B")
+        axs[0].grid()
+        axs[0].legend()
+
+
+
     def obtd(self,
         E_gamma_min: float | int = 0,
         E_gamma_max: float | int = np.inf,
@@ -2542,7 +2705,7 @@ class ReadKshellOutput:
         n_neutron_orbitals = len(neutron_orb_indices)
         n_orbitals = n_proton_orbitals + n_neutron_orbitals
 
-        _, _, _, included_M1_transitions = self.gsf(
+        _, _, _, included_transitions = self.gsf(
             bin_width = gsf_bin_width,
             Ex_min = gsf_Ex_min,
             Ex_max = gsf_Ex_max,
@@ -2555,12 +2718,12 @@ class ReadKshellOutput:
             plot = False,
             save_plot = False,
         )
-        # included_M1_transitions[:, 9] are the B decay values.
-        E_gamma_mask_max = included_M1_transitions[:, 8] < E_gamma_max
-        E_gamma_mask_min = included_M1_transitions[:, 8] > E_gamma_min
+        # included_transitions[:, 9] are the B decay values.
+        E_gamma_mask_max = included_transitions[:, 8] < E_gamma_max
+        E_gamma_mask_min = included_transitions[:, 8] > E_gamma_min
         
-        B_decay_mask_max = included_M1_transitions[:, 9] < B_decay_max
-        B_decay_mask_min = included_M1_transitions[:, 9] > B_decay_min
+        B_decay_mask_max = included_transitions[:, 9] < B_decay_max
+        B_decay_mask_min = included_transitions[:, 9] > B_decay_min
 
         mask = np.logical_and(
             np.logical_and(E_gamma_mask_max, E_gamma_mask_min),
@@ -2568,50 +2731,23 @@ class ReadKshellOutput:
         )
 
         print("\nSuggestions to B decay value limits (BEFORE E_gamma and B_decay limits are considered):")
-        print(f"B decay max: {max(included_M1_transitions[:, 9])}")
-        print(f"B decay min: {min(included_M1_transitions[:, 9])}")
-        print(f"B decay mean: {np.mean(included_M1_transitions[:, 9])}")
-        print(f"Number of included transitions in the OBTD calc: {len(included_M1_transitions)}")
+        print(f"B decay max: {max(included_transitions[:, 9])}")
+        print(f"B decay min: {min(included_transitions[:, 9])}")
+        print(f"B decay mean: {np.mean(included_transitions[:, 9])}")
+        print(f"Number of included transitions in the OBTD calc: {len(included_transitions)}")
         
-        included_M1_transitions: NDArray[np.float64] = included_M1_transitions[mask]
+        included_transitions: NDArray[np.float64] = included_transitions[mask]
 
         print("\nSuggestions to B decay value limits (AFTER E_gamma and B_decay limits are considered):")
-        print(f"B decay max: {max(included_M1_transitions[:, 9])}")
-        print(f"B decay min: {min(included_M1_transitions[:, 9])}")
-        print(f"B decay mean: {np.mean(included_M1_transitions[:, 9])}")
-        print(f"Number of included transitions in the OBTD calc: {len(included_M1_transitions)}")
+        print(f"B decay max: {max(included_transitions[:, 9])}")
+        print(f"B decay min: {min(included_transitions[:, 9])}")
+        print(f"B decay mean: {np.mean(included_transitions[:, 9])}")
+        print(f"Number of included transitions in the OBTD calc: {len(included_transitions)}")
 
-        included_transitions_keys: list[tuple[int, ...]] = []
-        obtd_skips: set[tuple[int, ...]] = set()
-
-        for transition_idx in range(len(included_M1_transitions)):
-            j_i, pi_i, idx_i, Ex_i, j_f, pi_f, idx_f, Ex_f, E_gamma, B_if, B_fi = included_M1_transitions[transition_idx]
-            j_i   = int(j_i)    # int casts are not very important, just for more clear printing.
-            pi_i  = int(pi_i)
-            idx_i = int(idx_i)
-            j_f   = int(j_f)
-            pi_f  = int(pi_f)
-            idx_f = int(idx_f)
-            master_key = (j_i, pi_i, j_f, pi_f)
-            key = (j_i, pi_i, idx_i, j_f, pi_f, idx_f)  # Keys for the OBTD dict.
-            
-            if master_key not in self.obtd_dict.keys():
-                """
-                There might not exist OBTDs for all possible transitions.
-                If the master key does not exist, any keys with the same
-                (j_i, pi_i, j_f, pi_f) should not exist either.
-                """
-                obtd_skips.add(master_key)
-                continue
-            
-            included_transitions_keys.append(key)
-
-        assert len(included_transitions_keys) == len(set(included_transitions_keys)), "Duplicate keys detected! Each key should only appear once!"
-
-        print(f"\nCould not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the current energy range ([{E_gamma_min}, {E_gamma_max}] MeV):")
-        for skip in obtd_skips:
-            print(skip)
-        print()
+        included_transitions_keys: list[tuple[int, ...]] = get_included_transitions_obtd_dict_keys(
+            included_transitions = included_transitions,
+            obtd_dict_keys = self.obtd_dict.keys(),
+        )
 
         obtd_summary = np.zeros(shape=(n_orbitals, n_orbitals), dtype=np.float64)
         matrix_element_skips = 0
