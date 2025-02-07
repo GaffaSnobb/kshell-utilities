@@ -2534,13 +2534,17 @@ class ReadKshellOutput:
         n_neutron_orbitals = len(neutron_orb_indices)
         n_orbitals = n_proton_orbitals + n_neutron_orbitals
         
-        proton_orb_labels_latex = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
-        neutron_orb_labels_latex = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+        proton_orb_labels_latex = ["p" + orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
+        neutron_orb_labels_latex = ["n" + orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+
+        orb_labels_latex = proton_orb_labels_latex + neutron_orb_labels_latex
+
+        # orb_label_latex_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels_latex, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels_latex, range(n_proton_orbitals, n_orbitals))}
 
         proton_orb_labels = ["p" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
         neutron_orb_labels = ["n" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
 
-        orbit_label_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels, range(n_proton_orbitals, n_orbitals))}
+        orb_label_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels, range(n_proton_orbitals, n_orbitals))}
 
         E_gamma_mask_max = included_transitions[:, 8] < E_gamma_max
         E_gamma_mask_min = included_transitions[:, 8] > E_gamma_min
@@ -2558,13 +2562,14 @@ class ReadKshellOutput:
         print(f"{B_decay_min = }")
         print(f"{B_decay_max = }")
 
-        B_decay_range = np.linspace(B_decay_min, B_decay_max, 10)
+        B_decay_range, delta_B = np.linspace(B_decay_min, B_decay_max, 10, retstep=True)
         n_B_intervals = len(B_decay_range) - 1
         obtd_summaries = np.zeros(shape=(n_orbitals, n_orbitals, n_B_intervals), dtype=np.float64)
 
         for i in range(n_B_intervals):
             """
-            Filter transitions based on `B_decay_range` intervals.
+            Filter transitions based on `B_decay_range` intervals. Calculate
+            and save heatmaps for all B intervals.
             """
             B_decay_low = B_decay_range[i]
             B_decay_high = B_decay_range[i + 1]
@@ -2599,6 +2604,9 @@ class ReadKshellOutput:
             obtd_summary = obtd_summaries[:, :, i]
 
             for key in included_transitions_keys:
+                """
+                Loop over the OBTD keys which are in the included transitions.
+                """
                 orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
                 obtd_tmp = np.copy(obtd)    # Don't wanna alter the original data.
                 n_obtds += obtd.size
@@ -2616,23 +2624,31 @@ class ReadKshellOutput:
             obtd_summary *= 100
             print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
 
-        for annihilate_orbital, creation_orbital in orbitals:
+        for annihilate_orbital, create_orbital in orbitals:
+            """
+            Loop over the orbitals requested by the user and plot the results.
+            """
             trailing_zero_idx = n_B_intervals
 
-            annihilate_idx = orbit_label_to_idx_map[annihilate_orbital]
-            creation_idx = orbit_label_to_idx_map[creation_orbital]
+            annihilate_idx = orb_label_to_idx_map[annihilate_orbital]
+            create_idx = orb_label_to_idx_map[create_orbital]
+
+            if annihilate_idx >= n_proton_orbitals:
+                is_protons = False
+            else:
+                is_protons = True
             
-            for i in obtd_summaries[annihilate_idx, creation_idx, ::-1]:
+            for i in obtd_summaries[annihilate_idx, create_idx, ::-1]:
                 """
                 Find the index of the last non-zero B value.
 
-                We cannot say anything about the relative OBTDs if they are zero.
-                They would sum to zero and yield a relative OBTD of 0% which is
-                likely incorrect. Better to just remove them.
+                We cannot say anything about the relative OBTDs if they are
+                zero. They would sum to zero and yield a relative OBTD of 0%
+                which is likely incorrect. Better to just remove them.
 
-                It is likely to encounter trailing zeros rather than anywhere else
-                in the array because there are drastically fewer transitions of
-                large B than small B.
+                It is likely to encounter trailing zeros rather than anywhere
+                else in the array because there are drastically fewer
+                transitions of large B than small B.
                 """
                 if i != 0:
                     break
@@ -2640,14 +2656,28 @@ class ReadKshellOutput:
                     trailing_zero_idx -= 1
 
             print(f"{n_B_intervals - trailing_zero_idx} trailing zeros were removed.")
-            axs[0].plot(B_decay_range[:-1][:trailing_zero_idx], obtd_summaries[annihilate_idx, creation_idx, :trailing_zero_idx], "o--", label=(annihilate_orbital, creation_orbital))
+            B_decay_range_slice = B_decay_range[:-1][:trailing_zero_idx]
+            obtd_summaries_slice = obtd_summaries[annihilate_idx, create_idx, :trailing_zero_idx]
+            obtd_summaries_slice[obtd_summaries_slice == 0] = np.nan    # I don't want to plot zeros.
+
+            if is_protons:
+                ax = axs[0]
+            else:
+                ax = axs[1]
         
-        axs[0].set_ylabel(r"OBTD $[\%]$")
-        axs[0].set_xlabel(r"B")
-        axs[0].grid()
-        axs[0].legend()
+            ax.plot(
+                B_decay_range_slice,
+                obtd_summaries_slice,
+                ".--",
+                label = orb_labels_latex[annihilate_idx] + r"$\rightarrow$" + orb_labels_latex[create_idx],
+            )
 
-
+        for ax in axs:
+            ax.set_ylabel(r"OBTD $[\%]$")
+            ax.set_xlabel(r"$B$")
+            ax.set_title(r"$B = [$" + f"{B_decay_min:.2f}, {B_decay_max:.2f}" + r"$]$, " + r"$\Delta B = $" + f" {delta_B:.2f}, " + r"$\pi = $" + f" {gsf_filter_parities}")
+            ax.grid()
+            ax.legend(fontsize=10, loc="upper left")
 
     def obtd(self,
         E_gamma_min: float | int = 0,
