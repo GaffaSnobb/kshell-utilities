@@ -39,8 +39,11 @@ spectroscopic_conversion: dict[int, str] = {
 spectroscopic_conversion_reversed: dict[str, int] = {
     "s": 0, "p": 1, "d": 2, "f": 3, "g": 4, "h": 5
 }
-def orbital_labels(n, l, j):
-    return f"${n}{spectroscopic_conversion[l]}" + r"_{\frac{" +  f"{j}" + r"}{2}}$"
+def orbital_labels(n, l, j, latex=True):
+    if latex:
+        return f"${n}{spectroscopic_conversion[l]}" + r"_{\frac{" +  f"{j}" + r"}{2}}$"
+    else:
+        return f"{n}{spectroscopic_conversion[l]}{j}/2"
 
 atomic_numbers = {
     "oxygen": 8, "fluorine": 9, "neon": 10, "sodium": 11, "magnesium": 12,
