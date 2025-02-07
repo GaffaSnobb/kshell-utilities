@@ -932,7 +932,7 @@ def porter_thomas(
         The chi-squared distribution y values.
     """
     pt_prepare_data_time = time.perf_counter()
-    if isinstance(Ei, (list, tuple, npt.NDArray)):
+    if isinstance(Ei, (list, tuple, np.ndarray)):
         """
         If Ei defines a lower and an upper limit.
         """
