@@ -139,7 +139,7 @@ def _load_transition_logfile(
                 # M_red = float(tmp[7])   # Not in use.
                 B_if = float(tmp[8])    # Decay.
                 B_fi = float(tmp[9])    # Excite.
-                # Mom = float(tmp[10])    # Not in use.
+                mom = float(tmp[10])    # Only used for sanity checking, is not stored.
 
                 pi_i_current = pi_i
                 pi_f_current = pi_f
@@ -153,13 +153,29 @@ def _load_transition_logfile(
                     same level. These entries in the log files are
                     needed for the moments, but not needed for
                     transitions because they are not transitions.
+
+                    Example:
+
+                    ```
+                    2     1   -392.049   2     1   -392.049     0.000     17.05493503     96.95693633     96.95693633      9.87277791
+                    ```
                     """
                     continue
+
+                assert mom == 0
 
                 if is_diag and (E_gamma < 0):
                     """
                     In case where the left and right wavefunctions are
                     the same, both up and down transitions are shown.
+
+                    An example where the negative E_gamma entry will be
+                    skipped:
+
+                    ```
+                    2     1   -392.049   2     3   -391.501     0.548     -3.23076714      3.47928543      3.47928543      0.00000000
+                    2     3   -391.501   2     1   -392.049    -0.548     -3.23076714      3.47928543      3.47928543      0.00000000
+                    ```
                     """
                     continue
 
