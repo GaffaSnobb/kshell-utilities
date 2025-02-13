@@ -172,6 +172,7 @@ def gamma_strength_function_average(
         "Transit: Energy final range (greater)": 0,
         "Transit: Number of levels": 0,
         "Transit: Parity": 0,
+        "Transit: Ei <= Ef": 0,
         "Level density: Energy range": 0,
         "Level density: Number of levels": 0,
         "Level density: Parity": 0
@@ -291,13 +292,20 @@ def gamma_strength_function_average(
     n_transitions_array = np.zeros(n_bins, dtype=int)  # Count the number of transitions per gamma energy bin.
     included_transitions = []
     transit_gsf_time = time.perf_counter()
-    
+
     for transition_idx in range(n_transitions):
         """
         Iterate over all transitions in the transitions matrix and add
         up all reduced transition probabilities and the number of
         transitions in the correct bins.
         """
+        if Ex_initial[transition_idx] <= Ex_final[transition_idx]:
+            """
+            Probably safest to skip these?
+            """
+            skip_counter["Transit: Ei <= Ef"] += 1
+            continue
+        
         if Ex_initial[transition_idx] < Ex_min:
             """
             Check if transition is within min limit, skip if not.
