@@ -141,6 +141,37 @@ def _load_transition_logfile(
                 B_fi = float(tmp[9])    # Excite.
                 mom = float(tmp[10])    # Only used for sanity checking, is not stored.
 
+                # E_gamma_calculated = round(E_i - E_f, 3)
+                E_gamma_calculated = E_i - E_f
+
+                # assert abs(E_gamma - E_gamma_calculated) <= 1e-3
+                # if (diff := abs(E_gamma - E_gamma_calculated)) > 0.002:
+                if (diff := round(abs(E_gamma - E_gamma_calculated), 3)) > 1e-3:
+                    """
+                    Rounded to three decimals because, for example, Python
+                    would say that
+                    ```
+                    0.912 - 0.911 = 0.0010000000000000009
+                    ```
+                    """
+                    msg = (
+                        f"{path}\n"
+                        f"{tmp}\n"
+                        f"{diff = }\n"
+                        f"{E_gamma = }\n"
+                        f"{E_gamma_calculated = }\n"
+                        f"{idx_f = }\n"
+                        f"{j_f = }\n"
+                        f"{pi_f = }\n"
+                        f"{E_f = }\n"
+                        f"{idx_i = }\n"
+                        f"{j_i = }\n"
+                        f"{pi_i = }\n"
+                        f"{E_i = }\n"
+                    )
+                    print(msg)
+                    raise KshellDataStructureError
+
                 pi_i_current = pi_i
                 pi_f_current = pi_f
 
