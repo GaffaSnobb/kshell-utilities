@@ -65,6 +65,8 @@ def _load_transition_logfile(
     transitions_E2: list[list[float]] = []
     transitions: list[list[float]]
 
+    n_negative_gamma_energy_skips = 0
+
     with open(path, "r") as infile:
         for line in infile:
             if "left  Z,N,A,M,prty:" in line:
@@ -223,6 +225,8 @@ def _load_transition_logfile(
                     In case where the left and right wavefunctions are
                     different, only up or down transition are shown. 
                     """
+                    # n_negative_gamma_energy_skips += 1
+                    # continue
                     j_f, j_i = j_i, j_f
                     idx_f, idx_i = idx_i, idx_f
                     E_f, E_i = E_i, E_f
@@ -234,6 +238,7 @@ def _load_transition_logfile(
                     j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_if, B_fi
                 ])
 
+    # print(f"{n_negative_gamma_energy_skips = }")
     return transitions_E1, transitions_M1, transitions_E2
 
 def _load_energy_logfile(
@@ -375,6 +380,12 @@ def _load_obtd(
     obtd_dict: dict[tuple[int, ...]],
 ) -> None:
     """
+    WARNING!! The OBTDs are stored exactly as they are organised in the KSHELL
+    OBTD log files. This means that no consideration has been done to check
+    that the initial levels are of higher energy than the final levels.
+    Optimally, the OBTDs should be organised so that final levels are always of
+    lower energy, but I have not taken the time to fix that yet.
+
     Read one-body transition densities from the OBTD files from KSHELL.
     The OBTD is defined as
     ```
