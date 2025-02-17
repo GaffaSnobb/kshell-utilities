@@ -438,11 +438,7 @@ class ReadKshellOutput:
             fname_S = fname_L.replace("_L_", "_S_") # Each orbital OBTD file should have a partner spin file (M1 = gl*L + gs*S).
             
             try:
-                """
-                Make an L, S pair of OBTD filenames if `filename_S` exists.
-                """
                 obtd_fnames_S.remove(fname_S)
-                obtd_paths.append([f"{self.path}/{fname_L}", f"{self.path}/{fname_S}"])
             
             except ValueError:
                 msg = (
@@ -451,12 +447,22 @@ class ReadKshellOutput:
                 print(msg)
                 obtd_paths.append([f"{self.path}/{fname_L}"])
 
+            else:
+                """
+                Make an L, S pair of OBTD filenames if `filename_S` exists.
+                """
+                obtd_paths.append([f"{self.path}/{fname_L}", f"{self.path}/{fname_S}"])
+
         for fname_S in obtd_fnames_S:
             """
             At this point, `obtd_fnames_S` might be empty but there might also
             be a few left over filenames which were not matched with an L
             partner. Make sure to add them to the final list.
             """
+            msg = (
+                f"Could not find 'L' partner for {fname_S}!"
+            )
+            print(msg)
             obtd_paths.append([f"{self.path}/{fname_S}"])
         
         if not obtd_paths:
@@ -2489,6 +2495,41 @@ class ReadKshellOutput:
 
         return bins[:-1], ratios
 
+    def obtd_modifier(self):
+        """
+        gl,gs=  1.1000 -0.1000  5.0270 -3.4430
+        0n -> 2n
+
+        i  j  OBTD L S
+        """
+        # master_key = (0, -1, 2, -1)
+        keys = [
+            (0, -1, 0, 2, -1, 0), (0, -1, 0, 2, -1, 1)
+        ]
+        fac = np.sqrt(4*np.pi/3)    # Coefficient for moment?
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
+        n_proton_orbitals = len(proton_orb_indices)
+        n_neutron_orbitals = len(neutron_orb_indices)
+        n_orbitals = n_proton_orbitals + n_neutron_orbitals
+
+        for key in keys:
+            alpha, beta, obtd, L, S = self.obtd_dict[key].T
+
+
+            obtd_proton = obtd[alpha < n_proton_orbitals]
+            L_proton = L[alpha < n_proton_orbitals]
+            S_proton = S[alpha < n_proton_orbitals]
+
+            obtd_neutron = obtd[alpha >= n_proton_orbitals]
+            L_neutron = L[alpha >= n_proton_orbitals]
+            S_neutron = S[alpha >= n_proton_orbitals]
+
+            res_proton = np.sum(obtd_proton*(1.1*L_proton/fac + 5.027*S_proton/fac))
+            res_neutron = np.sum(obtd_neutron*(-0.1*L_neutron/fac + -3.443*S_neutron/fac))
+
+            print(f"{(res_proton + res_neutron)**2 = }")
+
     def obtd_2(self,
         orbitals: list[tuple[str, str]],
         E_gamma_min: float | int = 0,
@@ -2807,6 +2848,11 @@ class ReadKshellOutput:
             somewhere else, and there are only two terms in the sum above,
             which implies that the selection rules emerge from the transition
             operator matrix element.
+
+            [E, 2*spin, parity, idx, Hcm]
+            (0, -1, 2, 2, -1, 3)
+            (ji, pii, idxi, jf, pif, idxf)
+            j_i, pi_i, idx_i, j_f, pi_f, idx_f = key
             """
             orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
             n_obtds += obtd.size
@@ -2815,15 +2861,16 @@ class ReadKshellOutput:
             matrix_element_skips += sum(matrix_elem_mask)
             obtd[matrix_elem_mask] = 0    # Pretty sure that what happens here is that transition selection rules for M1 are being respected.
 
-            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
-            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
-            # print(f"{key = }")
-            # break
+            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+            
+            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
+            print(f"{key = }")
+            break
 
         print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
 
-        obtd_summary /= np.sum(obtd_summary)
-        obtd_summary *= 100
+        # obtd_summary /= np.sum(obtd_summary)
+        # obtd_summary *= 100
 
         proton_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
         neutron_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
