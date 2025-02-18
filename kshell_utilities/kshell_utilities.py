@@ -48,6 +48,10 @@ class ReadKshellOutput:
 
     transitions_BE1 : np.ndarray
         Transition data for BE1 transitions. Structure:
+        SUPER NEW:
+        [2*spin_initial, parity_initial, idx_initial, Ex_initial,
+        2*spin_final, parity_final, idx_final, Ex_final, E_gamma,
+        B(.., i->f), B(.., f<-i), M_red]
         NEW:
         [2*spin_initial, parity_initial, idx_initial, Ex_initial,
         2*spin_final, parity_final, idx_final, Ex_final, E_gamma,

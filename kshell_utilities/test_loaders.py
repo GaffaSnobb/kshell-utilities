@@ -74,45 +74,45 @@ def test_load_transition_logfile():
     transitions_E1, transitions_M1, transitions_E2 = _load_transition_logfile(
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/log_V50_GCLSTsdpfsdgix5pn_tr_j2n_j2n.txt')
     )
-    expected_transitions_E2 = [
-        [2, -1, 1, -391.739, 2, -1, 0, -392.049, 0.31, 2.04087199, 2.04087199],
-        [2, -1, 2, -391.501, 2, -1, 0, -392.049, 0.548, 3.47928543, 3.47928543],
-        [2, -1, 3, -391.421, 2, -1, 0, -392.049, 0.628, 22.83326127, 22.83326127],
-        [2, -1, 4, -391.405, 2, -1, 0, -392.049, 0.644, 23.93839124, 23.93839124],
-        [2, -1, 5, -391.138, 2, -1, 0, -392.049, 0.912, 1.99307071, 1.99307071]
+    expected_transitions_E2 = [ # NOTE: Negative Egamma will be skipped when initial and final j and parity are the same.
+        [2, -1, 1, -391.739, 2, -1, 0, -392.049, 0.31, 2.04087199, 2.04087199, -2.47439204],
+        [2, -1, 2, -391.501, 2, -1, 0, -392.049, 0.548, 3.47928543, 3.47928543, -3.23076714],
+        [2, -1, 3, -391.421, 2, -1, 0, -392.049, 0.628, 22.83326127, 22.83326127, -8.27645962],
+        [2, -1, 4, -391.405, 2, -1, 0, -392.049, 0.644, 23.93839124, 23.93839124, 8.47438338],
+        [2, -1, 5, -391.138, 2, -1, 0, -392.049, 0.912, 1.99307071, 1.99307071, 2.44524275]
     ]
     assert len(expected_transitions_E2) == len(transitions_E2)
-    for expected, calculated in zip(expected_transitions_E2, transitions_E2):
+    for expected, calculated in zip(expected_transitions_E2, transitions_E2, strict=True):
         assert expected == calculated, f"{expected = }, {calculated = }"
 
-    assert [] == transitions_E1
-    assert [] == transitions_M1
+    assert not transitions_E1
+    assert not transitions_M1
 
     transitions_E1, transitions_M1, transitions_E2 = _load_transition_logfile(
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/log_V50_GCLSTsdpfsdgix5pn_tr_j2p_j4n.txt')
     )
     expected_transitions_E1 = [
-        [4, -1, 0, -392.585, 2, 1, 0, -393.605, 1.021, 5.38e-06, 3.23e-06],
-        [2, 1, 199, -384.604, 4, -1, 179, -387.12, 2.516, 1e-08, 1e-08],
-        [2, 1, 199, -384.604, 4, -1, 180, -387.096, 2.492, 1.2e-07, 1.9e-07],
-        [2, 1, 199, -384.604, 4, -1, 181, -387.087, 2.483, 6.74e-06, 1.123e-05],
-        [2, 1, 199, -384.604, 4, -1, 182, -387.072, 2.467, 3e-08, 6e-08],
-        [2, 1, 199, -384.604, 4, -1, 183, -387.06, 2.456, 4.9e-07, 8.2e-07],
-        [2, 1, 199, -384.604, 4, -1, 184, -387.056, 2.451, 5.5e-07, 9.2e-07],
+        [4, -1, 0, -392.585, 2, 1, 0, -393.605, 1.021, 5.38e-06, 3.23e-06, 0.00401764],
+        [2, 1, 199, -384.604, 4, -1, 179, -387.12, 2.516, 1e-08, 1e-08, -0.00020814],
+        [2, 1, 199, -384.604, 4, -1, 180, -387.096, 2.492, 1.2e-07, 1.9e-07, -0.00075887],
+        [2, 1, 199, -384.604, 4, -1, 181, -387.087, 2.483, 6.74e-06, 1.123e-05, -0.00580541],
+        [2, 1, 199, -384.604, 4, -1, 182, -387.072, 2.467, 3e-08, 6e-08, 0.00041595],
+        [2, 1, 199, -384.604, 4, -1, 183, -387.06, 2.456, 4.9e-07, 8.2e-07, -0.00157249],
+        [2, 1, 199, -384.604, 4, -1, 184, -387.056, 2.451, 5.5e-07, 9.2e-07, 0.00165812],
     ]
     expected_transitions_M1 = [
-        [4, -1, 0, -392.585, 2, 1, 0, -393.605, 1.021, 5.38e-06, 3.23e-06],
-        [4, -1, 1, -392.297, 2, 1, 0, -393.605, 1.308, 8.079e-05, 4.847e-05]
+        [4, -1, 0, -392.585, 2, 1, 0, -393.605, 1.021, 5.38e-06, 3.23e-06, 0.00401764],
+        [4, -1, 1, -392.297, 2, 1, 0, -393.605, 1.308, 8.079e-05, 4.847e-05, -0.01556801]
     ]
     expected_transitions_E2 = [
-        [2, 1, 199, -384.604, 4, -1, 190, -387.016, 2.411, 9.6e-07, 1.6e-06],
-        [2, 1, 199, -384.604, 4, -1, 191, -387.01, 2.406, 9.5e-07, 1.58e-06],
-        [2, 1, 199, -384.604, 4, -1, 192, -387.005, 2.401, 3.78e-06, 6.3e-06],
+        [2, 1, 199, -384.604, 4, -1, 190, -387.016, 2.411, 9.6e-07, 1.6e-06, -0.00219113],
+        [2, 1, 199, -384.604, 4, -1, 191, -387.01, 2.406, 9.5e-07, 1.58e-06, -0.00217375],
+        [2, 1, 199, -384.604, 4, -1, 192, -387.005, 2.401, 3.78e-06, 6.3e-06, 0.00434570],
     ]
     assert len(expected_transitions_E2) == len(transitions_E2)
     assert len(expected_transitions_E1) == len(transitions_E1)
     assert len(expected_transitions_M1) == len(transitions_M1)
-    for expected, calculated in zip(expected_transitions_E1, transitions_E1):
+    for expected, calculated in zip(expected_transitions_E1, transitions_E1, strict=True):
         assert expected == calculated, f"{expected = }, {calculated = }"
 
     assert expected_transitions_M1 == transitions_M1

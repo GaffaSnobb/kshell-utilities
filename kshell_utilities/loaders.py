@@ -138,10 +138,13 @@ def _load_transition_logfile(
                 idx_i = int(tmp[4]) - 1
                 E_i = float(tmp[5])
                 E_gamma = float(tmp[6])
-                # M_red = float(tmp[7])   # Not in use.
+                M_red = float(tmp[7])   # Reduced matrix element.
                 B_if = float(tmp[8])    # Decay.
                 B_fi = float(tmp[9])    # Excite.
                 mom = float(tmp[10])    # Only used for sanity checking, is not stored.
+
+                assert j_f == j_f_expected
+                assert j_i == j_i_expected
 
                 # E_gamma_calculated = round(E_i - E_f, 3)
                 E_gamma_calculated = E_i - E_f
@@ -217,9 +220,6 @@ def _load_transition_logfile(
                 if abs(E_f) < 1e-3: E_f = 0.
                 if abs(E_i) < 1e-3: E_i = 0.
 
-                assert j_f == j_f_expected
-                assert j_i == j_i_expected
-
                 if E_gamma < 0:
                     """
                     In case where the left and right wavefunctions are
@@ -235,7 +235,7 @@ def _load_transition_logfile(
                     E_gamma = -E_gamma
 
                 transitions.append([
-                    j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_if, B_fi
+                    j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_if, B_fi, M_red
                 ])
 
     # print(f"{n_negative_gamma_energy_skips = }")
