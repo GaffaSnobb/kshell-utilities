@@ -446,10 +446,10 @@ class ReadKshellOutput:
             
             except ValueError:
                 msg = (
-                    f"Could not find 'S' partner for {fname_L}!"
+                    f"Could not find 'S' partner for {fname_L}! Skipping..."
                 )
                 print(msg)
-                obtd_paths.append([f"{self.path}/{fname_L}"])
+                # obtd_paths.append([f"{self.path}/{fname_L}"])
 
             else:
                 """
@@ -461,13 +461,15 @@ class ReadKshellOutput:
             """
             At this point, `obtd_fnames_S` might be empty but there might also
             be a few left over filenames which were not matched with an L
-            partner. Make sure to add them to the final list.
+            partner. I'm skipping these as they might mess with the ang.
+            momentum conservation rules and it does mess with my OBTD dict data
+            structure.
             """
             msg = (
-                f"Could not find 'L' partner for {fname_S}!"
+                f"Could not find 'L' partner for {fname_S}! Skipping..."
             )
             print(msg)
-            obtd_paths.append([f"{self.path}/{fname_S}"])
+            # obtd_paths.append([f"{self.path}/{fname_S}"])
         
         if not obtd_paths:
             print(f"No OBTD file found in {self.path}!")
@@ -475,9 +477,31 @@ class ReadKshellOutput:
         
         self.obtd_dict: dict[tuple[int, ...], NDArray] = {}
         
+        level_dict: dict[tuple[int, int, int], float] = {}
+
+        for level in self.levels:
+            """
+            Make a dict to easily look up the energy of a level based on its
+            angular momentum, parity and index. This is gonna happen a lot of
+            times in the OBTD loader so we might save some CPU to do it this
+            way instead of masking the `self.levels` array repeatedly.
+            
+            [E, 2*spin, parity, idx, Hcm]
+            """
+            E, j, pi, idx, _ = level
+            key = (int(j), int(pi), int(idx))
+            
+            if key in level_dict:
+                msg = (
+                    f"Key {key} already exists in the level_dict and it should not!"
+                )
+                raise KshellDataStructureError(msg)
+            
+            level_dict[key] = E
+        
         if flags["parallel"]:
             with multiprocessing.Pool() as pool:
-                dicts = pool.map(_load_obtd_parallel_wrapper, obtd_paths)
+                dicts = pool.map(_load_obtd_parallel_wrapper, [(path_pair, level_dict) for path_pair in obtd_paths])
 
             for dict_ in dicts:
                 self.obtd_dict.update(dict_)
@@ -486,8 +510,9 @@ class ReadKshellOutput:
             """
             Serial.
             """
-            for fname in obtd_paths:
-                _load_obtd(path=f"{self.path}/{fname}", obtd_dict=self.obtd_dict)
+            for paths in obtd_paths:
+                for L_or_S_path in paths:
+                    _load_obtd(path=L_or_S_path, obtd_dict=self.obtd_dict, level_dict=level_dict)
 
         orbit_numbers: list[list[int]] = []
 
