@@ -10,7 +10,7 @@ setup(
     packages = ['kshell_utilities'],
     install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'vum'],
     package_data = {
-        'kshell_utilities': ['test_files/*.txt'],
+        'kshell_utilities': ['test_files/*.txt', 'test_files/obtd_test/*.txt'],
     },
 
     classifiers = [
