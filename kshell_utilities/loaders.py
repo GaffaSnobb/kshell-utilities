@@ -3,6 +3,7 @@ import time, sys, ast, warnings, re
 from fractions import Fraction
 from typing import TextIO
 import numpy as np
+import numpy.typing as npt
 from numpy.typing import NDArray
 from .kshell_exceptions import KshellDataStructureError
 from .data_structures import (
@@ -217,8 +218,12 @@ def _load_transition_logfile(
 
                 if (B_weisskopf_if < WEISSKOPF_THRESHOLD): continue # NOTE: I might not need the Weisskoppf stuff.
                 if (B_weisskopf_fi < WEISSKOPF_THRESHOLD): continue
-                if abs(E_f) < 1e-3: E_f = 0.
-                if abs(E_i) < 1e-3: E_i = 0.
+
+                # if abs(E_f) < 1e-3: E_f = 0.    # Does this ever happen??
+                # if abs(E_i) < 1e-3: E_i = 0.
+
+                assert abs(E_f) > 1e-3
+                assert abs(E_i) > 1e-3
 
                 if E_gamma < 0:
                     """
@@ -378,14 +383,9 @@ def _load_energy_logfile(
 def _load_obtd(
     path: str,
     obtd_dict: dict[tuple[int, ...]],
+    level_dict: dict[tuple[int, int, int], float],
 ) -> None:
     """
-    WARNING!! The OBTDs are stored exactly as they are organised in the KSHELL
-    OBTD log files. This means that no consideration has been done to check
-    that the initial levels are of higher energy than the final levels.
-    Optimally, the OBTDs should be organised so that final levels are always of
-    lower energy, but I have not taken the time to fix that yet.
-
     Read one-body transition densities from the OBTD files from KSHELL.
     The OBTD is defined as
     ```
@@ -414,6 +414,11 @@ def _load_obtd(
         and each value is a view of the correct 2D slice of the `obtd`
         Numpy array which stores the OBTD values. A view of the entire
         3D matrix is also provided by the key (j_i, pi_i, j_f, pi_f).
+
+    level_dict: dict[tuple[int, int, int], float]        
+        The level dict has (2*j, pi, idx) as keys and the corresponding energy
+        as values and is needed to properly sort the OBTDs so that the initial
+        level has higher energy than the final level.
 
     Variables
     ---------
@@ -444,10 +449,19 @@ def _load_obtd(
     sect_header_pattern = r'J1=\s*(\d+)/2\s*\(\s*(\d+)\)\s*J2=\s*(\d+)/2\s*\(\s*(\d+)\)'
     filename_pattern = r'_j(\d+)(p|n)'
     filename_match = re.findall(filename_pattern, path.split("/")[-1])
-    j_i = int(filename_match[0][0])
-    pi_i = +1 if (filename_match[0][1] == "p") else -1
-    j_f = int(filename_match[1][0])
-    pi_f = +1 if (filename_match[1][1] == "p") else -1
+    j_f = int(filename_match[0][0])
+    pi_f = +1 if (filename_match[0][1] == "p") else -1
+    j_i = int(filename_match[1][0])
+    pi_i = +1 if (filename_match[1][1] == "p") else -1
+    is_diag = (j_i == j_f) and (pi_i == pi_f)   # For example: 'OBTD_*_j6n_*_j6n.dat'
+    """
+    NOTE: About `is_diag`: When it is True, the initial and final jpi is the
+    same. In that case, the KSHELL log files contain each transition twice,
+    once with E_gamma > 0 and one with E_gamma < 0. To avoid double counting,
+    the E_gamma < 0 entries should be skipped. However, when `is_diag` is False
+    the E_gamma < 0 entries are unique transitions and they should not be
+    skipped.
+    """
 
     if "_L_" in path.split("/")[-1]:
         col_idx = 3
@@ -462,8 +476,48 @@ def _load_obtd(
         )
         raise KshellDataStructureError(msg)
 
-    n_initial_levels = 0
-    n_final_levels = 0
+    n_transitions = 0
+    n_transitions_flipped = 0   # Flipped are levels where Ei < Ef and the transition has to be flipped.
+    n_transitions_flipped_skipped = 0   # If `is_diag` is True, then flipped transitions are duplicates and must be skipped.
+    n_moments = 0
+    
+    initial_levels = set()
+    final_levels = set()
+    initial_levels_flipped = set()
+    final_levels_flipped = set()
+
+    if_levels: set[tuple[int, int]] = set() # if as in initial final.
+    if_levels_flipped: set[tuple[int, int]] = set()
+
+    # Debug.
+    initial_levels_tmp = set()
+    final_levels_tmp = set()
+    tmplst = list()
+
+    with open(path, "r") as infile:
+        """
+        Read the orbit number table at the beginning of the file.
+        """
+        for line in infile:
+            if ("idx" in line) and ("2tz" in line):
+                """
+                #  --- orbit numbers ---
+                #   idx      n,   l,  2j,  2tz  <--- Here!
+                #     1      0    2    5   -1
+                #     2      0    2    3   -1
+                #     3      1    0    1   -1
+                ...
+                """
+                break
+
+        for line in infile:
+            try:
+                orb_idx, _, _, _, _ = map(int, line.split()[1:])
+            except ValueError:
+                break
+
+    n_orbitals = orb_idx    # I'm overwriting the orb indices at each iteration, leaving me with only the last.
+
     with open(path, "r") as infile:
         """
         The file is first iterated once to extract some needed metadata
@@ -472,17 +526,28 @@ def _load_obtd(
         for line in infile:
             if "# of elements" in line:
                 """
-                This is the number of OBTDs per transition.
+                This is the number of OBTDs per transition. Example:
+
+                ...
+                # rank   1 parity   1
+                # L reduced metrix element
+                # of elements =    92       <--- This one!
+                # eff. charge =     0.53746   -0.04886
+                ...
                 """
                 n_obtds_per_transition = int(line.split("=")[-1])
                 break
 
+        else:
+            msg = (
+                f"Could not find `n_obtds_per_transition` in {path}!"
+            )
+            raise KshellDataStructureError(msg)
+
         for line in infile:
             if "w.f." in line:
                 """
-                NOTE: I could seek to the end of the file and backtrack
-                a bit instead of reading through the entire file just to
-                get two numbers at the very end.
+                [E, 2*spin, parity, idx, Hcm]
 
                 Example:
                 w.f.  J1=  0/2(    1)     J2=  2/2(    1)   <----- This one!
@@ -493,41 +558,143 @@ def _load_obtd(
                 match_ = re.search(sect_header_pattern, line)
                 if not match_:
                     msg = "Unexpected pattern in OBTD file!"
-                    raise RuntimeError(msg)
+                    raise KshellDataStructureError(msg)
                 
-                _, n_initial_levels, _, n_final_levels = map(int, match_.groups())
+                j_f_current, idx_f_current, j_i_current, idx_i_current = map(int, match_.groups())  # Ex.: 0, 1, 2, 1
+                assert j_i_current == j_i   # Better safe than sorry!
+                assert j_f_current == j_f
 
-    if (n_initial_levels == 0) or (n_final_levels == 0):
+                # is_moment = is_diag and (idx_i_current == idx_f_current)
+                # if is_moment:
+                #     """
+                #     Not a transition but a moment. Moments are skipped.
+                #     """
+                #     n_moment_skips += 1
+
+                idx_i_current -= 1  # Start indices from 0.
+                idx_f_current -= 1
+
+                key_i = (j_i_current, pi_i, idx_i_current)
+                key_f = (j_f_current, pi_f, idx_f_current)
+
+                E_i_current = level_dict[key_i]
+                E_f_current = level_dict[key_f]
+
+                if E_i_current < E_f_current:
+                    # """
+                    # Not completely sure if it is right to use `<=`. It implies
+                    # that transitions where Ei == Ef are decays.
+                    # """
+                    # if not is_diag:
+                    #     """
+                    #     In this case, transitions with E_gamma <= 0 are unique
+                    #     transitions in the KSHELL log files, but i and f must
+                    #     be swapped. When `is_diag` is True, those transitions
+                    #     are duplicates and must be skipped.
+                    #     """
+                    n_transitions_flipped += 1
+
+                    if is_diag:
+                        """
+                        If `is_diag` is True (for example j6n -> j6n) the
+                        flipped transitions are duplicates and must be skipped.
+                        """
+                        n_transitions_flipped_skipped += 1
+                    else:
+                        # initial_levels_flipped.add(idx_f_current)
+                        # final_levels_flipped.add(idx_i_current)
+
+                        if_levels_flipped.add((idx_f_current, idx_i_current))
+
+                elif E_i_current > E_f_current:
+                    # initial_levels.add(idx_i_current)
+                    # final_levels.add(idx_f_current)
+                    if_levels.add((idx_i_current, idx_f_current))
+                    n_transitions += 1
+
+                elif E_i_current == E_f_current:
+                    """
+                    Moments.
+                    """
+                    assert is_diag
+                    n_moments += 1
+
+    if (n_transitions == 0) and (n_transitions_flipped == 0):
         """
         For example, in the file
 
         OBTD_E2_V50_GCLSTsdpfsdgix5pn_j0p_V50_GCLSTsdpfsdgix5pn_j2p.dat
 
         KSHELL has only written the header of the file, but no content.
-        Make sure at no dict entry is made for key (0, +1, 2, +1) from
+        Make sure that no dict entry is made for key (0, +1, 2, +1) from
         this file because subsequent files with the same key might
         actually contain OBTD information which would have been skipped.
+
+        UPDATE 2025-02-17: Might not be so important with the key existing
+        after later updates to the code, but it is anyway no point in
+        continuing after this if there are no info in the current file.
         """
         msg = f"No OBTDs found in {path.split('/')[-1]}! Skipping..."
         print(msg)
         return
+    
+    if is_diag:
+        assert n_transitions_flipped_skipped == n_transitions_flipped
+    else:
+        assert (tmp := (n_transitions_flipped - n_transitions_flipped_skipped)) > 0, tmp
 
-    master_key = (j_i, pi_i, j_f, pi_f)
+    master_key_not_flipped = (j_i, pi_i, j_f, pi_f)
+    master_key_flipped = (j_f, pi_f, j_i, pi_i)
     
     try:
         """
-        `master_key` key might already exist because there are '_L_' and '_S_'
-        OBTD files which contain the same OBTDs. However, the files contain
-        different matrix elements so it is OK if the key already exists.
+        `master_key_not_flipped` key might already exist because there are
+        '_L_' and '_S_' OBTD files which contain the same OBTDs. However, the
+        files contain different matrix elements so it is OK if the key already
+        exists.
         """
-        obtd = obtd_dict[master_key]
+        obtd_not_flipped = obtd_dict[master_key_not_flipped]
     except KeyError:
-        obtd = np.zeros(shape=(n_obtds_per_transition, 5, n_initial_levels*n_final_levels), dtype=np.float32)   # 5 is to save: i  j  OBTD  <i||L||j>  <i||S||j>
-        obtd_dict[master_key] = obtd    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
+        obtd_not_flipped = np.full(    # 5 is to save: i  j  OBTD  <i||L||j>  <i||S||j>
+            shape = (n_obtds_per_transition, 5, n_transitions),
+            dtype = np.float32,
+            fill_value = np.inf,
+        )
+        obtd_dict[master_key_not_flipped] = obtd_not_flipped    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
+        print("TRY 1 SAD")
+
+    else:
+        print("TRY 1 HAPPY")
+
+    try:
+        """
+        Since, for example, all 0n -> 2n and 2n -> 0n transitions are all
+        stored in a 0n -> 2n file. Consequently, 2n -> 0n transitions ... ?
+        """
+        obtd_flipped = obtd_dict[master_key_flipped]
+    except KeyError:
+        obtd_flipped = np.full(
+            shape = (
+                n_obtds_per_transition,
+                5,
+                n_transitions_flipped - n_transitions_flipped_skipped,
+            ),
+            dtype = np.float32,
+            fill_value = np.inf,
+        )
+        obtd_dict[master_key_flipped] = obtd_flipped
+        print("TRY 2 SAD")
+
+    else:
+        print("TRY 2 HAPPY")
 
     n_moment_skips = 0
+    transit_not_flipped_idx = 0
+    transit_flipped_idx = 0
+    
     with open(path, "r") as infile:
-        for transit_idx in range(n_initial_levels*n_final_levels):
+        # for transit_idx in range(n_initial_levels*n_final_levels):
+        for _ in range(n_transitions + n_transitions_flipped):
             for line in infile:
                 """
                 Find the line in the file with info about the initial and final
@@ -546,20 +713,71 @@ def _load_obtd(
                     match_ = re.search(sect_header_pattern, line)
                     if not match_:
                         msg = "Unexpected pattern in OBTD file!"
-                        raise RuntimeError(msg)
+                        raise KshellDataStructureError(msg)
                     
-                    j_i_current, idx_i_current, j_f_current, idx_f_current = map(int, match_.groups())
-                    is_moment = (j_i == j_f) and (pi_i == pi_f) and (idx_i_current == idx_f_current)    # Not a transition but a moment.
-                    n_moment_skips += is_moment
+                    j_f_current, idx_f_current, j_i_current, idx_i_current = map(int, match_.groups())
+                    pi_i_current, pi_f_current = pi_i, pi_f     # i and f might have to be swapped below.
+                    
+                    is_moment = (j_i_current == j_f_current) and (pi_i_current == pi_f_current) and (idx_i_current == idx_f_current)
+                    if is_moment:
+                        """
+                        Not a transition but a moment. Moments are skipped a
+                        bit further down in the code to keep the fp at the
+                        correct location.
+                        """
+                        n_moment_skips += 1
+                        break
+                    
                     idx_i_current -= 1  # Make indices start from 0.
                     idx_f_current -= 1
-                    key = (j_i_current, pi_i, idx_i_current, j_f_current, pi_f, idx_f_current)
-                    key_with_transit_idx = key + (transit_idx,) # This key is used for np.load and np.save. Need the transit index to know which 2D slice.
-                    
+
                     assert j_i_current == j_i   # Check that the ang. momentum in the filename agrees with the contents of the file.
                     assert j_f_current == j_f
-                    assert idx_i_current < n_initial_levels
-                    assert idx_f_current < n_final_levels
+
+                    # Fetch the initial and final state energies.
+                    key_i = (j_i_current, pi_i, idx_i_current)
+                    key_f = (j_f_current, pi_f, idx_f_current)
+                    E_i_current = level_dict[key_i]
+                    E_f_current = level_dict[key_f]
+
+                    # initial_levels_tmp.add(idx_i_current)
+                    # final_levels_tmp.add(idx_f_current)
+                    # tmplst.append(line)
+
+                    if (is_flipped := E_i_current <= E_f_current):
+                        """
+                        Flip the transition if the initial energy is lower than
+                        the final energy.
+                        """
+                        if is_diag:
+                            """
+                            In this case, transitions with E_gamma <= 0 are
+                            duplicate transitions in the KSHELL log files and
+                            must be skipped. The following `break` makes sure
+                            that there will not be created an entry in the
+                            `obtd_dict` and that the transition counters are
+                            not incremented.
+                            """
+                            break
+
+                        j_i_current, j_f_current = j_f_current, j_i_current
+                        pi_i_current, pi_f_current = pi_f_current, pi_i_current
+                        idx_i_current, idx_f_current = idx_f_current, idx_i_current
+                        
+                        transit_idx = transit_flipped_idx
+                        obtd = obtd_flipped
+                        transit_flipped_idx += 1
+
+                    else:
+                        transit_idx = transit_not_flipped_idx
+                        obtd = obtd_not_flipped
+                        transit_not_flipped_idx += 1
+
+                    key = (j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current)
+                    key_with_transit_idx = key + (transit_idx,) # This key is used for np.load and np.save. Need the transit index to know which 2D slice.
+                    
+                    # assert idx_i_current < n_initial_levels
+                    # assert idx_f_current < n_final_levels
                     # assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
                     # assert key_with_transit_idx not in obtd_dict
 
@@ -569,10 +787,30 @@ def _load_obtd(
                         files for '_L_' and '_S_'. Doing a sanity check just to
                         be sure ...
                         """
-                        assert np.all(obtd_dict[key] == obtd[:, :, transit_idx])
+                        try:
+                            assert np.all(obtd_dict[key] == obtd[:, :, transit_idx]), f"{path = }"
+                        except AssertionError as e:
+                            print(f"{is_moment = }")
+                            print(f"{is_flipped = }")
+                            print(f"{key = }")
+                            print(f"{key_with_transit_idx = }")
+                            print(f"{path = }")
+                            print(f"{line = }")
+                            print(f"{_ = }")
+                            print(f"{n_moment_skips = }")
+                            print(f"{transit_flipped_idx = }")
+                            print(f"{transit_not_flipped_idx = }")
+
+                            raise e
                         assert np.all(obtd_dict[key_with_transit_idx] == obtd[:, :, transit_idx])
                     
                     else:
+                        # try: obtd_dict[key] = obtd[:, :, transit_idx]
+                        # except IndexError as e:
+                        #     print(f"{path = }")
+                        #     print(f"{transit_flipped_idx = }")
+                        #     print(f"{transit_not_flipped_idx = }")
+                        #     raise e
                         obtd_dict[key] = obtd[:, :, transit_idx]
                         obtd_dict[key_with_transit_idx] = obtd[:, :, transit_idx]
                     
@@ -617,15 +855,59 @@ def _load_obtd(
                     """
                     continue
 
+                if is_diag and is_flipped:
+                    """
+                    Duplicate entry in the log file! Skip!
+                    """
+                    continue
+
                 obtd[obtd_idx, :3, transit_idx] = [float(elem) for elem in tmp[:3]] # This is: i  j  OBTD
                 obtd[obtd_idx, col_idx, transit_idx] = float(tmp[3])    # This is: <i||L||j> or <i||S||j>.
                 obtd[obtd_idx, 0, transit_idx] -= 1 # Make indices start from 0.
                 obtd[obtd_idx, 1, transit_idx] -= 1
+
+    first_initial_idx, first_final_idx = min(if_levels)
+    last_initial_idx, last_final_idx = max(if_levels)
     
-    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0)])
-    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, 0, j_f, pi_f, 0, 0)])
-    assert np.all(obtd[:, :, 0] == obtd_dict[(j_i, pi_i, j_f, pi_f)][:, :, 0])
-    assert np.all(obtd[:, :, -1] == obtd_dict[(j_i, pi_i, n_initial_levels - 1, j_f, pi_f, n_final_levels - 1)])
+    # first_initial_idx = min(initial_levels)
+    # first_final_idx = min(final_levels)
+    # last_initial_idx = max(initial_levels)
+    # last_final_idx = max(final_levels)
+
+    assert np.all(obtd_not_flipped[:, :, 0] == obtd_dict[(j_i, pi_i, first_initial_idx, j_f, pi_f, first_final_idx)])
+    assert np.all(obtd_not_flipped[:, :, 0] == obtd_dict[(j_i, pi_i, first_initial_idx, j_f, pi_f, first_final_idx, 0)])
+    assert np.all(obtd_not_flipped[:, :, 0] == obtd_dict[(j_i, pi_i, j_f, pi_f)][:, :, 0])
+    assert np.all(obtd_not_flipped[:, :, -1] == obtd_dict[(j_i, pi_i, last_initial_idx, j_f, pi_f, last_final_idx)])
+    
+    assert np.all(obtd_not_flipped[:, 0, :] != np.inf)  # Array is initialised with `np.inf` and all values should be overwritten at this point (except L or S)!
+    assert np.all(obtd_not_flipped[:, 1, :] != np.inf)
+    assert np.all(obtd_not_flipped[:, 2, :] != np.inf)
+    assert np.all(obtd_not_flipped[:, col_idx, :] != np.inf)
+    
+    if not is_diag:
+        """
+        If `is_diag` is True, then there are no flipped transitions because
+        they will all be skipped. Consequently, the following test does not
+        make any sense and actually raises errors because of looking for min
+        and max in empty sequences.
+        """
+        first_initial_flipped_idx = min(initial_levels_flipped)
+        first_final_flipped_idx = min(final_levels_flipped)
+        last_initial_flipped_idx = max(initial_levels_flipped)
+        last_final_flipped_idx = max(final_levels_flipped)
+
+        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx)])
+        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx, 0)])
+        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, j_i, pi_i)][:, :, 0])
+        assert np.all(obtd_flipped[:, :, -1] == obtd_dict[(j_f, pi_f, last_initial_flipped_idx, j_i, pi_i, last_final_flipped_idx)])
+
+    else:
+        assert not initial_levels_flipped
+        assert not final_levels_flipped
+        assert n_transitions_flipped == n_transitions_flipped_skipped
+
+    # TODO: ADD TEST TO CHECK THAT L AND S COLUMNS HAVE BEEN POPULATED FOR ALL ENTRIES!
+
     print(f"OBTD {path.split('/')[-1]} loaded ({n_moment_skips} moments skipped)", end="")
     
     timing = time.perf_counter() - timing
@@ -634,10 +916,20 @@ def _load_obtd(
 
     print()
 
-def _load_obtd_parallel_wrapper(paths: list[str]) -> dict[tuple[int, ...]]:
+def _load_obtd_parallel_wrapper(args: tuple[list[str], dict[tuple[int, int, int], float]]) -> dict[tuple[int, ...]]:
+    """
+    Parameters
+    ----------
+    args:
+        ([OBTD L file path, OBTD S file path], dict with level energies).
+        The levels dict has (2*j, pi, idx) as keys and the corresponding energy
+        as values and is needed to properly sort the OBTDs so that the initial
+        level has higher energy than the final level.
+    """
+    paths, level_dict = args
     obtd_dict: dict[tuple[int, ...]] = {}
     for path in paths:
-        _load_obtd(path=path, obtd_dict=obtd_dict)
+        _load_obtd(path=path, obtd_dict=obtd_dict, level_dict=level_dict)
 
     return obtd_dict
 
