@@ -29,7 +29,7 @@ from .test_loaders import (
     test_load_energy_logfile, test_load_transition_logfile
 )
 from .onebody_transition_density_tools import (
-    get_included_transitions_obtd_dict_keys
+    get_included_transitions_obtd_dict_keys, make_level_dict
 )
 
 class ReadKshellOutput:
@@ -476,28 +476,7 @@ class ReadKshellOutput:
             return
         
         self.obtd_dict: dict[tuple[int, ...], NDArray] = {}
-        
-        level_dict: dict[tuple[int, int, int], float] = {}
-
-        for level in self.levels:
-            """
-            Make a dict to easily look up the energy of a level based on its
-            angular momentum, parity and index. This is gonna happen a lot of
-            times in the OBTD loader so we might save some CPU to do it this
-            way instead of masking the `self.levels` array repeatedly.
-            
-            [E, 2*spin, parity, idx, Hcm]
-            """
-            E, j, pi, idx, _ = level
-            key = (int(j), int(pi), int(idx))
-            
-            if key in level_dict:
-                msg = (
-                    f"Key {key} already exists in the level_dict and it should not!"
-                )
-                raise KshellDataStructureError(msg)
-            
-            level_dict[key] = E
+        level_dict = make_level_dict(self.levels)
         
         if flags["parallel"]:
             with multiprocessing.Pool() as pool:

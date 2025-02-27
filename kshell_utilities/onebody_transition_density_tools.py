@@ -1,5 +1,8 @@
 import numpy.typing as npt
+import numpy as np
 from collections.abc import KeysView
+
+from .kshell_exceptions import KshellDataStructureError
 
 def get_included_transitions_obtd_dict_keys(
     included_transitions: npt.NDArray,
@@ -57,3 +60,28 @@ def get_included_transitions_obtd_dict_keys(
     print()
 
     return included_transitions_keys
+
+def make_level_dict(levels: npt.NDArray[np.float64]) -> dict[tuple[int, int, int], float]:
+    level_dict: dict[tuple[int, int, int], float] = {}
+
+    for level in levels:
+        """
+        Make a dict to easily look up the energy of a level based on its
+        angular momentum, parity and index. This is gonna happen a lot of
+        times in the OBTD loader so we might save some CPU to do it this
+        way instead of masking the `self.levels` array repeatedly.
+        
+        [E, 2*spin, parity, idx, Hcm]
+        """
+        E, j, pi, idx, _ = level
+        key = (int(j), int(pi), int(idx))
+        
+        if key in level_dict:
+            msg = (
+                f"Key {key} already exists in the level_dict and it should not!"
+            )
+            raise KshellDataStructureError(msg)
+        
+        level_dict[key] = E
+
+    return level_dict
