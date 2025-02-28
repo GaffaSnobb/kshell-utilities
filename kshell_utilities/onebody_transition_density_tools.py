@@ -31,7 +31,7 @@ def get_included_transitions_obtd_dict_keys(
     obtd_skips: set[tuple[int, ...]] = set()
 
     for transition_idx in range(len(included_transitions)):
-        j_i, pi_i, idx_i, Ex_i, j_f, pi_f, idx_f, Ex_f, E_gamma, B_if, B_fi = included_transitions[transition_idx]
+        j_i, pi_i, idx_i, Ex_i, j_f, pi_f, idx_f, Ex_f, E_gamma, B_if, B_fi, mom = included_transitions[transition_idx]
         j_i   = int(j_i)    # int casts are not very important, just for more clear printing.
         pi_i  = int(pi_i)
         idx_i = int(idx_i)
