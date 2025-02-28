@@ -2,9 +2,10 @@ from __future__ import annotations
 import time, sys, ast, warnings, re
 from fractions import Fraction
 from typing import TextIO
+
 import numpy as np
 import numpy.typing as npt
-from numpy.typing import NDArray
+
 from .kshell_exceptions import KshellDataStructureError
 from .data_structures import (
     Interaction, Partition, OrbitalParameters, Configuration
@@ -248,7 +249,7 @@ def _load_transition_logfile(
 
 def _load_energy_logfile(
     path: str
-) -> NDArray:
+) -> npt.NDArray:
     """
     Read KSHELL energy logfiles. NOTE: I needed to read additional info
     from the log files and decided it is easier to completely skip
@@ -476,23 +477,16 @@ def _load_obtd(
         )
         raise KshellDataStructureError(msg)
 
-    n_transitions = 0
+    n_transitions_not_flipped = 0
     n_transitions_flipped = 0   # Flipped are levels where Ei < Ef and the transition has to be flipped.
     n_transitions_flipped_skipped = 0   # If `is_diag` is True, then flipped transitions are duplicates and must be skipped.
     n_moments = 0
-    
-    initial_levels = set()
-    final_levels = set()
-    initial_levels_flipped = set()
-    final_levels_flipped = set()
+
+    n_transitions_flipped_skipped_2 = 0
+    n_moments_2 = 0
 
     if_levels: set[tuple[int, int]] = set() # if as in initial final.
     if_levels_flipped: set[tuple[int, int]] = set()
-
-    # Debug.
-    initial_levels_tmp = set()
-    final_levels_tmp = set()
-    tmplst = list()
 
     with open(path, "r") as infile:
         """
@@ -561,15 +555,8 @@ def _load_obtd(
                     raise KshellDataStructureError(msg)
                 
                 j_f_current, idx_f_current, j_i_current, idx_i_current = map(int, match_.groups())  # Ex.: 0, 1, 2, 1
-                assert j_i_current == j_i   # Better safe than sorry!
+                assert j_i_current == j_i   # Better safe than sorry (sorry A-ha)!
                 assert j_f_current == j_f
-
-                # is_moment = is_diag and (idx_i_current == idx_f_current)
-                # if is_moment:
-                #     """
-                #     Not a transition but a moment. Moments are skipped.
-                #     """
-                #     n_moment_skips += 1
 
                 idx_i_current -= 1  # Start indices from 0.
                 idx_f_current -= 1
@@ -581,17 +568,6 @@ def _load_obtd(
                 E_f_current = level_dict[key_f]
 
                 if E_i_current < E_f_current:
-                    # """
-                    # Not completely sure if it is right to use `<=`. It implies
-                    # that transitions where Ei == Ef are decays.
-                    # """
-                    # if not is_diag:
-                    #     """
-                    #     In this case, transitions with E_gamma <= 0 are unique
-                    #     transitions in the KSHELL log files, but i and f must
-                    #     be swapped. When `is_diag` is True, those transitions
-                    #     are duplicates and must be skipped.
-                    #     """
                     n_transitions_flipped += 1
 
                     if is_diag:
@@ -601,16 +577,11 @@ def _load_obtd(
                         """
                         n_transitions_flipped_skipped += 1
                     else:
-                        # initial_levels_flipped.add(idx_f_current)
-                        # final_levels_flipped.add(idx_i_current)
-
                         if_levels_flipped.add((idx_f_current, idx_i_current))
 
                 elif E_i_current > E_f_current:
-                    # initial_levels.add(idx_i_current)
-                    # final_levels.add(idx_f_current)
                     if_levels.add((idx_i_current, idx_f_current))
-                    n_transitions += 1
+                    n_transitions_not_flipped += 1
 
                 elif E_i_current == E_f_current:
                     """
@@ -619,7 +590,7 @@ def _load_obtd(
                     assert is_diag
                     n_moments += 1
 
-    if (n_transitions == 0) and (n_transitions_flipped == 0):
+    if (n_transitions_not_flipped == 0) and (n_transitions_flipped == 0):
         """
         For example, in the file
 
@@ -643,7 +614,7 @@ def _load_obtd(
     else:
         assert (tmp := (n_transitions_flipped - n_transitions_flipped_skipped)) > 0, tmp
 
-    master_key_not_flipped = (j_i, pi_i, j_f, pi_f)
+    master_key_not_flipped = (j_i, pi_i, j_f, pi_f) # These two master keys will be the same when `is_diag` is True.
     master_key_flipped = (j_f, pi_f, j_i, pi_i)
     
     try:
@@ -656,20 +627,16 @@ def _load_obtd(
         obtd_not_flipped = obtd_dict[master_key_not_flipped]
     except KeyError:
         obtd_not_flipped = np.full(    # 5 is to save: i  j  OBTD  <i||L||j>  <i||S||j>
-            shape = (n_obtds_per_transition, 5, n_transitions),
+            shape = (n_obtds_per_transition, 5, n_transitions_not_flipped),
             dtype = np.float32,
             fill_value = np.inf,
         )
         obtd_dict[master_key_not_flipped] = obtd_not_flipped    # Provide view to the entire matrix in case vectorised operations are needed on the complete matrix.
-        print("TRY 1 SAD")
-
-    else:
-        print("TRY 1 HAPPY")
 
     try:
         """
-        Since, for example, all 0n -> 2n and 2n -> 0n transitions are all
-        stored in a 0n -> 2n file. Consequently, 2n -> 0n transitions ... ?
+        If the gamma energy is negative, f and i are swapped (flipped) and the
+        abs of the gamma energy is taken.
         """
         obtd_flipped = obtd_dict[master_key_flipped]
     except KeyError:
@@ -683,18 +650,13 @@ def _load_obtd(
             fill_value = np.inf,
         )
         obtd_dict[master_key_flipped] = obtd_flipped
-        print("TRY 2 SAD")
 
-    else:
-        print("TRY 2 HAPPY")
-
-    n_moment_skips = 0
+    # n_moment_skips = 0
     transit_not_flipped_idx = 0
     transit_flipped_idx = 0
     
     with open(path, "r") as infile:
-        # for transit_idx in range(n_initial_levels*n_final_levels):
-        for _ in range(n_transitions + n_transitions_flipped):
+        for _ in range(n_transitions_not_flipped + n_transitions_flipped + n_moments):
             for line in infile:
                 """
                 Find the line in the file with info about the initial and final
@@ -719,14 +681,6 @@ def _load_obtd(
                     pi_i_current, pi_f_current = pi_i, pi_f     # i and f might have to be swapped below.
                     
                     is_moment = (j_i_current == j_f_current) and (pi_i_current == pi_f_current) and (idx_i_current == idx_f_current)
-                    if is_moment:
-                        """
-                        Not a transition but a moment. Moments are skipped a
-                        bit further down in the code to keep the fp at the
-                        correct location.
-                        """
-                        n_moment_skips += 1
-                        break
                     
                     idx_i_current -= 1  # Make indices start from 0.
                     idx_f_current -= 1
@@ -740,24 +694,21 @@ def _load_obtd(
                     E_i_current = level_dict[key_i]
                     E_f_current = level_dict[key_f]
 
-                    # initial_levels_tmp.add(idx_i_current)
-                    # final_levels_tmp.add(idx_f_current)
-                    # tmplst.append(line)
-
-                    if (is_flipped := E_i_current <= E_f_current):
+                    if (is_flipped := E_i_current < E_f_current):
                         """
                         Flip the transition if the initial energy is lower than
-                        the final energy.
+                        the final energy (negative gamma energy).
                         """
                         if is_diag:
                             """
-                            In this case, transitions with E_gamma <= 0 are
+                            In this case, transitions with E_gamma < 0 are
                             duplicate transitions in the KSHELL log files and
                             must be skipped. The following `break` makes sure
                             that there will not be created an entry in the
                             `obtd_dict` and that the transition counters are
                             not incremented.
                             """
+                            n_transitions_flipped_skipped_2 += 1
                             break
 
                         j_i_current, j_f_current = j_f_current, j_i_current
@@ -768,18 +719,23 @@ def _load_obtd(
                         obtd = obtd_flipped
                         transit_flipped_idx += 1
 
-                    else:
+                    elif E_i_current > E_f_current:
                         transit_idx = transit_not_flipped_idx
                         obtd = obtd_not_flipped
                         transit_not_flipped_idx += 1
 
+                    elif E_i_current == E_f_current:
+                        """
+                        Skip moments.
+                        """
+                        assert is_moment
+                        n_moments_2 += 1
+                        break
+
+                    assert not is_moment
+
                     key = (j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current)
                     key_with_transit_idx = key + (transit_idx,) # This key is used for np.load and np.save. Need the transit index to know which 2D slice.
-                    
-                    # assert idx_i_current < n_initial_levels
-                    # assert idx_f_current < n_final_levels
-                    # assert key not in obtd_dict # Something is wrong if the key already exists. Each entry should be unique.
-                    # assert key_with_transit_idx not in obtd_dict
 
                     if key in obtd_dict:
                         """
@@ -787,30 +743,10 @@ def _load_obtd(
                         files for '_L_' and '_S_'. Doing a sanity check just to
                         be sure ...
                         """
-                        try:
-                            assert np.all(obtd_dict[key] == obtd[:, :, transit_idx]), f"{path = }"
-                        except AssertionError as e:
-                            print(f"{is_moment = }")
-                            print(f"{is_flipped = }")
-                            print(f"{key = }")
-                            print(f"{key_with_transit_idx = }")
-                            print(f"{path = }")
-                            print(f"{line = }")
-                            print(f"{_ = }")
-                            print(f"{n_moment_skips = }")
-                            print(f"{transit_flipped_idx = }")
-                            print(f"{transit_not_flipped_idx = }")
-
-                            raise e
+                        assert np.all(obtd_dict[key] == obtd[:, :, transit_idx]), f"{path = }"
                         assert np.all(obtd_dict[key_with_transit_idx] == obtd[:, :, transit_idx])
                     
                     else:
-                        # try: obtd_dict[key] = obtd[:, :, transit_idx]
-                        # except IndexError as e:
-                        #     print(f"{path = }")
-                        #     print(f"{transit_flipped_idx = }")
-                        #     print(f"{transit_not_flipped_idx = }")
-                        #     raise e
                         obtd_dict[key] = obtd[:, :, transit_idx]
                         obtd_dict[key_with_transit_idx] = obtd[:, :, transit_idx]
                     
@@ -866,13 +802,14 @@ def _load_obtd(
                 obtd[obtd_idx, 0, transit_idx] -= 1 # Make indices start from 0.
                 obtd[obtd_idx, 1, transit_idx] -= 1
 
+    if is_diag: assert n_transitions_flipped == n_transitions_flipped_skipped_2
+    else: assert n_transitions_flipped == transit_flipped_idx
+    assert n_transitions_not_flipped == transit_not_flipped_idx
+    assert n_transitions_flipped_skipped == n_transitions_flipped_skipped_2
+    assert n_moments == n_moments_2
+
     first_initial_idx, first_final_idx = min(if_levels)
     last_initial_idx, last_final_idx = max(if_levels)
-    
-    # first_initial_idx = min(initial_levels)
-    # first_final_idx = min(final_levels)
-    # last_initial_idx = max(initial_levels)
-    # last_final_idx = max(final_levels)
 
     assert np.all(obtd_not_flipped[:, :, 0] == obtd_dict[(j_i, pi_i, first_initial_idx, j_f, pi_f, first_final_idx)])
     assert np.all(obtd_not_flipped[:, :, 0] == obtd_dict[(j_i, pi_i, first_initial_idx, j_f, pi_f, first_final_idx, 0)])
@@ -891,10 +828,8 @@ def _load_obtd(
         make any sense and actually raises errors because of looking for min
         and max in empty sequences.
         """
-        first_initial_flipped_idx = min(initial_levels_flipped)
-        first_final_flipped_idx = min(final_levels_flipped)
-        last_initial_flipped_idx = max(initial_levels_flipped)
-        last_final_flipped_idx = max(final_levels_flipped)
+        first_initial_flipped_idx, first_final_flipped_idx = min(if_levels_flipped)
+        last_initial_flipped_idx, last_final_flipped_idx = max(if_levels_flipped)
 
         assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx)])
         assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx, 0)])
@@ -902,13 +837,12 @@ def _load_obtd(
         assert np.all(obtd_flipped[:, :, -1] == obtd_dict[(j_f, pi_f, last_initial_flipped_idx, j_i, pi_i, last_final_flipped_idx)])
 
     else:
-        assert not initial_levels_flipped
-        assert not final_levels_flipped
+        assert not if_levels_flipped
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
     # TODO: ADD TEST TO CHECK THAT L AND S COLUMNS HAVE BEEN POPULATED FOR ALL ENTRIES!
 
-    print(f"OBTD {path.split('/')[-1]} loaded ({n_moment_skips} moments skipped)", end="")
+    print(f"OBTD {path.split('/')[-1]} loaded ({n_moments} moments skipped)", end="")
     
     timing = time.perf_counter() - timing
     if flags["debug"]:
