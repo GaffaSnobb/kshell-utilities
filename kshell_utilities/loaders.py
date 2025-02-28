@@ -481,9 +481,11 @@ def _load_obtd(
     n_transitions_flipped = 0   # Flipped are levels where Ei < Ef and the transition has to be flipped.
     n_transitions_flipped_skipped = 0   # If `is_diag` is True, then flipped transitions are duplicates and must be skipped.
     n_moments = 0
+    n_same_energy = 0
 
     n_transitions_flipped_skipped_2 = 0
     n_moments_2 = 0
+    n_same_energy_2 = 0
 
     if_levels: set[tuple[int, int]] = set() # if as in initial final.
     if_levels_flipped: set[tuple[int, int]] = set()
@@ -587,8 +589,17 @@ def _load_obtd(
                     """
                     Moments.
                     """
-                    assert is_diag
-                    n_moments += 1
+                    # assert is_diag, f"{path = }, {key_i = }, {key_f = }"
+                    if is_diag:
+                        n_moments += 1
+                    else:
+                        """
+                        This case means that two different levels, with
+                        different j and / or pi, has the exact same energy.
+                        It's probably not a big deal, but I haven't decided how
+                        to deal with it yet.
+                        """
+                        n_same_energy += 1
 
     if (n_transitions_not_flipped == 0) and (n_transitions_flipped == 0):
         """
@@ -656,7 +667,7 @@ def _load_obtd(
     transit_flipped_idx = 0
     
     with open(path, "r") as infile:
-        for _ in range(n_transitions_not_flipped + n_transitions_flipped + n_moments):
+        for _ in range(n_transitions_not_flipped + n_transitions_flipped + n_moments + n_same_energy):
             for line in infile:
                 """
                 Find the line in the file with info about the initial and final
@@ -725,11 +736,18 @@ def _load_obtd(
                         transit_not_flipped_idx += 1
 
                     elif E_i_current == E_f_current:
-                        """
-                        Skip moments.
-                        """
-                        assert is_moment
-                        n_moments_2 += 1
+                        # assert is_moment
+                        if is_moment:
+                            """
+                            Skip moments.
+                            """
+                            n_moments_2 += 1
+                        else:
+                            """
+                            Two different levels of exact same energy.
+                            """
+                            n_same_energy_2 += 1
+
                         break
 
                     assert not is_moment
@@ -807,6 +825,7 @@ def _load_obtd(
     assert n_transitions_not_flipped == transit_not_flipped_idx
     assert n_transitions_flipped_skipped == n_transitions_flipped_skipped_2
     assert n_moments == n_moments_2
+    assert n_same_energy == n_same_energy_2
 
     first_initial_idx, first_final_idx = min(if_levels)
     last_initial_idx, last_final_idx = max(if_levels)
@@ -840,9 +859,7 @@ def _load_obtd(
         assert not if_levels_flipped
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
-    # TODO: ADD TEST TO CHECK THAT L AND S COLUMNS HAVE BEEN POPULATED FOR ALL ENTRIES!
-
-    print(f"OBTD {path.split('/')[-1]} loaded ({n_moments} moments skipped)", end="")
+    print(f"OBTD {path.split('/')[-1]} loaded ({n_moments} moments, {n_same_energy} same energies skipped)", end="")
     
     timing = time.perf_counter() - timing
     if flags["debug"]:
