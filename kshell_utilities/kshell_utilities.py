@@ -1,23 +1,22 @@
 from __future__ import annotations
-import os, sys, multiprocessing, hashlib, ast, time, re, warnings, functools
+import os, sys, multiprocessing, hashlib, ast, time, re, warnings
 from fractions import Fraction
-from collections import defaultdict
 from typing import Callable, Iterable
 from itertools import chain
+
 import numpy.typing as npt
 import numpy as np
-from numpy.typing import NDArray
 from numpy.lib.npyio import NpzFile
 import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
     elements_reversed, flags, DPI, orbital_labels, FIGSIZE
 )
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
-    isotope
 )
 from .loaders import (
     _generic_loader, _load_energy_levels, _load_transition_probabilities,
@@ -26,11 +25,12 @@ from .loaders import (
     _load_transition_logfile
 )
 from .test_loaders import (
-    test_load_energy_logfile, test_load_transition_logfile
+    test_load_energy_logfile, test_load_transition_logfile, test_load_obtd,
 )
 from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
+from .other_tools import HidePrint
 
 class ReadKshellOutput:
     """
@@ -106,11 +106,11 @@ class ReadKshellOutput:
         # self.truncation = None
         self.nucleus = None
         self.interaction = None
-        self.levels = NDArray | None
-        self.transitions_BM1 = NDArray | None
-        self.transitions_BE2 = NDArray | None
-        self.transitions_BE1 = NDArray | None
-        self.obtd_dict: dict[tuple[int, ...], NDArray] | None = None
+        self.levels = npt.NDArray | None
+        self.transitions_BM1 = npt.NDArray | None
+        self.transitions_BE2 = npt.NDArray | None
+        self.transitions_BE1 = npt.NDArray | None
+        self.obtd_dict: dict[tuple[int, ...], npt.NDArray] | None = None
         self.npy_path = "tmp"   # Directory for storing .npy files.
         self.unique_id = hashlib.sha1(self.path.encode()).hexdigest()   # NOTE: Pretty sure that just using the path is completely unique.
         # Debug.
@@ -362,6 +362,7 @@ class ReadKshellOutput:
         159) gives a view to the 2D slice which contains the OBTDs for
         0+(50) -> 1+(159).
         """
+        with HidePrint(): test_load_obtd()
         obtd_fname = f"{self.npy_path}/{self.base_fname}_obtd_{self.unique_id}.npz"
 
         if self.load_and_save_to_file != "overwrite":
@@ -370,9 +371,9 @@ class ReadKshellOutput:
             """
             if os.path.isfile(obtd_fname) and self.load_and_save_to_file:
                 obtd_npz: NpzFile = np.load(file=obtd_fname, allow_pickle=False)
-                obtd_dict: dict[tuple[int, ...], NDArray] = {}
-                keys_with_transit_idx: NDArray = obtd_npz["keys_with_transit_idx"]
-                self.orbit_numbers: NDArray = obtd_npz["orbit_numbers"]
+                obtd_dict: dict[tuple[int, ...], npt.NDArray] = {}
+                keys_with_transit_idx: npt.NDArray = obtd_npz["keys_with_transit_idx"]
+                self.orbit_numbers: npt.NDArray = obtd_npz["orbit_numbers"]
 
                 excluded_keys = ["orbit_numbers", "keys_with_transit_idx"]
 
@@ -475,7 +476,7 @@ class ReadKshellOutput:
             print(f"No OBTD file found in {self.path}!")
             return
         
-        self.obtd_dict: dict[tuple[int, ...], NDArray] = {}
+        self.obtd_dict: dict[tuple[int, ...], npt.NDArray] = {}
         level_dict = make_level_dict(self.levels)
         
         if flags["parallel"]:
@@ -1037,7 +1038,7 @@ class ReadKshellOutput:
         filter_parities: str = "both",
         plot: bool = True,
         save_plot: bool = False,
-    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
+    ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
         """
         Wrapper method to include gamma ray strength function
         calculations as an attribute to this class. Includes saving
@@ -2815,7 +2816,7 @@ class ReadKshellOutput:
         print(f"B decay mean: {np.mean(included_transitions[:, 9])}")
         print(f"Number of included transitions in the OBTD calc: {len(included_transitions)}")
         
-        included_transitions: NDArray[np.float64] = included_transitions[mask]
+        included_transitions: npt.NDArray[np.float64] = included_transitions[mask]
 
         print("\nSuggestions to B decay value limits (AFTER E_gamma and B_decay limits are considered):")
         print(f"B decay max: {max(included_transitions[:, 9])}")
