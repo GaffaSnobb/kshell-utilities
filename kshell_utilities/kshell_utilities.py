@@ -363,6 +363,7 @@ class ReadKshellOutput:
         0+(50) -> 1+(159).
         """
         with HidePrint(): test_load_obtd()
+        self.level_dict = make_level_dict(self.levels)  # I want this to happen even if OBTDs are loaded from .npz.
         obtd_fname = f"{self.npy_path}/{self.base_fname}_obtd_{self.unique_id}.npz"
 
         if self.load_and_save_to_file != "overwrite":
@@ -477,11 +478,10 @@ class ReadKshellOutput:
             return
         
         self.obtd_dict: dict[tuple[int, ...], npt.NDArray] = {}
-        level_dict = make_level_dict(self.levels)
         
         if flags["parallel"]:
             with multiprocessing.Pool() as pool:
-                dicts = pool.map(_load_obtd_parallel_wrapper, [(path_pair, level_dict) for path_pair in obtd_paths])
+                dicts = pool.map(_load_obtd_parallel_wrapper, [(path_pair, self.level_dict) for path_pair in obtd_paths])
 
             for dict_ in dicts:
                 self.obtd_dict.update(dict_)
@@ -492,7 +492,7 @@ class ReadKshellOutput:
             """
             for paths in obtd_paths:
                 for L_or_S_path in paths:
-                    _load_obtd(path=L_or_S_path, obtd_dict=self.obtd_dict, level_dict=level_dict)
+                    _load_obtd(path=L_or_S_path, obtd_dict=self.obtd_dict, level_dict=self.level_dict)
 
         orbit_numbers: list[list[int]] = []
 
@@ -2828,7 +2828,6 @@ class ReadKshellOutput:
             included_transitions = included_transitions,
             obtd_dict_keys = self.obtd_dict.keys(),
         )
-
         obtd_summary = np.zeros(shape=(n_orbitals, n_orbitals), dtype=np.float64)
         matrix_element_skips = 0
         n_obtds = 0
@@ -2863,23 +2862,29 @@ class ReadKshellOutput:
             (ji, pii, idxi, jf, pif, idxf)
             j_i, pi_i, idx_i, j_f, pi_f, idx_f = key
             """
-            orb_idx_final, orb_idx_initial, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
+            key_initial = key[:3]   # (j_i, pi_i, idx_i)
+            key_final = key[3:]     # (j_f, pi_f, idx_f)
+            E_i = self.level_dict[key_initial]
+            E_f = self.level_dict[key_final]
+            assert E_i > E_f    # Maybe I'm paranoid, but whatever.
+            
+            orb_idx_create, orb_idx_annihilate, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
             n_obtds += obtd.size
 
             matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
             matrix_element_skips += sum(matrix_elem_mask)
             obtd[matrix_elem_mask] = 0    # Pretty sure that what happens here is that transition selection rules for M1 are being respected.
 
-            # obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += np.abs(obtd)
+            obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd)
             
-            obtd_summary[np.int64(orb_idx_initial), np.int64(orb_idx_final)] += obtd
-            print(f"{key = }")
-            break
+            # obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += obtd
+            # print(f"{key = }")
+            # break
 
         print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
 
-        # obtd_summary /= np.sum(obtd_summary)
-        # obtd_summary *= 100
+        obtd_summary /= np.sum(obtd_summary)
+        obtd_summary *= 100
 
         proton_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
         neutron_orb_labels = [orbital_labels(n, l, j) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
@@ -2930,8 +2935,10 @@ class ReadKshellOutput:
             vmin = cbar.vmin    # Make sure proton and neutron heatmaps have the same scale.
             vmax = cbar.vmax
             
+            ax.set_ylabel(r"$\beta$", rotation=0)
+            ax.set_xlabel(r"$\alpha$")
             ax.tick_params(axis="y", rotation=0)
-            # ax.set_title(f"{nucleon.capitalize()} orbitals\n{np.sum(data):.1f} \% of total")
+            ax.set_title(r"$\rho_{\alpha \beta} = \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle$")
             if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)
