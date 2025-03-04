@@ -10,6 +10,7 @@ from numpy.lib.npyio import NpzFile
 import numba
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
@@ -2510,34 +2511,71 @@ class ReadKshellOutput:
         0n -> 2n
 
         i  j  OBTD L S
+
+        see p. 130 in Suhonen
         """
+        # master_key = (2, -1, 0, -1)
         # master_key = (0, -1, 2, -1)
         keys = [
-            (0, -1, 0, 2, -1, 0), (0, -1, 0, 2, -1, 1)
+            # (2, -1, 3, 0, -1, 0)
+            (2, +1, 0, 4, +1, 0),
+            (2, +1, 0, 4, +1, 1),
+            (4, +1, 2, 2, +1, 0),
+            (4, +1, 3, 2, +1, 0),
         ]
-        fac = np.sqrt(4*np.pi/3)    # Coefficient for moment?
+        FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
+        GL_P, GL_N = 1.1, -0.1
+        GS_P, GS_N = 5.027, -3.443
+        
         proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
         neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
         n_proton_orbitals = len(proton_orb_indices)
         n_neutron_orbitals = len(neutron_orb_indices)
         n_orbitals = n_proton_orbitals + n_neutron_orbitals
 
-        for key in keys:
-            alpha, beta, obtd, L, S = self.obtd_dict[key].T
+        mask = np.logical_and(
+            np.logical_and(
+                self.transitions_BM1[:, 0] == 4,
+                self.transitions_BM1[:, 1] == +1,
+            ),
+            self.transitions_BM1[:, 4] == 2,
+        )
 
+        transitions_reference = self.transitions_BM1[mask]
+        print(transitions_reference[0])
+        return
+
+        # modified_transitions = 
+        # x_len, y_len, z_len = self.obtd_dict[master_key].shape
+        for key in tqdm(keys):
+        # for i, transition in tqdm(zip(range(z_len), transitions_reference)):
+            # alpha, beta, obtd, l, s = self.obtd_dict[master_key][:, :, i].T
+            alpha, beta, obtd, l, s = self.obtd_dict[key].T
 
             obtd_proton = obtd[alpha < n_proton_orbitals]
-            L_proton = L[alpha < n_proton_orbitals]
-            S_proton = S[alpha < n_proton_orbitals]
+            l_proton = l[alpha < n_proton_orbitals]
+            s_proton = s[alpha < n_proton_orbitals]
 
             obtd_neutron = obtd[alpha >= n_proton_orbitals]
-            L_neutron = L[alpha >= n_proton_orbitals]
-            S_neutron = S[alpha >= n_proton_orbitals]
+            l_neutron = l[alpha >= n_proton_orbitals]
+            s_neutron = s[alpha >= n_proton_orbitals]
 
-            res_proton = np.sum(obtd_proton*(1.1*L_proton/fac + 5.027*S_proton/fac))
-            res_neutron = np.sum(obtd_neutron*(-0.1*L_neutron/fac + -3.443*S_neutron/fac))
-
-            print(f"{(res_proton + res_neutron)**2 = }")
+            res_proton = np.sum(obtd_proton*(GL_P*l_proton + GS_P*s_proton))
+            res_neutron = np.sum(obtd_neutron*(GL_N*l_neutron + GS_N*s_neutron))
+            mred2 = ((res_proton + res_neutron)/FAC)**2
+            print(f"B decay: {mred2/(key[0] + 1)}")
+            break
+            # print(f"{mred2/(4 + 1) = }")
+            # print(f"{mred2/(2 + 1) = }")
+            # Ei = self.level_dict[key[:3]]
+            # Ef = self.level_dict[key[3:]]
+            # Eg = Ei - Ef
+            # print(f"(2p) {Ei = }")
+            # print(f"(4p) {Ef = }")
+            # print(f"E2p > E4p: {Ei > Ef}")
+            # print(f"{Eg = }")
+            # HERE!!! TODO: I think I'll have to undo the OBTD flip stuff I've been working on... I suspect that some info about excite / decay is lost in the process. Nooo, I reconsidered... I don't think any information is lost at all.
+            # print(transition[8])
 
     def obtd_2(self,
         orbitals: list[tuple[str, str]],
