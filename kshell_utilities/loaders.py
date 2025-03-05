@@ -67,8 +67,6 @@ def _load_transition_logfile(
     transitions_E2: list[list[float]] = []
     transitions: list[list[float]]
 
-    n_negative_gamma_energy_skips = 0
-
     with open(path, "r") as infile:
         for line in infile:
             if "left  Z,N,A,M,prty:" in line:
@@ -117,10 +115,10 @@ def _load_transition_logfile(
                         msg = f"Invalid multipolarity from file '{path}'! Got '{multipolarity}'."
                         raise KshellDataStructureError(msg)
                     
-                    B_weisskopf = _weisskopf_unit(
-                        multipole_type = multipolarity,
-                        mass = mass,
-                    )
+                    # B_weisskopf = _weisskopf_unit(
+                    #     multipole_type = multipolarity,
+                    #     mass = mass,
+                    # )
                     break
             
             for line in infile:
@@ -139,53 +137,51 @@ def _load_transition_logfile(
                 j_i = int(tmp[3])
                 idx_i = int(tmp[4]) - 1
                 E_i = float(tmp[5])
-                E_gamma = float(tmp[6])
+                # E_gamma = float(tmp[6])
                 M_red = float(tmp[7])   # Reduced matrix element.
-                B_if = float(tmp[8])    # Decay.
-                B_fi = float(tmp[9])    # Excite.
+                # B_if = float(tmp[8])    # Decay. OR IS IT???
+                # B_fi = float(tmp[9])    # Excite.
                 mom = float(tmp[10])    # Only used for sanity checking, is not stored.
 
                 assert j_f == j_f_expected
                 assert j_i == j_i_expected
+                assert abs(E_f) > 1e-3  # Don't remember exactly what the point of this is...
+                assert abs(E_i) > 1e-3
 
-                # E_gamma_calculated = round(E_i - E_f, 3)
-                E_gamma_calculated = E_i - E_f
-
-                # assert abs(E_gamma - E_gamma_calculated) <= 1e-3
-                # if (diff := abs(E_gamma - E_gamma_calculated)) > 0.002:
-                if (diff := round(abs(E_gamma - E_gamma_calculated), 3)) > 1e-3:
-                    """
-                    Rounded to three decimals because, for example, Python
-                    would say that
-                    ```
-                    0.912 - 0.911 = 0.0010000000000000009
-                    ```
-                    """
-                    msg = (
-                        f"{path}\n"
-                        f"{tmp}\n"
-                        f"{diff = }\n"
-                        f"{E_gamma = }\n"
-                        f"{E_gamma_calculated = }\n"
-                        f"{idx_f = }\n"
-                        f"{j_f = }\n"
-                        f"{pi_f = }\n"
-                        f"{E_f = }\n"
-                        f"{idx_i = }\n"
-                        f"{j_i = }\n"
-                        f"{pi_i = }\n"
-                        f"{E_i = }\n"
-                    )
-                    print(msg)
-                    raise KshellDataStructureError
+                # E_gamma_calculated = E_i - E_f
+                # if (diff := round(abs(E_gamma - E_gamma_calculated), 3)) > 1e-3:
+                #     """
+                #     Rounded to three decimals because, for example, Python
+                #     would say that
+                #     ```
+                #     0.912 - 0.911 = 0.0010000000000000009
+                #     ```
+                #     """
+                #     msg = (
+                #         f"{path}\n"
+                #         f"{tmp}\n"
+                #         f"{diff = }\n"
+                #         f"{E_gamma = }\n"
+                #         f"{E_gamma_calculated = }\n"
+                #         f"{idx_f = }\n"
+                #         f"{j_f = }\n"
+                #         f"{pi_f = }\n"
+                #         f"{E_f = }\n"
+                #         f"{idx_i = }\n"
+                #         f"{j_i = }\n"
+                #         f"{pi_i = }\n"
+                #         f"{E_i = }\n"
+                #     )
+                #     print(msg)
+                #     raise KshellDataStructureError
 
                 pi_i_current = pi_i
                 pi_f_current = pi_f
 
-                B_weisskopf_if  = B_if/B_weisskopf
-                B_weisskopf_fi = B_fi/B_weisskopf
+                # B_weisskopf_if  = B_if/B_weisskopf
+                # B_weisskopf_fi = B_fi/B_weisskopf
                 
-                if (j_f == j_i) and (idx_f == idx_i):
+                if (j_f == j_i) and (idx_f == idx_i) and (pi_f == pi_i):
                     """
                     This means that the initial and final level is the
                     same level. These entries in the log files are
@@ -198,11 +194,12 @@ def _load_transition_logfile(
                     2     1   -392.049   2     1   -392.049     0.000     17.05493503     96.95693633     96.95693633      9.87277791
                     ```
                     """
+                    assert mom != 0     # Just to be sure.
                     continue
 
-                assert mom == 0
+                assert mom == 0     # Moments should have been skipped by now!
 
-                if is_diag and (E_gamma < 0):
+                if is_diag and (E_i < E_f):
                     """
                     In case where the left and right wavefunctions are
                     the same, both up and down transitions are shown.
@@ -217,34 +214,46 @@ def _load_transition_logfile(
                     """
                     continue
 
-                if (B_weisskopf_if < WEISSKOPF_THRESHOLD): continue # NOTE: I might not need the Weisskoppf stuff.
-                if (B_weisskopf_fi < WEISSKOPF_THRESHOLD): continue
+                # if (B_weisskopf_if < WEISSKOPF_THRESHOLD): continue # NOTE: I might not need the Weisskoppf stuff.
+                # if (B_weisskopf_fi < WEISSKOPF_THRESHOLD): continue
 
                 # if abs(E_f) < 1e-3: E_f = 0.    # Does this ever happen??
                 # if abs(E_i) < 1e-3: E_i = 0.
 
-                assert abs(E_f) > 1e-3
-                assert abs(E_i) > 1e-3
-
-                if E_gamma < 0:
+                elif (not is_diag) and (E_i < E_f):
                     """
-                    In case where the left and right wavefunctions are
-                    different, only up or down transition are shown. 
+                    Aka. E_gamma < 0. In the case where the left and right
+                    wavefunctions are different, negative gamma energy means we
+                    have to swap i and f as to make sure what is the decay
+                    probability and what is the excitation probability. When
+                    E_gamma < 0, f -> i is the decay which in the KSHELL
+                    transition log files are the B(EM)-> values.
                     """
-                    # n_negative_gamma_energy_skips += 1
-                    # continue
                     j_f, j_i = j_i, j_f
                     idx_f, idx_i = idx_i, idx_f
                     E_f, E_i = E_i, E_f
-                    B_if, B_fi = B_fi, B_if
                     pi_f_current, pi_i_current = pi_i_current, pi_f_current
-                    E_gamma = -E_gamma
+                    # B_if, B_fi = B_fi, B_if
+                    # E_gamma = -E_gamma
+
+                E_gamma = round(E_i - E_f, 3)   # E_i and E_f are listed with 3 decimals precision by KSHELL.
+                
+                if E_gamma == 0:
+                    """
+                    Don't know how to properly deal with this at the moment, so
+                    I'll just skip them for now.
+                    """
+                    continue
+                
+                assert E_gamma > 0, f"{E_i - E_f = }"  # Just to be sure. The above ifs should have taken care of this by now.
+
+                B_decay = M_red**2/(j_i + 1)    # At this point we know that E_i > E_f which means that this has to be decay.
+                B_excite = M_red**2/(j_f + 1)   # The factor is 1/(2j + 1) but the js are already multiplied by 2.
 
                 transitions.append([
-                    j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_if, B_fi, M_red
+                    j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_decay, B_excite, M_red
                 ])
 
-    # print(f"{n_negative_gamma_energy_skips = }")
     return transitions_E1, transitions_M1, transitions_E2
 
 def _load_energy_logfile(
