@@ -6,7 +6,7 @@ import numpy.typing as npt
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
 from .parameters import (
-    flags, elements, latex_plot
+    flags, elements, latex_plot, DPI, MATPLOTLIB_SAVEFIG_FORMAT
 )
 
 def isotope(name: str, A: int):
@@ -704,7 +704,7 @@ def level_density(
         For toggling plotting on / off.
 
     save_plot : bool    
-        Toogle saving of plot (as .png with dpi=300) on / off.
+        Toogle saving of plot on / off.
 
     Returns
     -------
@@ -876,9 +876,9 @@ def level_density(
         if plot: ax.grid()
         
         if save_plot:
-            fname = "nld.pdf"
+            fname = f"nld.{MATPLOTLIB_SAVEFIG_FORMAT}"
             print(f"NLD saved as '{fname}'")
-            fig.savefig(fname=fname, dpi=600, format="pdf")
+            fig.savefig(fname=fname, dpi=DPI, format="pdf")
         
         if plot: plt.show()
 
@@ -1361,5 +1361,5 @@ def nuclear_shell_model(
             color = "black",
         )
 
-    fig.savefig(fname="nuclear_shell_model.pdf", dpi=600, format="pdf")
+    fig.savefig(fname=f"nuclear_shell_model.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
     plt.show()
