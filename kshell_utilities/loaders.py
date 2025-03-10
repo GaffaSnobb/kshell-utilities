@@ -868,7 +868,7 @@ def _load_obtd(
         assert not if_levels_flipped
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
-    print(f"OBTD {path.split('/')[-1]} loaded ({n_moments} moments, {n_same_energy} same energies skipped)", end="")
+    print(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies", end="")
     
     timing = time.perf_counter() - timing
     if flags["debug"]:
