@@ -14,7 +14,8 @@ from tqdm import tqdm
 
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
-    elements_reversed, flags, DPI, orbital_labels, FIGSIZE
+    elements_reversed, flags, DPI, orbital_labels, FIGSIZE, GS_FREE_NEUTRON,
+    GS_FREE_PROTON, MATPLOTLIB_SAVEFIG_FORMAT
 )
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
@@ -31,7 +32,7 @@ from .test_loaders import (
 from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
-from .other_tools import HidePrint
+from .other_tools import HidePrint, conditional_red_text
 
 class ReadKshellOutput:
     """
@@ -107,10 +108,11 @@ class ReadKshellOutput:
         # self.truncation = None
         self.nucleus = None
         self.interaction = None
-        self.levels = npt.NDArray | None
-        self.transitions_BM1 = npt.NDArray | None
-        self.transitions_BE2 = npt.NDArray | None
-        self.transitions_BE1 = npt.NDArray | None
+        self.levels: npt.NDArray | None = None
+        self.transitions_BM1: npt.NDArray | None = None
+        self.transitions_BE2: npt.NDArray | None = None
+        self.transitions_BE1: npt.NDArray | None = None
+        self.transitions_BM1_modified: npt.NDArray | None = None
         self.obtd_dict: dict[tuple[int, ...], npt.NDArray] | None = None
         self.npy_path = "tmp"   # Directory for storing .npy files.
         self.unique_id = hashlib.sha1(self.path.encode()).hexdigest()   # NOTE: Pretty sure that just using the path is completely unique.
@@ -293,27 +295,38 @@ class ReadKshellOutput:
         self.transitions_BE2[:, 3] -= ground_state_energy
         self.transitions_BE2[:, 7] -= ground_state_energy
         
-        BE1_initial_mask = np.abs(self.transitions_BE1[:, 3]) < 1e-3
-        BE1_final_mask = np.abs(self.transitions_BE1[:, 7]) < 1e-3
-        BM1_initial_mask = np.abs(self.transitions_BM1[:, 3]) < 1e-3
-        BM1_final_mask = np.abs(self.transitions_BM1[:, 7]) < 1e-3
-        BE2_initial_mask = np.abs(self.transitions_BE2[:, 3]) < 1e-3
-        BE2_final_mask = np.abs(self.transitions_BE2[:, 7]) < 1e-3
+        # BE1_initial_mask = np.abs(self.transitions_BE1[:, 3]) < 1e-3
+        # BE1_final_mask = np.abs(self.transitions_BE1[:, 7]) < 1e-3
+        # BM1_initial_mask = np.abs(self.transitions_BM1[:, 3]) < 1e-3
+        # BM1_final_mask = np.abs(self.transitions_BM1[:, 7]) < 1e-3
+        # BE2_initial_mask = np.abs(self.transitions_BE2[:, 3]) < 1e-3
+        # BE2_final_mask = np.abs(self.transitions_BE2[:, 7]) < 1e-3
         
-        n_BE1_initial_corrections = np.sum(BE1_initial_mask)
-        n_BE1_final_corrections = np.sum(BE1_final_mask)
-        n_BM1_initial_corrections = np.sum(BM1_initial_mask)
-        n_BM1_final_corrections = np.sum(BM1_final_mask)
-        n_BE2_initial_corrections = np.sum(BE2_initial_mask)
-        n_BE2_final_corrections = np.sum(BE2_final_mask)
+        # n_BE1_initial_corrections = np.sum(BE1_initial_mask)
+        # n_BE1_final_corrections = np.sum(BE1_final_mask)
+        # n_BM1_initial_corrections = np.sum(BM1_initial_mask)
+        # n_BM1_final_corrections = np.sum(BM1_final_mask)
+        # n_BE2_initial_corrections = np.sum(BE2_initial_mask)
+        # n_BE2_final_corrections = np.sum(BE2_final_mask)
 
-        self.transitions_BE1[:, 3][BE1_initial_mask] = 0    # NOTE: I set these values to 0 because that was done in collect_logs.py. I dont have a good explanation for it yet.
-        self.transitions_BE1[:, 7][BE1_final_mask] = 0
-        self.transitions_BM1[:, 3][BM1_initial_mask] = 0
-        self.transitions_BM1[:, 7][BM1_final_mask] = 0
-        self.transitions_BE2[:, 3][BE2_initial_mask] = 0
-        self.transitions_BE2[:, 7][BE2_final_mask] = 0
+        # self.transitions_BE1[:, 3][BE1_initial_mask] = 0    # NOTE: I set these values to 0 because that was done in collect_logs.py. I dont have a good explanation for it yet.
+        # self.transitions_BE1[:, 7][BE1_final_mask] = 0
+        # self.transitions_BM1[:, 3][BM1_initial_mask] = 0
+        # self.transitions_BM1[:, 7][BM1_final_mask] = 0
+        # self.transitions_BE2[:, 3][BE2_initial_mask] = 0
+        # self.transitions_BE2[:, 7][BE2_final_mask] = 0
 
+        # if flags["debug"]:
+        #     msg = (
+        #         f"{n_BE1_initial_corrections} initial levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
+        #         f"{n_BE1_final_corrections} final levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
+        #         f"{n_BM1_initial_corrections} initial levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
+        #         f"{n_BM1_final_corrections} final levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
+        #         f"{n_BE2_initial_corrections} initial levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
+        #         f"{n_BE2_final_corrections} final levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
+        #     )
+        #     print(msg)
+        
         if self.load_and_save_to_file:
             np.savez_compressed(
                 file = transitions_levels_fname,
@@ -322,17 +335,6 @@ class ReadKshellOutput:
                 transitions_BE2 = self.transitions_BE2,
                 transitions_BE1 = self.transitions_BE1,
             )
-
-        if flags["debug"]:
-            msg = (
-                f"{n_BE1_initial_corrections} initial levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
-                f"{n_BE1_final_corrections} final levels of BE1 transitions were below 1e-3 MeV and were set to 0\n"
-                f"{n_BM1_initial_corrections} initial levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
-                f"{n_BM1_final_corrections} final levels of BM1 transitions were below 1e-3 MeV and were set to 0\n"
-                f"{n_BE2_initial_corrections} initial levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
-                f"{n_BE2_final_corrections} final levels of BE2 transitions were below 1e-3 MeV and were set to 0\n"
-            )
-            print(msg)
 
     def _read_obtd(self, run_test: bool = False):
         """
@@ -1039,6 +1041,7 @@ class ReadKshellOutput:
         filter_parities: str = "both",
         plot: bool = True,
         save_plot: bool = False,
+        unique_string_extra: str = "",
     ) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
         """
         Wrapper method to include gamma ray strength function
@@ -1059,6 +1062,7 @@ class ReadKshellOutput:
         """
         transitions_dict = {
             "M1": self.transitions_BM1,
+            "M1_modified": self.transitions_BM1_modified,
             "E2": self.transitions_BE2,
             "E1": self.transitions_BE1
         }
@@ -1066,6 +1070,7 @@ class ReadKshellOutput:
         gsf_unique_string = f"{bin_width}{Ex_min}{Ex_max}{multipole_type}"
         gsf_unique_string += f"{Ex_final_min}{Ex_final_max}"
         gsf_unique_string += f"{include_n_levels}{filter_spins}{filter_parities}"
+        gsf_unique_string += unique_string_extra
         gsf_unique_id = hashlib.sha1((gsf_unique_string).encode()).hexdigest()
         gsf_fname = f"{self.npy_path}/{self.base_fname}_gsf_{gsf_unique_id}_{self.unique_id}.npz"
 
@@ -1093,7 +1098,7 @@ class ReadKshellOutput:
                 Ex_max = Ex_max,
                 Ex_final_min = Ex_final_min,
                 Ex_final_max = Ex_final_max,
-                multipole_type = multipole_type,
+                multipole_type = multipole_type.split("_")[0],
                 include_n_levels = include_n_levels,
                 filter_spins = filter_spins,
                 filter_parities = filter_parities,
@@ -1109,7 +1114,7 @@ class ReadKshellOutput:
             )
 
         if plot:
-            unit_exponent = 2*int(multipole_type[-1]) + 1
+            unit_exponent = 2*int(multipole_type.split("_")[0][-1]) + 1
             fig, ax = plt.subplots()
             ax.plot(bins, gsf, label=multipole_type.upper(), color="black")
             ax.legend()
@@ -1117,7 +1122,7 @@ class ReadKshellOutput:
             ax.set_xlabel(r"E$_{\gamma}$ [MeV]")
             ax.set_ylabel(f"$\gamma$SF [MeV$^-$$^{unit_exponent}$]")
             if save_plot:
-                fname = f"gsf_{multipole_type}.pdf"
+                fname = f"gsf_{multipole_type}.{MATPLOTLIB_SAVEFIG_FORMAT}"
                 print(f"GSF saved as '{fname}'")
                 fig.savefig(fname=fname, dpi=DPI)
             plt.show()
@@ -1298,7 +1303,7 @@ class ReadKshellOutput:
                 axd["upper"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}.png", dpi=DPI)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         
         elif len(multipole_type) == 2:
             fig, axd = plt.subplot_mosaic([
@@ -1399,7 +1404,7 @@ class ReadKshellOutput:
 
             axd["lower right"].set_yticklabels([])
             axd["lower right"].set_ylim(axd["lower left"].get_ylim())
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.png", dpi=DPI)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
 
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
@@ -1632,7 +1637,7 @@ class ReadKshellOutput:
                     r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
                 )
 
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.pdf", dpi=DPI)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
 
         elif len(multipole_type) == 2:
             if j_list_default:
@@ -1747,7 +1752,7 @@ class ReadKshellOutput:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.pdf", dpi=DPI)
+            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
             msg += f" Got {len(multipole_type)}."
@@ -1953,7 +1958,7 @@ class ReadKshellOutput:
             cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
 
             if save_plot:
-                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.png", dpi=DPI)
+                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         
         if plot:
             plt.show()
@@ -2213,8 +2218,8 @@ class ReadKshellOutput:
         
         ax[-1].set_xlabel(r"E$_{\gamma}$ [MeV]")
         fig.savefig(
-            fname = f"{self.nucleus}_brink-axel_ji_{'_'.join(multipole_type)}.png",
-            dpi = 300
+            fname = f"{self.nucleus}_brink-axel_ji_{'_'.join(multipole_type)}.{MATPLOTLIB_SAVEFIG_FORMAT}",
+            dpi = DPI
         )
         plt.show()
 
@@ -2498,14 +2503,27 @@ class ReadKshellOutput:
             ax.set_ylabel(r"TE2/(TE2 + TM1)")
             ax.set_xlabel(r"$E_{\gamma}$ [MeV]")
             if save_plot:
-                fname = f"mixing_ratio_E2_M1.png"
+                fname = f"mixing_ratio_E2_M1.{MATPLOTLIB_SAVEFIG_FORMAT}"
                 fig.savefig(fname=fname, dpi=DPI)
                 print(f"Mixing ratio plot saved as '{fname}'")
             plt.show()
 
         return bins[:-1], ratios
 
-    def obtd_modifier(self):
+    def obtd_modifier(self,
+        exclude_orbitals_if: list[tuple[str, str] | str],
+        obtd_E_gamma_min: float | int = 0,
+        obtd_E_gamma_max: float | int = np.inf,
+        obtd_B_decay_min: float | int = 0,
+        obtd_B_decay_max: float | int = np.inf,
+        gsf_bin_width: float | int = 0.2,
+        gsf_Ex_min: float | int = 5,
+        gsf_Ex_max: float | int = 50,
+        gsf_include_n_levels: int | float = np.inf,
+        gsf_filter_spins: list | None = None,
+        gsf_filter_parities: str = "both",
+        quenching_factor: float = 1.0,
+    ):
         """
         gl,gs=  1.1000 -0.1000  5.0270 -3.4430
         0n -> 2n
@@ -2513,69 +2531,185 @@ class ReadKshellOutput:
         i  j  OBTD L S
 
         see p. 130 in Suhonen
+
+        transitions: j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_decay, B_excite, M_red
         """
-        # master_key = (2, -1, 0, -1)
-        # master_key = (0, -1, 2, -1)
-        keys = [
-            # (2, -1, 3, 0, -1, 0)
-            (2, +1, 0, 4, +1, 0),
-            (2, +1, 0, 4, +1, 1),
-            (4, +1, 2, 2, +1, 0),
-            (4, +1, 3, 2, +1, 0),
-        ]
         FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
         GL_P, GL_N = 1.1, -0.1
-        GS_P, GS_N = 5.027, -3.443
-        
-        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
-        neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
-        n_proton_orbitals = len(proton_orb_indices)
-        n_neutron_orbitals = len(neutron_orb_indices)
-        n_orbitals = n_proton_orbitals + n_neutron_orbitals
+        gs_p, gs_n = GS_FREE_PROTON*quenching_factor, GS_FREE_NEUTRON*quenching_factor
 
-        mask = np.logical_and(
-            np.logical_and(
-                self.transitions_BM1[:, 0] == 4,
-                self.transitions_BM1[:, 1] == +1,
-            ),
-            self.transitions_BM1[:, 4] == 2,
+        for key in self.obtd_dict.keys():
+            """
+            To make a mask for the OBTD indices to skip, I need to fetch one
+            OBTD table. This loop finds one arbitrary key of the correct type
+            and breaks the loop immediately after that. The loop will maybe
+            only have one or just a few iterations.
+            """
+            try:
+                j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
+            except ValueError:
+                """
+                Master key, not key.
+                """
+                continue
+            else:
+                break
+        
+        alpha, beta, _, _, _ = self.obtd_dict[key].T
+        exclude_mask = np.zeros_like(alpha, dtype=np.bool_) # Start with [False, False, ..., False].
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        n_proton_orbitals = len(proton_orb_indices)
+        orb_label_to_idx_map = self.get_orb_label_to_idx_map()
+        orb_idx_to_label_map = self.get_orb_idx_to_label_map()
+        
+        for excluded_orbitals in exclude_orbitals_if:
+            """
+            Make a mask which is `True` for orbitals which are excluded.
+            """
+            try:
+                """
+                Initial and final is specified.
+                """
+                exclude_i, exclude_f = excluded_orbitals
+            
+            except ValueError:
+                """
+                Only one orbital name is specified.
+                """
+                exclude_i = excluded_orbitals
+                exclude_f = excluded_orbitals
+                exclude_mask = np.logical_or(
+                    exclude_mask,
+                    np.logical_or(
+                        alpha == orb_label_to_idx_map[exclude_i],
+                        beta == orb_label_to_idx_map[exclude_f],
+                    )
+                )
+
+            else:
+                exclude_mask = np.logical_or(
+                    exclude_mask,
+                    np.logical_and(
+                        alpha == orb_label_to_idx_map[exclude_i],
+                        beta == orb_label_to_idx_map[exclude_f],
+                    )
+                )
+        
+        print("\nRecalculating transitions with the following OBTD mask:")
+        for a, b, m in zip(alpha, beta, exclude_mask, strict=True):
+            a = int(a)
+            b = int(b)
+            msg = (
+                f"{orb_idx_to_label_map[a]} ({a:2d}) -> {orb_idx_to_label_map[b]} ({b:2d}): {not m}"
+            )
+            print(conditional_red_text(input_string=msg, condition=(not m)))
+
+        obtd_mod_unique_string = f"{exclude_mask}{GL_P}{GL_N}{gs_p}{gs_n}"
+        obtd_mod_unique_id = hashlib.sha1((self.unique_id + obtd_mod_unique_string).encode()).hexdigest()
+        transitions_modified_fname = f"{self.npy_path}/{self.base_fname}_transitions_modified_{obtd_mod_unique_id}.npz"
+
+        if (self.load_and_save_to_file != "overwrite") and os.path.isfile(transitions_modified_fname):
+            """
+            Do not load files if overwrite parameter has been passed.
+            """
+            transitions_npz: NpzFile = np.load(file=transitions_modified_fname, allow_pickle=False)
+            self.transitions_BM1_modified = transitions_npz["transitions_BM1_modified"]
+            msg = "Modified transition data loaded from .npz!"
+            msg += " Delete the tmp/ directory to re-calculate."
+            print(msg)
+        else:
+            """
+            I don't like the solution where I have so much stuff indented in
+            the following else block. Optimally the content should be factored
+            out to a separate func or something similar. I'll do it tomorrow
+            lol (written 2025-03-07).
+            """
+            transitions_modified: list[list[float]] = []
+            n_same_energy_skips = 0
+            for key in tqdm(self.obtd_dict.keys()):
+                """
+                Loop over all the OBTDs and L and S matrix elements and
+                re-calculate the B decay and B excite values.
+                """
+                try:
+                    j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
+                except ValueError:
+                    """
+                    Master key, not key.
+                    """
+                    continue
+
+                alpha, _, obtd, l, s = self.obtd_dict[key].T
+                
+                # exclude_mask artificially makes certain orb. contributions 0.
+                proton_mask = np.logical_and(~exclude_mask, alpha < n_proton_orbitals)
+                obtd_proton = obtd[proton_mask]
+                l_proton = l[proton_mask]
+                s_proton = s[proton_mask]
+
+                neutron_mask = np.logical_and(~exclude_mask, alpha >= n_proton_orbitals)
+                obtd_neutron = obtd[neutron_mask]
+                l_neutron = l[neutron_mask]
+                s_neutron = s[neutron_mask]
+
+                res_proton = np.sum(obtd_proton*(GL_P*l_proton + gs_p*s_proton))
+                res_neutron = np.sum(obtd_neutron*(GL_N*l_neutron + gs_n*s_neutron))
+                M_red_current = (res_proton + res_neutron)/FAC
+
+                B_decay_current = M_red_current**2/(j_i_current + 1)
+                B_excite_current = M_red_current**2/(j_f_current + 1)
+
+                E_i_current = self.level_dict[(j_i_current, pi_i_current, idx_i_current)]
+                E_f_current = self.level_dict[(j_f_current, pi_f_current, idx_f_current)]
+                E_gamma_current = round(E_i_current - E_f_current, 3)
+                
+                if E_gamma_current == 0:
+                    n_same_energy_skips += 1
+                    continue
+                
+                assert E_gamma_current > 0, f"{E_gamma_current = }"
+
+                transitions_modified.append([
+                    j_i_current, pi_i_current, idx_i_current, E_i_current,
+                    j_f_current, pi_f_current, idx_f_current, E_f_current,
+                    E_gamma_current, B_decay_current, B_excite_current,
+                    M_red_current,
+                ])
+
+            print(f"{n_same_energy_skips = }")
+
+            self.transitions_BM1_modified = np.array(transitions_modified)
+            if self.load_and_save_to_file:
+                np.savez_compressed(
+                    file = transitions_modified_fname,
+                    transitions_BM1_modified = self.transitions_BM1_modified,
+                )
+
+        self.obtd(
+            E_gamma_min = obtd_E_gamma_min,
+            E_gamma_max = obtd_E_gamma_max,
+            B_decay_min = obtd_B_decay_min,
+            B_decay_max = obtd_B_decay_max,
+            gsf_bin_width = gsf_bin_width,
+            gsf_Ex_min = gsf_Ex_min,
+            gsf_Ex_max = gsf_Ex_max,
+            gsf_include_n_levels = gsf_include_n_levels,
+            gsf_filter_spins = gsf_filter_spins,
+            gsf_filter_parities = gsf_filter_parities,
+            exclude_mask = exclude_mask,
         )
 
-        transitions_reference = self.transitions_BM1[mask]
-        print(transitions_reference[0])
-        return
-
-        # modified_transitions = 
-        # x_len, y_len, z_len = self.obtd_dict[master_key].shape
-        for key in tqdm(keys):
-        # for i, transition in tqdm(zip(range(z_len), transitions_reference)):
-            # alpha, beta, obtd, l, s = self.obtd_dict[master_key][:, :, i].T
-            alpha, beta, obtd, l, s = self.obtd_dict[key].T
-
-            obtd_proton = obtd[alpha < n_proton_orbitals]
-            l_proton = l[alpha < n_proton_orbitals]
-            s_proton = s[alpha < n_proton_orbitals]
-
-            obtd_neutron = obtd[alpha >= n_proton_orbitals]
-            l_neutron = l[alpha >= n_proton_orbitals]
-            s_neutron = s[alpha >= n_proton_orbitals]
-
-            res_proton = np.sum(obtd_proton*(GL_P*l_proton + GS_P*s_proton))
-            res_neutron = np.sum(obtd_neutron*(GL_N*l_neutron + GS_N*s_neutron))
-            mred2 = ((res_proton + res_neutron)/FAC)**2
-            print(f"B decay: {mred2/(key[0] + 1)}")
-            break
-            # print(f"{mred2/(4 + 1) = }")
-            # print(f"{mred2/(2 + 1) = }")
-            # Ei = self.level_dict[key[:3]]
-            # Ef = self.level_dict[key[3:]]
-            # Eg = Ei - Ef
-            # print(f"(2p) {Ei = }")
-            # print(f"(4p) {Ef = }")
-            # print(f"E2p > E4p: {Ei > Ef}")
-            # print(f"{Eg = }")
-            # HERE!!! TODO: I think I'll have to undo the OBTD flip stuff I've been working on... I suspect that some info about excite / decay is lost in the process. Nooo, I reconsidered... I don't think any information is lost at all.
-            # print(transition[8])
+        return self.gsf(
+            bin_width = gsf_bin_width,
+            Ex_min = gsf_Ex_min,
+            Ex_max = gsf_Ex_max,
+            multipole_type = "M1_modified",
+            include_n_levels = gsf_include_n_levels,
+            filter_spins = gsf_filter_spins,
+            filter_parities = gsf_filter_parities,
+            plot = False,
+            unique_string_extra = obtd_mod_unique_string,
+        )
 
     def obtd_2(self,
         orbitals: list[tuple[str, str]],
@@ -2628,12 +2762,7 @@ class ReadKshellOutput:
         orb_labels_latex = proton_orb_labels_latex + neutron_orb_labels_latex
 
         # orb_label_latex_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels_latex, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels_latex, range(n_proton_orbitals, n_orbitals))}
-
-        proton_orb_labels = ["p" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
-        neutron_orb_labels = ["n" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
-
-        orb_label_to_idx_map = {label: idx for label, idx in zip(proton_orb_labels, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels, range(n_proton_orbitals, n_orbitals))}
-
+        orb_label_to_idx_map = self.get_orb_label_to_idx_map()
         E_gamma_mask_max = included_transitions[:, 8] < E_gamma_max
         E_gamma_mask_min = included_transitions[:, 8] > E_gamma_min
 
@@ -2782,6 +2911,7 @@ class ReadKshellOutput:
         gsf_include_n_levels: int | float = np.inf,
         gsf_filter_spins: list | None = None,
         gsf_filter_parities: str = "both",
+        exclude_mask: npt.NDArray | None = None,
         preliminary: bool = False,
     ):
         """
@@ -2816,6 +2946,35 @@ class ReadKshellOutput:
                 " done that for M1 thus far."
             )
             raise NotImplementedError(msg)
+        
+        if exclude_mask is None:
+            """
+            I don't like this stupid solution for getting the number of OBTDs
+            per transition, but it was the quickest way I could think of.
+            """
+            for key in self.obtd_dict.keys():
+                """
+                To get the number of OBTDs per transition, I need to fetch one
+                OBTD table. This loop finds one arbitrary key of the correct type
+                and breaks the loop immediately after that. The loop will maybe
+                only have one or just a few iterations.
+                """
+                try:
+                    j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
+                except ValueError:
+                    """
+                    Master key, not key.
+                    """
+                    continue
+                else:
+                    break
+
+            else:
+                msg = "No key found in the OBTD dict! Oh noooooo!!"
+                raise KshellDataStructureError(msg)
+            
+            alpha, _, _, _, _ = self.obtd_dict[key].T
+            exclude_mask = np.zeros_like(alpha, dtype=np.bool_) # Start with [False, False, ..., False].
 
         proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
         neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
@@ -2870,7 +3029,7 @@ class ReadKshellOutput:
         matrix_element_skips = 0
         n_obtds = 0
 
-        for key in included_transitions_keys:
+        for key in tqdm(included_transitions_keys):
             """
             Sum the absolute values of the OBTDs for each transition.
 
@@ -2907,15 +3066,17 @@ class ReadKshellOutput:
             assert E_i > E_f    # Maybe I'm paranoid, but whatever.
             
             orb_idx_create, orb_idx_annihilate, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
-            n_obtds += obtd.size
+            obtd_copy = np.copy(obtd)   # To avoid altering the original data.
+            n_obtds += obtd_copy.size
 
             matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
             matrix_element_skips += sum(matrix_elem_mask)
-            obtd[matrix_elem_mask] = 0    # Pretty sure that what happens here is that transition selection rules for M1 are being respected.
+            obtd_copy[matrix_elem_mask] = 0
+            obtd_copy[exclude_mask] = 0 # Artificially remove certain orbitals.
 
-            obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd)
+            obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd_copy)
             
-            # obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += obtd
+            # obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += obtd_copy
             # print(f"{key = }")
             # break
 
@@ -2934,21 +3095,26 @@ class ReadKshellOutput:
         vmax = None
 
         if axs is None:
-            axs = [None, None]
-            figs = [None, None]
+            axs = [None, None, None]
+            figs = [None, None, None]
 
         else:
-            figs = [None, None]
+            figs = [None, None, None]
         
         for labels, data, nucleon, fig, ax in zip(
-            [proton_orb_labels, neutron_orb_labels],
-            [proton_data, neutron_data],
-            ["proton", "neutron"],
+            [proton_orb_labels, proton_orb_labels, neutron_orb_labels],
+            [proton_data + neutron_data, proton_data, neutron_data],
+            ["proton_and_neutron", "proton", "neutron"],
             figs,
             axs,
         ):
             """
             Plot the OBTDs for protons and neutrons separately.
+
+            NOTE: I have added a third plot which sums the proton and neutron
+            contributions into a single grid. This only works for the cases
+            where the proton and neutron model spaces are the same. This
+            method is gonna crash for calculations where they are not.
             """
             if ax is None:
                 fig, ax = plt.subplots(figsize=FIGSIZE)
@@ -2979,8 +3145,8 @@ class ReadKshellOutput:
             ax.set_title(r"$\rho_{\alpha \beta} = \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle$")
             if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
-                fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.pdf", dpi=DPI)
-                plt.show()
+                fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
+                # plt.show()
 
     def com(self,
         j_list: list[int] | None = None,
@@ -3059,6 +3225,23 @@ class ReadKshellOutput:
         A = m.group()
         X = self.nucleus[:m.span()[0]]
         return r"$^{" + f"{A}" + r"}$" + f"{X}"
+
+    def get_orb_label_to_idx_map(self) -> dict[str, int]:
+        """
+        Make a dictionary which maps orbital labels, eg. p0s1/2, to the correct
+        model space index of that orbital.
+        """
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        neutron_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == +1][:, 0]
+        n_proton_orbitals = len(proton_orb_indices)
+        n_neutron_orbitals = len(neutron_orb_indices)
+        n_orbitals = n_proton_orbitals + n_neutron_orbitals
+        proton_orb_labels = ["p" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[:n_proton_orbitals, 1:4]]
+        neutron_orb_labels = ["n" + orbital_labels(n, l, j, latex=False) for n, l, j in self.orbit_numbers[n_proton_orbitals:n_orbitals, 1:4]]
+        return {label: idx for label, idx in zip(proton_orb_labels, range(n_proton_orbitals))} | {label: idx for label, idx in zip(neutron_orb_labels, range(n_proton_orbitals, n_orbitals))}
+
+    def get_orb_idx_to_label_map(self) -> dict[int, str]:
+        return {idx: label for label, idx in self.get_orb_label_to_idx_map().items()}
 
     def check_data(self):
         """
