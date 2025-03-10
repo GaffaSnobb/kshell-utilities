@@ -3,7 +3,8 @@ from .data_structures import OrbitalOrder
 
 GS_FREE_PROTON = 5.585
 GS_FREE_NEUTRON = -3.826
-DPI = 600   # DPI for plots.
+DPI = 400   # DPI for plots.
+MATPLOTLIB_SAVEFIG_FORMAT = "png"
 FIGSIZE = (7, 6.4)  # Figsize for plots.
 flags = {"debug": False, "parallel": True}
 
