@@ -57,3 +57,14 @@ def calculate_figsize(width, fraction=1):
     fig_dim = (fig_width_in, fig_height_in)
 
     return fig_dim
+
+def abbreviate_string(s, max_length=30):
+    if len(s) <= max_length:
+        return s
+    return f"{s[:max_length//2]}...{s[-max_length//2:]}"
+
+def conditional_red_text(input_string: str, condition: bool) -> str:
+    if condition:
+        return input_string
+    else:
+        return f"\033[31m{input_string}\033[0m"
