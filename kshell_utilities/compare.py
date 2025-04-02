@@ -201,10 +201,9 @@ class Compare:
 
         ax.set_ylabel(r"NLD [MeV$^{-1}$]")
         ax.set_xlabel("E [MeV]")
-        ax.legend([f"{bin_width=} MeV"])
+        # ax.legend([f"{bin_width=} MeV"])
 
-        for color, kshell_output in zip(self._color_palette,
-                                        self._kshell_outputs):
+        for color, kshell_output, label in zip(self._color_palette, self._kshell_outputs, self._legend_labels):
             bins, density = level_density(
                 levels = kshell_output.levels,
                 bin_width = bin_width,
@@ -218,7 +217,7 @@ class Compare:
                 save_plot = False
                 )
 
-            ax.step(bins, density, color=color)
+            ax.step(bins, density, color=color, label=label)
 
         if not ax_input:
             plt.show()
