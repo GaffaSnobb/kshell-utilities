@@ -343,7 +343,7 @@ def _load_energy_logfile(
                 tmp = infile.readline().split() # ['<Hcm>:', '0.00000', '<TT>:', '6.00000', 'T:', '4/2']
                 Hcm = float(tmp[1])
 
-                assert j == j_expected
+                assert j == j_expected, f"{j = }, {j_expected = }"
                 assert parity == parity_expected
                 assert idx_prev < idx_current
                 assert E_prev < E_current
@@ -632,7 +632,11 @@ def _load_obtd(
     if is_diag:
         assert n_transitions_flipped_skipped == n_transitions_flipped
     else:
-        assert (tmp := (n_transitions_flipped - n_transitions_flipped_skipped)) > 0, tmp
+        """
+        Should not be possible to skip flipped transitions if the l and r
+        wavefunctions are different.
+        """
+        assert n_transitions_flipped_skipped == 0, f"{n_transitions_flipped_skipped = }"
 
     master_key_not_flipped = (j_i, pi_i, j_f, pi_f) # These two master keys will be the same when `is_diag` is True.
     master_key_flipped = (j_f, pi_f, j_i, pi_i)
@@ -853,16 +857,29 @@ def _load_obtd(
         """
         If `is_diag` is True, then there are no flipped transitions because
         they will all be skipped. Consequently, the following test does not
-        make any sense and actually raises errors because of looking for min
-        and max in empty sequences.
+        make any sense.
         """
-        first_initial_flipped_idx, first_final_flipped_idx = min(if_levels_flipped)
-        last_initial_flipped_idx, last_final_flipped_idx = max(if_levels_flipped)
+        try:
+            """
+            There might be the case where `is_diag` is `True` but there simply
+            are no flipped levels. If `if_levels_flipped` is empty, a
+            `ValueError` will be raised.
+            """
+            first_initial_flipped_idx, first_final_flipped_idx = min(if_levels_flipped)
+            last_initial_flipped_idx, last_final_flipped_idx = max(if_levels_flipped)
+        
+        except ValueError:
+            """
+            If `if_levels_flipped` is empty there should be no values in the
+            flipped OBTD array.
+            """
+            assert not obtd_flipped.size
 
-        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx)])
-        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx, 0)])
-        assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, j_i, pi_i)][:, :, 0])
-        assert np.all(obtd_flipped[:, :, -1] == obtd_dict[(j_f, pi_f, last_initial_flipped_idx, j_i, pi_i, last_final_flipped_idx)])
+        else:
+            assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx)])
+            assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, first_initial_flipped_idx, j_i, pi_i, first_final_flipped_idx, 0)])
+            assert np.all(obtd_flipped[:, :, 0]  == obtd_dict[(j_f, pi_f, j_i, pi_i)][:, :, 0])
+            assert np.all(obtd_flipped[:, :, -1] == obtd_dict[(j_f, pi_f, last_initial_flipped_idx, j_i, pi_i, last_final_flipped_idx)])
 
     else:
         assert not if_levels_flipped
