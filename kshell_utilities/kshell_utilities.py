@@ -9,6 +9,7 @@ import numpy as np
 from numpy.lib.npyio import NpzFile
 import numba
 import matplotlib.pyplot as plt
+from matplotlib import axes, figure
 import seaborn as sns
 from tqdm import tqdm
 
@@ -155,7 +156,7 @@ class ReadKshellOutput:
             msg = f"{self.path} is an invalid path!"
             raise RuntimeError(msg)
 
-        self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2")
+        # self.mixing_pairs_BM1_BE2 = self._mixing_pairs(B_left="M1", B_right="E2") # Temporary disabled because of debugging (2025-03-11).
         self.ground_state_energy = self.levels[0, 0]
         
         self.check_data()
@@ -284,9 +285,9 @@ class ReadKshellOutput:
             )
             print(msg)
 
-        self.transitions_BE1 = np.concatenate(transitions_BE1)
-        self.transitions_BM1 = np.concatenate(transitions_BM1)
-        self.transitions_BE2 = np.concatenate(transitions_BE2)
+        self.transitions_BE1 = np.concatenate(transitions_BE1) if transitions_BE1 else np.zeros(shape=(0, 12))
+        self.transitions_BM1 = np.concatenate(transitions_BM1) if transitions_BM1 else np.zeros(shape=(0, 12))
+        self.transitions_BE2 = np.concatenate(transitions_BE2) if transitions_BE2 else np.zeros(shape=(0, 12))
 
         self.transitions_BE1[:, 3] -= ground_state_energy
         self.transitions_BE1[:, 7] -= ground_state_energy
@@ -2106,12 +2107,11 @@ class ReadKshellOutput:
         Calculate the GSF as a function of Eg for all Ei and ji, as well
         as the GSF individually for all ji in j_list.
         """
-        bins_all_j, gsf_all_j = self.gsf(
+        bins_all_j, gsf_all_j, n_transitions, included_transitions = self.gsf(
             bin_width = bin_width,
             Ex_min = Ex_min,
             Ex_max = Ex_max,
             multipole_type = multipole_type,
-            return_n_transitions = False,
             plot = False,
         )
         n_j = len(j_list)
@@ -2123,13 +2123,12 @@ class ReadKshellOutput:
             """
             Calculate the GSF individually for each ji.
             """
-            bins_one_j, gsf_one_j = self.gsf(
+            bins_one_j, gsf_one_j, n_transitions, included_transitions = self.gsf(
                 bin_width = bin_width,
                 Ex_min = Ex_min,
                 Ex_max = Ex_max,
                 multipole_type = multipole_type,
                 filter_spins = [j_list[i]],
-                return_n_transitions = False,
                 plot = False,
             )
             gsf[:, i] = gsf_one_j
@@ -2143,6 +2142,7 @@ class ReadKshellOutput:
         Ex_max: float | int = 50,
         multipole_type: list | str = "M1",
         j_list: list | None = None,
+        axs: list[axes.Axes] | None = None,
         set_title: bool = True
     ):
         """
@@ -2165,16 +2165,31 @@ class ReadKshellOutput:
         
         n_multipole_types = len(multipole_type)
 
-        fig, ax = plt.subplots(
-            nrows = n_multipole_types,
-            ncols = 1,
-            figsize = (6.4, 4.8*n_multipole_types)
-        )
-        if not isinstance(ax, np.ndarray):
-            ax = [ax]
+        if axs is None:
+            axs: list[axes.Axes] = []
+            figs: list[figure.Figure] = []
+            savefig = True
 
-        upper_ylim = -np.inf
-        lower_ylim = np.inf
+            for i in range(n_multipole_types*2 - 1):
+                """
+                To get 1 plot for one multipolarity and 3 plots for 2
+                multipolarities (two individual and one combined).
+                """
+                fig_tmp, ax_tmp = plt.subplots()
+                axs.append(ax_tmp)
+                figs.append(fig_tmp)
+        else:
+            """
+            Don't save the figs or label the axes if the user supplies axs.
+            They can deal with that themselves.
+            """
+            savefig = False
+
+        assert (n_axs := len(axs)) == (n_needed_axs := (n_multipole_types*2 - 1)), f"Need {n_needed_axs} axs! Got {n_axs}."
+
+        gsf_dipole = None   # Size is determined after first iteration in the following loop.
+        gsf_all_j_dipole = None
+
         for i in range(n_multipole_types):
             if j_list_default:
                 """
@@ -2190,38 +2205,70 @@ class ReadKshellOutput:
                     multipole_type = multipole_type[i],
                     j_list = j_list,
                 )
+            
+            if gsf_dipole is None:
+                gsf_dipole = np.zeros((len(gsf_all_j), len(j_list)))
+                gsf_all_j_dipole = np.zeros(len(gsf_all_j))
 
-            ax[i].plot(bins_all_j, gsf_all_j, color="black", label=r"All $j_i$")
-            ax[i].plot(bins, gsf, color="black", alpha=0.2)
-            ax[i].plot([0], [0], color="black", alpha=0.2, label=r"Single $j_i$")  # Dummy for legend.
-            ax[i].set_yscale('log')
-            ax[i].set_ylabel(r"GSF [MeV$^{-3}$]")
-            ax[i].legend()
-            if set_title:
-                ax[i].set_title(
-                    f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[i]}" + r"$"
-                )
-            else:
-                ax[i].set_title(
-                    r"$" + f"{multipole_type[i]}" + r"$"
-                )
+            gsf_dipole += gsf
+            gsf_all_j_dipole += gsf_all_j
 
-            lower_ylim = min(ax[i].get_ylim()[0], lower_ylim)
-            upper_ylim = max(ax[i].get_ylim()[1], upper_ylim)
+            axs[i].plot(bins_all_j, gsf_all_j, color="black", label=r"All $j_i$")
+            axs[i].plot(bins, gsf, color="black", alpha=0.2)
+            axs[i].plot([0], [0], color="black", alpha=0.2, label=r"Single $j_i$")  # Dummy for legend.
 
-        for i in range(n_multipole_types):
+        try:
             """
-            Set both lower ylim to the lowest of the two and both upper
-            ylims to the largest of the two.
+            Plot M1 + E1 in a third plot if possible.
             """
-            ax[i].set_ylim((lower_ylim, upper_ylim))
+            axs[2].plot(bins_all_j, gsf_all_j_dipole, color="black", label=r"All $j_i$")
+            axs[2].plot(bins, gsf_dipole, color="black", alpha=0.2)
+            axs[2].plot([0], [0], color="black", alpha=0.2, label=r"Single $j_i$")  # Dummy for legend.
+        except IndexError:
+            """
+            No M1 + E1 data generated.
+            """
+            pass
         
-        ax[-1].set_xlabel(r"E$_{\gamma}$ [MeV]")
-        fig.savefig(
-            fname = f"{self.nucleus}_brink-axel_ji_{'_'.join(multipole_type)}.{MATPLOTLIB_SAVEFIG_FORMAT}",
-            dpi = DPI
-        )
-        plt.show()
+        if savefig:
+            for ax in axs: ax.set_yscale('log') # Have to set scale before getting the ylims.
+            lower_ylim = min([ax.get_ylim()[0] for ax in axs])
+            upper_ylim = max([ax.get_ylim()[1] for ax in axs])
+
+            multipole_labels = [multipole_type[0]]
+
+            try:
+                multipole_labels.append(multipole_type[1])
+                multipole_labels.append(f"{multipole_type[0]}_{multipole_type[1]}")
+            except IndexError:
+                """
+                Only one multipolarity.
+                """
+                pass
+        
+            for ax, fig, label in zip(axs, figs, multipole_labels):
+                """
+                Set all lower ylim to the lowest of them and all upper ylims to the
+                largest of them. Set other ax parameters too.
+                """
+                ax.set_yscale('log')
+                ax.set_ylabel(r"GSF [MeV$^{-3}$]")
+                ax.set_xlabel(r"E$_{\gamma}$ [MeV]")
+                ax.legend()
+
+                if set_title:
+                    ax.set_title(
+                        f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{label}" + r"$"
+                    )
+
+                ax.set_ylim(bottom=lower_ylim, top=upper_ylim)
+
+                fig.savefig(
+                    fname = f"{self.nucleus}_brink-axel_ji_{'_'.join(label)}.{MATPLOTLIB_SAVEFIG_FORMAT}",
+                    dpi = DPI,
+                )
+        
+            plt.show()
 
     def primary_matrix(self,
         bin_width: float | int = 0.2,
@@ -2511,7 +2558,7 @@ class ReadKshellOutput:
         return bins[:-1], ratios
 
     def obtd_modifier(self,
-        exclude_orbitals_if: list[tuple[str, str] | str],
+        exclude_orbitals_if: list[tuple[str, str] | str] = [],
         obtd_E_gamma_min: float | int = 0,
         obtd_E_gamma_max: float | int = np.inf,
         obtd_B_decay_min: float | int = 0,
@@ -2525,14 +2572,11 @@ class ReadKshellOutput:
         quenching_factor: float = 1.0,
     ):
         """
-        gl,gs=  1.1000 -0.1000  5.0270 -3.4430
-        0n -> 2n
-
-        i  j  OBTD L S
+        Modify OBTDs and re-calculate the OBTD heatmap and the GSF. The OBTDs
+        are modified by completely removing the OBTDs corresponding to the
+        entries in the `exclude_orbitals_if` list.
 
         see p. 130 in Suhonen
-
-        transitions: j_i, pi_i_current, idx_i, E_i, j_f, pi_f_current, idx_f, E_f, E_gamma, B_decay, B_excite, M_red
         """
         FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
         GL_P, GL_N = 1.1, -0.1
@@ -2617,6 +2661,7 @@ class ReadKshellOutput:
             msg = "Modified transition data loaded from .npz!"
             msg += " Delete the tmp/ directory to re-calculate."
             print(msg)
+        
         else:
             """
             I don't like the solution where I have so much stuff indented in
@@ -2685,7 +2730,7 @@ class ReadKshellOutput:
                     transitions_BM1_modified = self.transitions_BM1_modified,
                 )
 
-        self.obtd(
+        self.obtd_heatmap(
             E_gamma_min = obtd_E_gamma_min,
             E_gamma_max = obtd_E_gamma_max,
             B_decay_min = obtd_B_decay_min,
@@ -2711,7 +2756,7 @@ class ReadKshellOutput:
             unique_string_extra = obtd_mod_unique_string,
         )
 
-    def obtd_2(self,
+    def obtd_B_plot(self,
         orbitals: list[tuple[str, str]],
         E_gamma_min: float | int = 0,
         E_gamma_max: float | int = np.inf,
@@ -2729,6 +2774,13 @@ class ReadKshellOutput:
         gsf_filter_parities: str = "both",
         preliminary: bool = False,
     ):
+        """
+        Plot select OBTD values as a function of B. The purpose is to see how
+        OBTDs change as they become more "important". Transitions with high B
+        values pull up the amplitude of the GSF and consequently, OBTDs which
+        belong to transitions with higher B values are in a sense more
+        important to features of the GSF like the LEE, pygmy, etc.
+        """
         if multipole_type != "M1":
             msg = (
                 f"OBTD plot for {multipole_type} has not yet been implemented."
@@ -2896,7 +2948,7 @@ class ReadKshellOutput:
             ax.grid()
             ax.legend(fontsize=10, loc="upper left")
 
-    def obtd(self,
+    def obtd_heatmap(self,
         E_gamma_min: float | int = 0,
         E_gamma_max: float | int = np.inf,
         B_decay_min: float | int = 0,
@@ -2912,6 +2964,7 @@ class ReadKshellOutput:
         gsf_filter_spins: list | None = None,
         gsf_filter_parities: str = "both",
         exclude_mask: npt.NDArray | None = None,
+        include_ls: bool = False,
         preliminary: bool = False,
     ):
         """
@@ -2947,33 +3000,36 @@ class ReadKshellOutput:
             )
             raise NotImplementedError(msg)
         
-        if exclude_mask is None:
+        for key in self.obtd_dict.keys():
             """
             I don't like this stupid solution for getting the number of OBTDs
             per transition, but it was the quickest way I could think of.
-            """
-            for key in self.obtd_dict.keys():
-                """
-                To get the number of OBTDs per transition, I need to fetch one
-                OBTD table. This loop finds one arbitrary key of the correct type
-                and breaks the loop immediately after that. The loop will maybe
-                only have one or just a few iterations.
-                """
-                try:
-                    j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
-                except ValueError:
-                    """
-                    Master key, not key.
-                    """
-                    continue
-                else:
-                    break
 
+            To get the number of OBTDs per transition, I need to fetch one
+            OBTD table. This loop finds one arbitrary key of the correct
+            type and breaks the loop immediately after that. The loop will
+            maybe only have one or just a few iterations.
+            """
+            try:
+                j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
+            except ValueError:
+                """
+                Master key, not key.
+                """
+                continue
             else:
-                msg = "No key found in the OBTD dict! Oh noooooo!!"
-                raise KshellDataStructureError(msg)
-            
-            alpha, _, _, _, _ = self.obtd_dict[key].T
+                break
+
+        else:
+            msg = "No key found in the OBTD dict! Oh noooooo!!"
+            raise KshellDataStructureError(msg)
+        
+        alpha, _, _, _, _ = self.obtd_dict[key].T
+
+        if exclude_mask is None:
+            """
+            Allow all values if no exclude mask has been provided.
+            """
             exclude_mask = np.zeros_like(alpha, dtype=np.bool_) # Start with [False, False, ..., False].
 
         proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
@@ -2981,6 +3037,8 @@ class ReadKshellOutput:
         n_proton_orbitals = len(proton_orb_indices)
         n_neutron_orbitals = len(neutron_orb_indices)
         n_orbitals = n_proton_orbitals + n_neutron_orbitals
+        proton_mask = alpha < n_proton_orbitals
+        neutron_mask = alpha >= n_proton_orbitals
 
         _, _, _, included_transitions = self.gsf(
             bin_width = gsf_bin_width,
@@ -3069,11 +3127,27 @@ class ReadKshellOutput:
             obtd_copy = np.copy(obtd)   # To avoid altering the original data.
             n_obtds += obtd_copy.size
 
-            matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
-            matrix_element_skips += sum(matrix_elem_mask)
-            obtd_copy[matrix_elem_mask] = 0
-            obtd_copy[exclude_mask] = 0 # Artificially remove certain orbitals.
+            if include_ls:
+                """
+                Includes OBTD*(l + s) instead of just OBTD.
+                """
+                matrix_elem_l_copy = np.copy(matrix_elem_l)
+                matrix_elem_s_copy = np.copy(matrix_elem_s)
+                
+                matrix_elem_s_copy[proton_mask] *= GS_FREE_PROTON
+                matrix_elem_s_copy[neutron_mask] *= GS_FREE_NEUTRON
 
+                # matrix_elem_l_copy[proton_mask] *= 1.1
+                # matrix_elem_l_copy[neutron_mask] *= -0.1
+
+                obtd_copy = obtd_copy*(matrix_elem_l_copy + matrix_elem_s_copy)
+                # obtd_copy = matrix_elem_l_copy + matrix_elem_s_copy
+            else:
+                matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
+                matrix_element_skips += sum(matrix_elem_mask)
+                obtd_copy[matrix_elem_mask] = 0
+            
+            obtd_copy[exclude_mask] = 0 # Artificially remove certain orbitals.
             obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd_copy)
             
             # obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += obtd_copy
@@ -3107,6 +3181,7 @@ class ReadKshellOutput:
             ["proton_and_neutron", "proton", "neutron"],
             figs,
             axs,
+            strict = True,
         ):
             """
             Plot the OBTDs for protons and neutrons separately.
@@ -3132,17 +3207,17 @@ class ReadKshellOutput:
                 annot_kws = {"size": 11},
             )
             cbar = heatmap.collections[0].colorbar
-            # cbar.set_label(
-            #     r"\% of total",
-            #     rotation = 90
-            # )
+            cbar.set_label(
+                r"\%",
+                rotation = 0,
+            )
             vmin = cbar.vmin    # Make sure proton and neutron heatmaps have the same scale.
             vmax = cbar.vmax
-            
+
             ax.set_ylabel(r"$\beta$", rotation=0)
             ax.set_xlabel(r"$\alpha$")
             ax.tick_params(axis="y", rotation=0)
-            ax.set_title(r"$\rho_{\alpha \beta} = \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle$")
+            ax.set_title(f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$\rho_{\alpha \beta} = | \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle |$", fontsize=20)
             if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
