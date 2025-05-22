@@ -1499,7 +1499,6 @@ class ReadKshellOutput:
             """
             Calculate for the j values in j_list (note: not in j_lists).
             """
-            # bins, counts, chi2 = self.porter_thomas(
             bins, counts = self.porter_thomas(
                 multipole_type = multipole_type,
                 j_list = j_list,
@@ -1507,13 +1506,9 @@ class ReadKshellOutput:
                 BXL_bin_width = BXL_bin_width,
             )
             idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            counts /= np.trapz(counts, bins)
-            # counts /= sum(counts)
-            # counts /= BXL_bin_width
+            counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
             # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
-            # counts = counts[:-1]
             print(f"{np.trapz(counts, bins) = }")
-            print(f"{counts[0:2] = }")
             
             bins = bins[1:idx]
             counts = counts[1:idx]
@@ -1523,7 +1518,6 @@ class ReadKshellOutput:
             
             binss.append(bins)
             countss.append(counts)
-            # chi2s.append(chi2[:idx])
             chi2s.append(chi2)
 
         return binss, countss, chi2s

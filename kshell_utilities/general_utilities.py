@@ -1034,65 +1034,17 @@ def porter_thomas(
     
     pt_count_time = time.perf_counter() - pt_count_time
 
-    pt_post_process_time = time.perf_counter()
-    # rv = chi2(1)
-    # BXL_counts_normalised = BXL_counts/np.sum(BXL_counts)/BXL_bin_width
-    # BXL_counts = BXL_counts[1:] # Exclude the first data point because chi2(1) goes to infinity and is hard to work with there.
-    # BXL_counts_normalised = BXL_counts_normalised[1:]
-    # BXL_bins = BXL_bins[1:]
-    # n_BXL_bins -= 1
-    # chi2_rv = rv.pdf(BXL_bins)
-    # chi2_rv = rv.pdf(
-    #     np.linspace(
-    #         chi2.ppf(0.01, 1),
-    #         chi2.ppf(0.99, 1),
-    #         n_BXL_bins,
-    #     )
-    # )
-    # fig, ax = plt.subplots()
-    # ax.plot(np.linspace(chi2.ppf(0.01, 1), chi2.ppf(0.99, 1), n_BXL_bins), chi2_rv, label="ppf")
-    # ax.plot(BXL_bins, rv.pdf(BXL_bins))
-    # ax.legend()
-    # plt.show()
-    # sys.exit()
-    # popt, _ = curve_fit(
-    #     f = lambda x, scale: scale*rv.pdf(x),
-    #     xdata = BXL_bins,
-    #     ydata = BXL_counts,
-    #     p0 = [chi2_rv[1]/BXL_counts[1]],
-    #     method = "lm",
-    # )
-    # BXL_counts *= popt[0]   # Scale counts to match chi2.
-    # BXL_counts_normalised *= np.mean(chi2_rv[1:20]/BXL_counts_normalised[1:20])
-    """
-    Normalise BXL_counts to the chi2(1) distribution, ie. find a
-    coefficient which makes BXL_counts become chi2(1) by
-    BXL_counts*chi2(1)/BXL_counts = chi2(1). Since any single point in
-    the BXL distribution might over or undershoot chi2(1), I have chosen
-    to use the mean of 19 ([1:20] slice, pretty arbitrary chosen) of
-    these values to make a more stable normalisation coefficient.
-    """
-    # BXL_counts_normalised = BXL_counts/np.trapz(BXL_counts)
-    # BXL_counts_normalised = BXL_counts*np.mean(chi2_rv[1:20]/BXL_counts[1:20])
-    pt_post_process_time = time.perf_counter() - pt_post_process_time
-
     if flags["debug"]:
         print("--------------------------------")
         print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
         print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
-        print(f"Porter-Thomas: Post process time: {pt_post_process_time:.3f} s")
         print(f"{sum(BXL_counts) = }")
-        # print(f"{sum(BXL_counts_normalised) = }")
         print(f"{np.var(BXL_counts) = }")
-        # print(f"{np.var(BXL_counts_normalised) = }")
-        # print(f"{np.var(chi2_rv) = }")
         print(f"{n_B_skips = }")
         print(f"{Ei = }")
         print(f"{Ei_bin_width = }")
-        print("--------------------------------")
 
-    return BXL_bins, BXL_counts#, chi2_rv
-    # return BXL_bins, BXL_counts_normalised, chi2_rv
+    return BXL_bins, BXL_counts
 
 def nuclear_shell_model(
     show_spectroscopic_notation: bool = True,
