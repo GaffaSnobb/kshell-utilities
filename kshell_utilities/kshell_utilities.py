@@ -1238,7 +1238,6 @@ class ReadKshellOutput:
                     Ei = Ei,
                     BXL_bin_width = BXL_bin_width,
                     Ei_bin_width = Ei_bin_width,
-                    return_chi2 = True
                 )
                 idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
                 bins = bins[:idx]
@@ -1329,7 +1328,6 @@ class ReadKshellOutput:
                         Ei = Ei,
                         BXL_bin_width = BXL_bin_width,
                         Ei_bin_width = Ei_bin_width,
-                        return_chi2 = True
                     )
                     idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
                     bins = bins[:idx]
@@ -1357,7 +1355,6 @@ class ReadKshellOutput:
                         multipole_type = multipole_type_,
                         Ei = [Ei_range[i], Ei_range[i+1]],
                         BXL_bin_width = BXL_bin_width,
-                        return_chi2 = True
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))
@@ -1494,24 +1491,40 @@ class ReadKshellOutput:
         binss = []
         countss = []
         chi2s = []
+
+        def chi2_pdf(x):
+            return 1/(np.sqrt(2*np.pi*x))*np.exp(-x/2)
+
         for j_list in j_lists:
             """
             Calculate for the j values in j_list (note: not in j_lists).
             """
-            bins, counts, chi2 = self.porter_thomas(
+            # bins, counts, chi2 = self.porter_thomas(
+            bins, counts = self.porter_thomas(
                 multipole_type = multipole_type,
                 j_list = j_list,
                 Ei = [Ex_min, Ex_max],
                 BXL_bin_width = BXL_bin_width,
-                return_chi2 = True
             )
             idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            # bins = bins[:idx]
-            # counts = counts[:idx]
-            # chi2 = chi2[:idx]
-            binss.append(bins[:idx])
-            countss.append(counts[:idx])
-            chi2s.append(chi2[:idx])
+            counts /= np.trapz(counts, bins)
+            # counts /= sum(counts)
+            # counts /= BXL_bin_width
+            # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
+            # counts = counts[:-1]
+            print(f"{np.trapz(counts, bins) = }")
+            print(f"{counts[0:2] = }")
+            
+            bins = bins[1:idx]
+            counts = counts[1:idx]
+            tmp_bins = np.copy(bins)
+            tmp_bins += 0.015
+            chi2 = chi2_pdf(bins)
+            
+            binss.append(bins)
+            countss.append(counts)
+            # chi2s.append(chi2[:idx])
+            chi2s.append(chi2)
 
         return binss, countss, chi2s
 
@@ -1598,7 +1611,7 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[0],
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
                 axd["upper"].step(
                     bins,
                     counts,
@@ -1666,7 +1679,7 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[0],
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
                 axd["upper left"].step(
                     bins,
                     counts,
@@ -1718,7 +1731,7 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[1],
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors):
+            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
                 axd["upper right"].step(
                     bins,
                     counts,
