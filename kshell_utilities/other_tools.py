@@ -1,4 +1,5 @@
 import sys, os
+import numpy as np
 
 class HidePrint:
     """
@@ -68,3 +69,6 @@ def conditional_red_text(input_string: str, condition: bool) -> str:
         return input_string
     else:
         return f"\033[31m{input_string}\033[0m"
+    
+def chi2_pdf(x):
+    return 1/(np.sqrt(2*np.pi*x))*np.exp(-x/2)
