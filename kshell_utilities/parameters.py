@@ -6,6 +6,7 @@ GS_FREE_NEUTRON = -3.826
 DPI = 600   # DPI for plots.
 MATPLOTLIB_SAVEFIG_FORMAT = "pdf"
 FIGSIZE = (7, 6.4)  # Figsize for plots.
+GRID_ALPHA = 0.2    # Alpha value for matplotlib plot grids.
 flags = {"debug": False, "parallel": True}
 
 def debug_mode(switch):
