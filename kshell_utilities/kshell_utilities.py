@@ -16,7 +16,7 @@ from tqdm import tqdm
 from .kshell_exceptions import KshellDataStructureError
 from .parameters import (
     elements_reversed, flags, DPI, orbital_labels, FIGSIZE, GS_FREE_NEUTRON,
-    GS_FREE_PROTON, MATPLOTLIB_SAVEFIG_FORMAT
+    GS_FREE_PROTON, MATPLOTLIB_SAVEFIG_FORMAT, GRID_ALPHA
 )
 from .general_utilities import (
     level_plot, level_density, gamma_strength_function_average, porter_thomas,
@@ -33,7 +33,7 @@ from .test_loaders import (
 from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
-from .other_tools import HidePrint, conditional_red_text
+from .other_tools import HidePrint, conditional_red_text, chi2_pdf
 
 class ReadKshellOutput:
     """
@@ -1233,22 +1233,26 @@ class ReadKshellOutput:
                 Calculate in a bin size of 'Ei_bin_width' around given Ei
                 values.
                 """
-                bins, counts, chi2 = self.porter_thomas(
+                bins, counts = self.porter_thomas(
                     multipole_type = multipole_type[0],
                     Ei = Ei,
                     BXL_bin_width = BXL_bin_width,
                     Ei_bin_width = Ei_bin_width,
                 )
                 idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-                bins = bins[:idx]
-                counts = counts[:idx]
-                chi2 = chi2[:idx]
+                counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                print(f"{np.trapz(counts, bins) = }")
+                bins = bins[1:idx]
+                counts = counts[1:idx]
+                
                 axd["upper"].step(
                     bins,
                     counts,
                     label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
                     color = color
                 )
+
+            chi2 = chi2_pdf(bins)
         
             axd["upper"].plot(
                 bins,
@@ -1263,17 +1267,17 @@ class ReadKshellOutput:
                 """
                 Calculate in the specified range of Ei values.
                 """
-                bins, counts, chi2 = self.porter_thomas(
+                bins, counts = self.porter_thomas(
                     multipole_type = multipole_type[0],
                     Ei = [Ei_range[i], Ei_range[i+1]],
                     BXL_bin_width = BXL_bin_width,
-                    return_chi2 = True
                 )
                 
                 idx = np.argmin(np.abs(bins - 10))
-                bins = bins[:idx]
-                counts = counts[:idx]
-                chi2 = chi2[:idx]
+                counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                print(f"{np.trapz(counts, bins) = }")
+                bins = bins[1:idx]
+                counts = counts[1:idx]
                 
                 axd["middle"].step(
                     bins,
@@ -1323,22 +1327,26 @@ class ReadKshellOutput:
                     Calculate in a bin size of 'Ei_bin_width' around given Ei
                     values.
                     """
-                    bins, counts, chi2 = self.porter_thomas(
+                    bins, counts = self.porter_thomas(
                         multipole_type = multipole_type_,
                         Ei = Ei,
                         BXL_bin_width = BXL_bin_width,
                         Ei_bin_width = Ei_bin_width,
                     )
+                    
                     idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-                    bins = bins[:idx]
-                    counts = counts[:idx]
-                    chi2 = chi2[:idx]
+                    counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                    print(f"{np.trapz(counts, bins) = }")
+                    bins = bins[1:idx]
+                    counts = counts[1:idx]
+
                     axd["upper " + loc].step(
                         bins,
                         counts,
                         label = r"$E_i = $" + f"{Ei:.2f}" + r" $\pm$ " + f"{Ei_bin_width/2:.2f} MeV",
                         color = color
                     )
+                chi2 = chi2_pdf(bins)
             
                 axd["upper " + loc].plot(
                     bins,
@@ -1351,16 +1359,18 @@ class ReadKshellOutput:
                     """
                     Calculate in the specified range of Ei values.
                     """
-                    bins, counts, chi2 = self.porter_thomas(
+                    bins, counts = self.porter_thomas(
                         multipole_type = multipole_type_,
                         Ei = [Ei_range[i], Ei_range[i+1]],
                         BXL_bin_width = BXL_bin_width,
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))
-                    bins = bins[:idx]
-                    counts = counts[:idx]
-                    chi2 = chi2[:idx]
+                    counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                    print(f"{np.trapz(counts, bins) = }")
+                    bins = bins[1:idx]
+                    counts = counts[1:idx]
+                    chi2 = chi2_pdf(bins)
                     
                     axd["middle " + loc].step(
                         bins,
@@ -1402,6 +1412,10 @@ class ReadKshellOutput:
 
             axd["lower right"].set_yticklabels([])
             axd["lower right"].set_ylim(axd["lower left"].get_ylim())
+            
+            for ax in axd.values():
+                ax.grid(visible=True, alpha=GRID_ALPHA)
+            
             fig.savefig(fname=f"{self.nucleus}_porter_thomas_Ei_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
 
         else:
@@ -1492,9 +1506,6 @@ class ReadKshellOutput:
         countss = []
         chi2s = []
 
-        def chi2_pdf(x):
-            return 1/(np.sqrt(2*np.pi*x))*np.exp(-x/2)
-
         for j_list in j_lists:
             """
             Calculate for the j values in j_list (note: not in j_lists).
@@ -1512,8 +1523,8 @@ class ReadKshellOutput:
             
             bins = bins[1:idx]
             counts = counts[1:idx]
-            tmp_bins = np.copy(bins)
-            tmp_bins += 0.015
+            # tmp_bins = np.copy(bins)
+            # tmp_bins += BXL_bin_width
             chi2 = chi2_pdf(bins)
             
             binss.append(bins)
@@ -1760,6 +1771,9 @@ class ReadKshellOutput:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
+            for ax in axd.values():
+                ax.grid(visible=True, alpha=GRID_ALPHA)
+
             fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
