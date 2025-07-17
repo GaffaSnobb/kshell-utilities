@@ -893,10 +893,11 @@ def porter_thomas(
     BXL_bin_width: int | float,
     j_list: list | None = None,
     Ei_bin_width: int | float = 0.1,
-) -> tuple[npt.NDArray, npt.NDArray] | tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
+    E_gamma_min: float = 0.0,
+    E_gamma_max: float = np.inf,
+) -> tuple[npt.NDArray, npt.NDArray]:
     """
-    Calculate the distribution of B(XL)/mean(B(XL)) values scaled to
-    a chi-squared distribution of 1 degree of freedom.
+    Calculate the distribution of B(XL)/mean(B(XL)) values.
 
     Parameters
     ----------
@@ -930,10 +931,11 @@ def porter_thomas(
 
     BXL_counts : npt.NDArray
         The number of counts in each BXL_bins bin (y values).
-
-    chi2_rv : npt.NDArray
-        The chi-squared distribution y values.
     """
+    E_gamma_mask = np.logical_and(
+        transitions[:, 8] >= E_gamma_min,
+        transitions[:, 8] < E_gamma_max,
+    )
     pt_prepare_data_time = time.perf_counter()
     if isinstance(Ei, (list, tuple, np.ndarray)):
         """
@@ -943,7 +945,8 @@ def porter_thomas(
             transitions[:, 3] >= Ei[0],
             transitions[:, 3] < Ei[-1]
         )
-        BXL = transitions[Ei_mask]
+        BXL = transitions[np.logical_and(Ei_mask, E_gamma_mask)]
+        assert BXL.size, "No values in BXL!"
     else:
         BXL = transitions[np.abs(transitions[:, 3] - Ei) < Ei_bin_width] # Consider only levels around Ei.
 
@@ -1039,10 +1042,21 @@ def porter_thomas(
         print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
         print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
         print(f"{sum(BXL_counts) = }")
-        print(f"{np.var(BXL_counts) = }")
         print(f"{n_B_skips = }")
         print(f"{Ei = }")
         print(f"{Ei_bin_width = }")
+        print(f"{j_list = }")
+        print(f"{E_gamma_min = }")
+        print(f"{E_gamma_max = }")
+        print(f"{np.mean(BXL) = }")
+        print(f"{np.var(BXL) = }")
+
+        # flattened = []
+        # for b, c in zip(BXL_bins, BXL_counts):
+        #     flattened += [b]*int(c)
+
+        # print(f"{np.var(flattened) = }")
+        # print(f"{np.mean(flattened) = }")
 
     return BXL_bins, BXL_counts
 
