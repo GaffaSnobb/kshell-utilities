@@ -8,7 +8,7 @@ setup(
     author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities'],
-    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'vum'],
+    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'tqdm'],
     package_data = {
         'kshell_utilities': ['test_files/*.txt', 'test_files/obtd_test/*.txt'],
     },
