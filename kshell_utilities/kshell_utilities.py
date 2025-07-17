@@ -402,9 +402,36 @@ class ReadKshellOutput:
                     """
                     key_as_tuple = tuple(key_with_transit_idx[:-1])
                     transition_idx = key_with_transit_idx[-1]
-                    
                     master_key = (key_as_tuple[0], key_as_tuple[1], key_as_tuple[3], key_as_tuple[4])
-                    assert str(master_key) in npz_keys
+                    
+                    if (key_as_str := str(tuple([int(elem) for elem in master_key]))) not in npz_keys:
+                        """
+                        The reason for the ugly str tuple list int is because,
+                        I think, some update to Numpy made the format of the
+                        `master_key` not evaluate the same way. `master_key`s
+                        are tuples of `np.int64`:
+
+                        ```
+                        >>> a = (np.int64(2), np.int64(1), np.int64(4), np.int64(1))
+                        ```
+
+                        and converting that to `str` would earlier result in
+
+                        ```
+                        >>> str(a)
+                        '(2, 1, 4, 1)'
+                        ```
+
+                        but now it converts to
+
+                        ```
+                        >>> str(a)
+                        '(np.int64(2), np.int64(1), np.int64(4), np.int64(1))'
+                        ```
+
+                        and then the key can't be found in `npz_keys`. Capisce?
+                        """
+                        assert False, f"{master_key = }, {key_as_str = }"
                     
                     obtd_dict[key_as_tuple] = obtd_dict[master_key][:, :, transition_idx]   # Create view of a 2D slice.
 
@@ -1150,12 +1177,14 @@ class ReadKshellOutput:
         return porter_thomas(transitions_dict[multipole_type], **kwargs)
 
     def porter_thomas_Ei_plot(self,
-        Ei_range_min: float = 5,
-        Ei_range_max: float = 9,
+        Ei_range_min: float = 5.0,
+        Ei_range_max: float = 9.0,
         Ei_values: list | None = None,
         Ei_bin_width: float = 0.2,
         BXL_bin_width: float = 0.1,
         multipole_type: str | list = "M1",
+        E_gamma_min: float = 0.0,
+        E_gamma_max: float = np.inf,
         set_title: bool = True
         ):
         """
@@ -1332,11 +1361,14 @@ class ReadKshellOutput:
                         Ei = Ei,
                         BXL_bin_width = BXL_bin_width,
                         Ei_bin_width = Ei_bin_width,
+                        E_gamma_min = E_gamma_min,
+                        E_gamma_max = E_gamma_max,
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
                     counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
                     print(f"{np.trapz(counts, bins) = }")
+                    print(f"{multipole_type_ = }")
                     bins = bins[1:idx]
                     counts = counts[1:idx]
 
@@ -1363,11 +1395,14 @@ class ReadKshellOutput:
                         multipole_type = multipole_type_,
                         Ei = [Ei_range[i], Ei_range[i+1]],
                         BXL_bin_width = BXL_bin_width,
+                        E_gamma_min = E_gamma_min,
+                        E_gamma_max = E_gamma_max,
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))
                     counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
                     print(f"{np.trapz(counts, bins) = }")
+                    print(f"{multipole_type_ = }")
                     bins = bins[1:idx]
                     counts = counts[1:idx]
                     chi2 = chi2_pdf(bins)
@@ -1431,6 +1466,8 @@ class ReadKshellOutput:
         j_lists: list | None,
         BXL_bin_width: float,
         multipole_type: str,
+        E_gamma_min: float = 0.0,
+        E_gamma_max: float = np.inf,
         ):
         """
         Really just a wrapper to self.porter_thomas with j checks.
@@ -1515,11 +1552,14 @@ class ReadKshellOutput:
                 j_list = j_list,
                 Ei = [Ex_min, Ex_max],
                 BXL_bin_width = BXL_bin_width,
+                E_gamma_min = E_gamma_min,
+                E_gamma_max = E_gamma_max,
             )
             idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
             counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
             # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
             print(f"{np.trapz(counts, bins) = }")
+            print(f"{multipole_type = }")
             
             bins = bins[1:idx]
             counts = counts[1:idx]
@@ -1539,6 +1579,8 @@ class ReadKshellOutput:
         j_lists: list | None = None,
         BXL_bin_width: float = 0.1,
         multipole_type: str | list = "M1",
+        E_gamma_min: float = 0.0,
+        E_gamma_max: float = np.inf,
         include_relative_difference: bool = True,
         set_title: bool = True
         ):
@@ -1614,6 +1656,8 @@ class ReadKshellOutput:
                 j_lists = j_lists,
                 BXL_bin_width = BXL_bin_width,
                 multipole_type = multipole_type[0],
+                E_gamma_min = E_gamma_min,
+                E_gamma_max = E_gamma_max,
             )
 
             for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
@@ -1682,6 +1726,8 @@ class ReadKshellOutput:
                 j_lists = j_lists,
                 BXL_bin_width = BXL_bin_width,
                 multipole_type = multipole_type[0],
+                E_gamma_min = E_gamma_min,
+                E_gamma_max = E_gamma_max,
             )
 
             for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
@@ -1734,6 +1780,8 @@ class ReadKshellOutput:
                 j_lists = j_lists,
                 BXL_bin_width = BXL_bin_width,
                 multipole_type = multipole_type[1],
+                E_gamma_min = E_gamma_min,
+                E_gamma_max = E_gamma_max,
             )
 
             for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
@@ -2581,7 +2629,7 @@ class ReadKshellOutput:
     def obtd_modifier(self,
         exclude_orbitals_if: list[tuple[str, str] | str] = [],
         obtd_E_gamma_min: float | int = 0,
-        obtd_E_gamma_max: float | int = np.inf,
+        obtd_E_gamma_max: float | int | None = None,
         obtd_B_decay_min: float | int = 0,
         obtd_B_decay_max: float | int = np.inf,
         gsf_bin_width: float | int = 0.2,
@@ -2591,6 +2639,11 @@ class ReadKshellOutput:
         gsf_filter_spins: list | None = None,
         gsf_filter_parities: str = "both",
         quenching_factor: float = 1.0,
+        gs_p: float | None = None,
+        gs_n: float | None = None,
+        gl_p: float = 1.0,
+        gl_n: float = 0.0,
+        make_heatmap: bool = True,
     ):
         """
         Modify OBTDs and re-calculate the OBTD heatmap and the GSF. The OBTDs
@@ -2600,8 +2653,24 @@ class ReadKshellOutput:
         see p. 130 in Suhonen
         """
         FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
-        GL_P, GL_N = 1.1, -0.1
-        gs_p, gs_n = GS_FREE_PROTON*quenching_factor, GS_FREE_NEUTRON*quenching_factor
+        # GL_P, GL_N = 1.1, -0.1
+
+        if gs_p is None:
+            """
+            The quenching factor will not be applied if the user inputs a
+            specific gs_p value, even if a quenching value is also given.
+            """
+            gs_p = GS_FREE_PROTON*quenching_factor
+
+        if gs_n is None:
+            gs_n = GS_FREE_NEUTRON*quenching_factor
+
+        if obtd_E_gamma_max is None:
+            """
+            The maximum possible gamma energy is the same as the maximum
+            excitation energy.
+            """
+            obtd_E_gamma_max = gsf_Ex_max
 
         for key in self.obtd_dict.keys():
             """
@@ -2669,7 +2738,7 @@ class ReadKshellOutput:
             )
             print(conditional_red_text(input_string=msg, condition=(not m)))
 
-        obtd_mod_unique_string = f"{exclude_mask}{GL_P}{GL_N}{gs_p}{gs_n}"
+        obtd_mod_unique_string = f"{exclude_mask}{gl_p}{gl_n}{gs_p}{gs_n}"
         obtd_mod_unique_id = hashlib.sha1((self.unique_id + obtd_mod_unique_string).encode()).hexdigest()
         transitions_modified_fname = f"{self.npy_path}/{self.base_fname}_transitions_modified_{obtd_mod_unique_id}.npz"
 
@@ -2718,8 +2787,8 @@ class ReadKshellOutput:
                 l_neutron = l[neutron_mask]
                 s_neutron = s[neutron_mask]
 
-                res_proton = np.sum(obtd_proton*(GL_P*l_proton + gs_p*s_proton))
-                res_neutron = np.sum(obtd_neutron*(GL_N*l_neutron + gs_n*s_neutron))
+                res_proton = np.sum(obtd_proton*(gl_p*l_proton + gs_p*s_proton))
+                res_neutron = np.sum(obtd_neutron*(gl_n*l_neutron + gs_n*s_neutron))
                 M_red_current = (res_proton + res_neutron)/FAC
 
                 B_decay_current = M_red_current**2/(j_i_current + 1)
@@ -2751,19 +2820,25 @@ class ReadKshellOutput:
                     transitions_BM1_modified = self.transitions_BM1_modified,
                 )
 
-        self.obtd_heatmap(
-            E_gamma_min = obtd_E_gamma_min,
-            E_gamma_max = obtd_E_gamma_max,
-            B_decay_min = obtd_B_decay_min,
-            B_decay_max = obtd_B_decay_max,
-            gsf_bin_width = gsf_bin_width,
-            gsf_Ex_min = gsf_Ex_min,
-            gsf_Ex_max = gsf_Ex_max,
-            gsf_include_n_levels = gsf_include_n_levels,
-            gsf_filter_spins = gsf_filter_spins,
-            gsf_filter_parities = gsf_filter_parities,
-            exclude_mask = exclude_mask,
-        )
+        if make_heatmap:
+            self.obtd_heatmap(
+                E_gamma_min = obtd_E_gamma_min,
+                E_gamma_max = obtd_E_gamma_max,
+                B_decay_min = obtd_B_decay_min,
+                B_decay_max = obtd_B_decay_max,
+                gsf_bin_width = gsf_bin_width,
+                gsf_Ex_min = gsf_Ex_min,
+                gsf_Ex_max = gsf_Ex_max,
+                gsf_include_n_levels = gsf_include_n_levels,
+                gsf_filter_spins = gsf_filter_spins,
+                gsf_filter_parities = gsf_filter_parities,
+                exclude_mask = exclude_mask,
+                gl_n = gl_n,
+                gl_p = gl_p,
+                gs_n = gs_n,
+                gs_p = gs_p,
+                include_mred = True,
+            )
 
         return self.gsf(
             bin_width = gsf_bin_width,
@@ -2985,8 +3060,13 @@ class ReadKshellOutput:
         gsf_filter_spins: list | None = None,
         gsf_filter_parities: str = "both",
         exclude_mask: npt.NDArray | None = None,
-        include_ls: bool = False,
         preliminary: bool = False,
+        include_mred: bool = False,
+        quenching_factor: float = 1.0,
+        gs_p: float | None = None,
+        gs_n: float | None = None,
+        gl_p: float = 1.0,
+        gl_n: float = 0.0,
     ):
         """
         Make a heatmap of the one-body transition density (OBTD)
@@ -3010,9 +3090,14 @@ class ReadKshellOutput:
         preliminary : bool
             Toggle text "PRELIMINARY" over the plot.
 
+        include_mred : bool
+            Multiply the OBTD with the reduced single-particle matrix
+            element or not.
+
         For the rest of the parameters, see the docstring for
         `gamma_strength_function`.
         """
+        FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
         if multipole_type != "M1":
             msg = (
                 f"OBTD plot for {multipole_type} has not yet been implemented."
@@ -3020,6 +3105,16 @@ class ReadKshellOutput:
                 " done that for M1 thus far."
             )
             raise NotImplementedError(msg)
+        
+        if gs_p is None:
+            """
+            The quenching factor will not be applied if the user inputs a
+            specific gs_p value, even if a quenching value is also given.
+            """
+            gs_p = GS_FREE_PROTON*quenching_factor
+
+        if gs_n is None:
+            gs_n = GS_FREE_NEUTRON*quenching_factor
         
         for key in self.obtd_dict.keys():
             """
@@ -3042,7 +3137,7 @@ class ReadKshellOutput:
                 break
 
         else:
-            msg = "No key found in the OBTD dict! Oh noooooo!!"
+            msg = "No key found in the OBTD dict!"
             raise KshellDataStructureError(msg)
         
         alpha, _, _, _, _ = self.obtd_dict[key].T
@@ -3118,6 +3213,8 @@ class ReadKshellOutput:
 
             M1 = gl*L + gs*S
 
+            mred = < alpha || M1 || beta >
+
             If one OBTD in one term of the sum is large then we could say
             that that single-particle transition contributes a lot,
             however, if the matrix element < alpha || M1 || beta > is zero
@@ -3146,36 +3243,36 @@ class ReadKshellOutput:
             
             orb_idx_create, orb_idx_annihilate, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
             obtd_copy = np.copy(obtd)   # To avoid altering the original data.
-            n_obtds += obtd_copy.size
 
-            if include_ls:
+            if include_mred:
                 """
-                Includes OBTD*(l + s) instead of just OBTD.
+                Includes OBTD*mred instead of just OBTD.
                 """
                 matrix_elem_l_copy = np.copy(matrix_elem_l)
                 matrix_elem_s_copy = np.copy(matrix_elem_s)
                 
-                matrix_elem_s_copy[proton_mask] *= GS_FREE_PROTON
-                matrix_elem_s_copy[neutron_mask] *= GS_FREE_NEUTRON
+                matrix_elem_s_copy[proton_mask] *= gs_p
+                matrix_elem_s_copy[neutron_mask] *= gs_n
 
-                # matrix_elem_l_copy[proton_mask] *= 1.1
-                # matrix_elem_l_copy[neutron_mask] *= -0.1
+                matrix_elem_l_copy[proton_mask] *= gl_p
+                matrix_elem_l_copy[neutron_mask] *= gl_n
 
-                obtd_copy = obtd_copy*(matrix_elem_l_copy + matrix_elem_s_copy)
-                # obtd_copy = matrix_elem_l_copy + matrix_elem_s_copy
+                obtd_copy = obtd_copy*((matrix_elem_l_copy + matrix_elem_s_copy)/FAC)   # Dividing by FAC here is prob. no point because of the later conversion to percentages.
+
             else:
+                """
+                If the OBTDs are not multiplied by the mreds then still omit
+                OBTDs where the mreds are zero as to respect angular momentum
+                rules of the operator.
+                """
+                n_obtds += obtd_copy.size
                 matrix_elem_mask = np.logical_and(matrix_elem_l == 0, matrix_elem_s == 0)
                 matrix_element_skips += sum(matrix_elem_mask)
                 obtd_copy[matrix_elem_mask] = 0
             
             obtd_copy[exclude_mask] = 0 # Artificially remove certain orbitals.
             obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd_copy)
-            
-            # obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += obtd_copy
-            # print(f"{key = }")
-            # break
 
-        print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
 
         obtd_summary /= np.sum(obtd_summary)
         obtd_summary *= 100
@@ -3185,6 +3282,20 @@ class ReadKshellOutput:
         
         proton_data = np.round(obtd_summary[:n_proton_orbitals, :n_proton_orbitals], decimals=3)
         neutron_data = np.round(obtd_summary[n_proton_orbitals:n_orbitals, n_proton_orbitals:n_orbitals], decimals=3)
+
+        if not include_mred:
+            print(f"{matrix_element_skips} of {n_obtds} ({matrix_element_skips/n_obtds*100:.2f} %) OBTDs were skipped because the accompanying matrix element was zero.")
+        
+        print(f"Proton percentage of rOBTDs: {np.sum(proton_data)}" + r" %")
+        print(f"Neutron percentage of rOBTDs: {np.sum(neutron_data)}" + r" %")
+
+        if n_orbitals == 24:
+            """
+            Hard-coded for sd-pf-sdg model space.
+            """
+            print("sd   pf   sdg")
+            print(f"p {np.sum(proton_data[:3, :3]):.1f} {np.sum(proton_data[3:7, 3:7]):.1f} {np.sum(proton_data[7:, 7:]):.1f}")
+            print(f"n {np.sum(neutron_data[:3, :3]):.1f} {np.sum(neutron_data[3:7, 3:7]):.1f} {np.sum(neutron_data[7:, 7:]):.1f}")
 
         vmin = None
         vmax = None
@@ -3232,13 +3343,28 @@ class ReadKshellOutput:
                 r"\%",
                 rotation = 0,
             )
-            vmin = cbar.vmin    # Make sure proton and neutron heatmaps have the same scale.
-            vmax = cbar.vmax
+            if nucleon in ["proton", "neutron"]:
+                """
+                Make sure proton and neutron heatmaps have the same scale. As
+                of now, both heatmaps simply get the same scale as the first
+                heatmap which is plotted. Optimally they should both get the
+                scale of the one heatmap with the largest range.
+                """
+                vmin = cbar.vmin
+                vmax = cbar.vmax
 
-            ax.set_ylabel(r"$\beta$", rotation=0)
-            ax.set_xlabel(r"$\alpha$")
+            ax.set_ylabel(r"$b$", rotation=0)
+            ax.set_xlabel(r"$a$")
             ax.tick_params(axis="y", rotation=0)
-            ax.set_title(f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$\rho_{\alpha \beta} = | \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle |$", fontsize=20)
+            # ax.set_title(f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$\rho_{\alpha \beta} = | \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle |$", fontsize=20)
+            title: str = f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$| ( \xi_f j_f || [c_a^{\dagger} \tilde{c}_b]_1 || \xi_i j_i) $"
+            
+            if include_mred:
+                title += r"$( a || \hat{M}_1 || b ) |$"
+            else:
+                title += r"$|$"
+            
+            ax.set_title(title, fontsize=20)
             if preliminary: ax.text(0.5, 0.5, 'PRELIMINARY', transform=ax.transAxes, fontsize=40, color='gray', alpha=0.5, ha='center', va='center', rotation=45)
             if fig is not None:
                 fig.savefig(fname=f"{self.nucleus}_OBTD_{nucleon}_orbitals.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
