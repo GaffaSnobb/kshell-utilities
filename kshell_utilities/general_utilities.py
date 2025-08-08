@@ -507,9 +507,10 @@ def level_plot(
     line_width: float = 0.4,
     x_offset_scale: float = 1.0,
     alpha: float = 0.5,
+    line_thickness: None | float = None,
     ):
     """
-    Generate a level plot for a single isotope. Total angukar momentum
+    Generate a level plot for a single isotope. Total angular momentum
     on the x axis, energy on the y axis.
 
     Parameters
@@ -639,6 +640,7 @@ def level_plot(
             xmax = spins[i] + line_width + x_offset*parities[i]*0.9,
             color = color,
             alpha = alpha,
+            linewidth = line_thickness,
         )
 
     ax.set_xticks(spin_scope)
