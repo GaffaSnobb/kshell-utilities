@@ -908,6 +908,7 @@ class ReadKshellOutput:
         experimental_parities: list[int],
         ax: plt.Axes | None = None,
         colors: list[str] | None = None,
+        line_thickness: None | float = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
         Compare the calculated levels from KSHELL with user-supplied
@@ -979,12 +980,14 @@ class ReadKshellOutput:
             ax = ax,
             color = colors[0],
             alpha = 1,
+            line_thickness = line_thickness,
         )
         level_plot(
             levels = calculated_levels,
             ax = ax,
             color = colors[1],
             alpha = 1,
+            line_thickness = line_thickness,
         )
         ax.plot([], [], color=colors[1], label="Calculated")
         ax.plot([], [], color=colors[0], label="Experimental")
@@ -1139,6 +1142,15 @@ class ReadKshellOutput:
                 bins = bins,
                 n_transitions = n_transitions,
                 included_transitions = included_transitions,
+            )
+
+            # Save a .txt file with bins in the 1st col and gsf values in the 2nd col.
+            tmp_2col_arr = np.zeros(shape=(len(gsf), 2))
+            tmp_2col_arr[:, 0] = bins
+            tmp_2col_arr[:, 1] = gsf
+            np.savetxt(
+                fname = gsf_fname.replace(".npz", f"_{multipole_type}.txt"),
+                X = tmp_2col_arr,
             )
 
         if plot:
@@ -3171,7 +3183,7 @@ class ReadKshellOutput:
         )
         # included_transitions[:, 9] are the B decay values.
         E_gamma_mask_max = included_transitions[:, 8] < E_gamma_max
-        E_gamma_mask_min = included_transitions[:, 8] > E_gamma_min
+        E_gamma_mask_min = included_transitions[:, 8] >= E_gamma_min
         
         B_decay_mask_max = included_transitions[:, 9] < B_decay_max
         B_decay_mask_min = included_transitions[:, 9] > B_decay_min
@@ -3272,7 +3284,9 @@ class ReadKshellOutput:
             
             obtd_copy[exclude_mask] = 0 # Artificially remove certain orbitals.
             obtd_summary[np.int64(orb_idx_annihilate), np.int64(orb_idx_create)] += np.abs(obtd_copy)
-
+            
+            # print(f"{key = }")
+            # sys.exit()
 
         obtd_summary /= np.sum(obtd_summary)
         obtd_summary *= 100
@@ -3375,7 +3389,8 @@ class ReadKshellOutput:
         ax: plt.Axes | None = None,
     ):
         """
-        Plot the centre-of-mass motion (?) for each level.
+        Plot the expectation value of the centre-of-mass Hamiltonian <H_CM> as
+        a function of excitation energy.
 
         Parameters
         ----------
@@ -3395,15 +3410,15 @@ class ReadKshellOutput:
         else:
             mask = np.full(self.levels.shape[0], True, dtype=bool)
 
-        energies_sdpfmu = self.levels[mask][:, 0] - self.ground_state_energy
-        Hcm_sdpfmu = self.levels[mask][:, 4]
+        energies = self.levels[mask][:, 0] - self.ground_state_energy
+        Hcm = self.levels[mask][:, 4]
 
         if ax is None:
             fig, ax = plt.subplots()
         
-        ax.plot(energies_sdpfmu, Hcm_sdpfmu, ".")
+        ax.plot(energies, Hcm, ".")
         ax.set_xlabel(r"$E$ [MeV]")
-        ax.set_ylabel(r"$H_{\mathrm{com}}$")
+        ax.set_ylabel(r"$\langle H_{\mathrm{CM}} \rangle$")
 
         if show_plot:
             plt.show()
