@@ -503,7 +503,7 @@ def level_plot(
     filter_spins: None | list = None,
     filter_parity: None | str = None,
     ax: None | plt.Axes = None,
-    color: None | str = None,
+    color: None | str | tuple[str, str] = None,
     line_width: float = 0.4,
     x_offset_scale: float = 1.0,
     alpha: float = 0.5,
@@ -610,6 +610,10 @@ def level_plot(
     if color is None:
         color = next(ax._get_lines.color_cycle)
 
+    if not isinstance(color, (list, tuple)):
+        color = (color, color)
+
+
     for i in range(len(energies)):
         if filter_spins is not None:
             if spins[i] not in filter_spins:
@@ -638,7 +642,7 @@ def level_plot(
             y = energies[i],
             xmin = spins[i] - line_width + x_offset*parities[i]*0.9,
             xmax = spins[i] + line_width + x_offset*parities[i]*0.9,
-            color = color,
+            color = color[int((parities[i] + 1)/2)],    # Convert -1, 1 -> 0, 1 and use as index.
             alpha = alpha,
             linewidth = line_thickness,
         )
@@ -1072,7 +1076,7 @@ def nuclear_shell_model(
     show_usd: bool = True,
     show_gxpf: bool = True,
     show_jun45: bool = True,
-    show_sdpfsdg: bool = True,
+    show_sdpfsdgmu: bool = True,
     show_sdpfmu: bool = True,
 ):
     """
@@ -1295,7 +1299,7 @@ def nuclear_shell_model(
                 color = "green"
             )
         # SDPF-SDG
-        if show_sdpfsdg:
+        if show_sdpfsdgmu:
             ax.vlines(
                 x = x6 - 0.04,
                 ymin = y2,
@@ -1305,7 +1309,7 @@ def nuclear_shell_model(
             fig.text(
                 x = 0.15,
                 y = 0.66,
-                s = "SDPF-SDG",
+                s = "SDPFSDG-MU",
                 fontsize = 12,
                 rotation = "vertical",
                 color = "mediumorchid"
@@ -1321,7 +1325,7 @@ def nuclear_shell_model(
         )
         fig.text(
             x = 0.45,
-            y = 0.92,
+            y = 0.918,
             s = "------------------",
             fontsize = fontsize - 1,
             color = "black",
