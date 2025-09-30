@@ -1,6 +1,8 @@
 import sys, os
 import numpy as np
 
+from ._log import logger
+
 class HidePrint:
     """
     Simple class for hiding prints to stdout when running unit tests.
@@ -72,3 +74,7 @@ def conditional_red_text(input_string: str, condition: bool) -> str:
     
 def chi2_pdf(x):
     return 1/(np.sqrt(2*np.pi*x))*np.exp(-x/2)
+
+def savefig(fig, fname, dpi):
+    fig.savefig(fname=fname, dpi=dpi)
+    logger.info(f"{fname = }, {dpi = }, saved!")
