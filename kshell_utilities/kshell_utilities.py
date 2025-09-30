@@ -33,7 +33,7 @@ from .test_loaders import (
 from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
-from .other_tools import HidePrint, conditional_red_text, chi2_pdf
+from .other_tools import HidePrint, conditional_red_text, chi2_pdf, savefig
 from ._log import logger
 
 class ReadKshellOutput:
@@ -1119,7 +1119,7 @@ class ReadKshellOutput:
             included_transitions = gsf_npz["included_transitions"]
             
             msg = f"{self.nucleus} {multipole_type} GSF data loaded from .npy!"
-            print(msg)
+            logger.info(msg)
             is_loaded = True
 
         else:
@@ -3608,6 +3608,126 @@ class ReadKshellOutput:
         fname = f"{self.nucleus}-nlds.txt"
         np.savetxt(fname=fname, X=np.array(densities).T, header=header)
         logger.info(f"{fname = }, saved!")
+
+    def interference_angle(self,
+        bin_width: float = 0.2,
+        Ex_min: float = 0.0,
+        Ex_max: float = np.inf,
+        gl_p: float = 1.0,
+        gl_n: float = 0.0,
+        gs_p: float = GS_FREE_PROTON,
+        gs_n: float = GS_FREE_NEUTRON,
+        ax: None | plt.Axes = None,
+    ):
+        """
+        Calculate the average interference angle between the L and S
+        terms in the M1 operator. Averaged over the GSF bins.
+        """
+        FAC = np.sqrt(4*np.pi/3)    # Coefficient for moment? see p. 130 in Suhonen
+        
+        bins_M1, gsf_M1, n_M1_transitions, included_M1_transitions = self.gsf(
+            bin_width = bin_width,
+            Ex_min = Ex_min,
+            Ex_max = Ex_max,
+            multipole_type = 'M1',
+            plot = False,
+            save_plot = False,
+        )
+        included_transitions_keys: list[tuple[int, ...]] = get_included_transitions_obtd_dict_keys(
+            included_transitions = included_M1_transitions,
+            obtd_dict_keys = self.obtd_dict.keys(),
+        )
+
+        proton_orb_indices = self.orbit_numbers[self.orbit_numbers[:, 4] == -1][:, 0] # Slice based on isospin (4th col.).
+        n_proton_orbitals = len(proton_orb_indices)
+
+        N = len(included_transitions_keys)
+        M1_l_array = np.zeros(N)
+        M1_s_array = np.zeros(N)
+        E_gamma_array = np.zeros(N) # I want to be absolutely sure that I bin the cos theta values according to the correct gamma energy.
+
+        assert len(included_transitions_keys) == len(included_M1_transitions)   # I don't think this always needs to be true, as there may not exist OBTD log files for absolutely all transition log files.
+
+        for i in tqdm(range(N)):
+            """
+            Each iteration in the loop is a transition. Extract the
+            OBTDs and the L and S matrix elements and calculate the L-S
+            interference angle for each transition.
+            """
+            key = included_transitions_keys[i]
+            j_i_current, pi_i_current, idx_i_current, j_f_current, pi_f_current, idx_f_current = key
+            orb_idx_create, orb_idx_annihilate, obtd, matrix_elem_l, matrix_elem_s = self.obtd_dict[key].T
+            
+            E_i = self.level_dict[(int(j_i_current), int(pi_i_current), int(idx_i_current))]
+            E_f = self.level_dict[(int(j_f_current), int(pi_f_current), int(idx_f_current))]
+            E_gamma_array[i] = E_i - E_f    # For binning cos theta properly
+            assert E_gamma_array[i] > 0
+
+            proton_mask = orb_idx_create < n_proton_orbitals
+            neutron_mask = orb_idx_create >= n_proton_orbitals
+
+            obtd_proton = obtd[proton_mask]
+            obtd_neutron = obtd[neutron_mask]
+
+            l_proton = matrix_elem_l[proton_mask]
+            s_proton = matrix_elem_s[proton_mask]
+            l_neutron = matrix_elem_l[neutron_mask]
+            s_neutron = matrix_elem_s[neutron_mask]
+
+            M1_l_array[i] = (np.sum(obtd_proton*gl_p*l_proton) + np.sum(obtd_neutron*gl_n*l_neutron))/FAC   # FAC has prob. no effect on the end-result, but technically it should be there.
+            M1_s_array[i] = (np.sum(obtd_proton*gs_p*s_proton) + np.sum(obtd_neutron*gs_n*s_neutron))/FAC
+
+            assert M1_l_array[i] != 0
+            assert M1_s_array[i] != 0
+
+        gamma_bins = np.arange(0, Ex_max + bin_width, bin_width)
+        n_bins = len(gamma_bins)
+        mean_cos_thetas = np.zeros(n_bins - 1)  # NB!! Previous definition of mean cos theta: Actually a ratio of averages, not an average of all the values. Can therefore be > +1 and < -1.
+        
+        for i in range(n_bins - 1):
+            """
+            Masking on the gamma energy, so assumes that the order of the M1 arrays
+            is the same as the order of the `included_M1_transitions` array,
+            which should be true because the M1 arrays are populated in that
+            particular order in the previous loop.
+            """
+            mask_1 = E_gamma_array >= gamma_bins[i]
+            mask_2 = E_gamma_array < gamma_bins[i+1]
+            mask_3 = np.logical_and(mask_1, mask_2)
+            
+            cos_thetas = M1_l_array[mask_3]*M1_s_array[mask_3]/(np.abs(M1_l_array[mask_3])*np.abs(M1_s_array[mask_3]))
+            
+            assert np.all(np.logical_or(cos_thetas == +1, cos_thetas == -1))    # cos theta should be exactly -1 or +1 every time.
+            
+            if cos_thetas.size == 0:
+                logger.warning(f"No thetas in the range [{gamma_bins[i]}, {gamma_bins[i+1]})")
+                mean_cos_thetas[i] = np.nan # mean of empty slice returns nan, but also comes with a messy RuntimeWarning.
+            else:
+                mean_cos_thetas[i] = np.mean(np.rad2deg(np.arccos(cos_thetas)))
+
+        if ax is None:
+            fig, ax_ = plt.subplots(figsize=FIGSIZE)
+        else:
+            ax_ = ax
+        
+        # intersect_idx = np.argmin(np.abs(mean_cos_thetas - 90))
+
+        ax_.step(
+            gamma_bins[:-1],
+            mean_cos_thetas,
+            color = "black",
+        )
+        ax_.hlines(y=90, xmin=gamma_bins[0], xmax=gamma_bins[-2], linestyles="dashed", colors="gray")
+        # ax_.scatter(x=gamma_bins[intersect_idx], y=90, color="gray")
+        ax_.text(x=0, y=90 + 1, s=r"$\theta = 90^\circ $", fontsize=15, color="gray")
+        # ax_.text(x=gamma_bins[intersect_idx] + 0.4, y=90 - 4, s=r"$E_\gamma = $" + f"{gamma_bins[intersect_idx]} MeV", fontsize=15, color="gray")
+        ax_.set_ylabel(r"$\langle \theta \rangle$ [deg]")
+        ax_.set_xlabel(r"$E_\gamma$ [MeV]", labelpad=-5)
+        ax_.grid(alpha=GRID_ALPHA)
+        
+        if ax is None:
+            savefig(fig=fig, fname=f"{self.nucleus}-interference-angle.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
+
 
 def loadtxt(
     path: str,
