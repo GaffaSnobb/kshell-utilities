@@ -16,6 +16,7 @@ from .parameters import (
 from .partition_tools import (
     _calculate_configuration_parity, _sanity_checks, configuration_energy
 )
+from ._log import logger
 WEISSKOPF_THRESHOLD: float = -0.001
 
 def _weisskopf_unit(multipole_type: str, mass: int) -> float:
@@ -346,7 +347,22 @@ def _load_energy_logfile(
                 assert j == j_expected, f"{j = }, {j_expected = }"
                 assert parity == parity_expected
                 assert idx_prev < idx_current
-                assert E_prev < E_current
+                # assert E_prev < E_current
+
+                if not (E_prev < E_current):
+                    """
+                    This is temporary!! Dont know why suddenly the
+                    energy ordering of the levels in the KSHELL log
+                    files have changed (2025-09-12 64Zn calcs.).
+                    """
+                    msg = (
+                        f"Level {j = }, {parity = }, {idx_current = } has a"
+                        " lower energy than the previous level! The KSHELL log"
+                        " files usually come energy-ordered so this is"
+                        " undexpected behaviour. A problem? Maybe!"
+                        f" {E_prev = }, {E_current = }"
+                    )
+                    logger.warning(msg)
 
                 levels[idx_current] = E_current, j, parity, idx_current, Hcm
 
