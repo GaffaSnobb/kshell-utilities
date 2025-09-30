@@ -110,7 +110,7 @@ class ReadKshellOutput:
         # self.truncation = None
         self.nucleus = None
         self.interaction = None
-        self.levels: npt.NDArray | None = None
+        self.levels: npt.NDArray | None = None  # E, 2*j, parity, idx, Hcm
         self.transitions_BM1: npt.NDArray | None = None
         self.transitions_BE2: npt.NDArray | None = None
         self.transitions_BE1: npt.NDArray | None = None
@@ -3571,6 +3571,43 @@ class ReadKshellOutput:
                 f"{'+' if (pi == +1) else '-'}    "
                 f"{j}"
             )
+
+    def nld_savetxt(self, bin_width: float):
+        """
+        Save NLDs for all possible separate angular momenta and parities
+        in a text file where the structure is:
+
+        bins, 0-, 0+, 1-, 1+, ...
+        """
+        angular_momenta = np.unique(self.levels[:, 1])//2
+        densities: list[list] = []
+        bins_longest = []
+        header = f"bins (w = {bin_width}), "
+        
+        for j in angular_momenta:
+            for pi in [-1, +1]:
+                header += f"{j:.0f} {'+' if pi == +1 else '-'}, "
+                bins, density = self.nld(
+                    filter_parity = pi,
+                    filter_spins = j,
+                    plot = False,
+                    save_plot = False,
+                    E_min = 0,
+                    bin_width = bin_width,
+                )
+                densities.append(list(density))
+
+                if len(bins) > len(bins_longest):
+                    bins_longest = bins
+
+        for density in densities:
+            density.extend( [-1]*(len(bins_longest) - len(density)) )
+
+        densities.insert(0, bins_longest)
+        
+        fname = f"{self.nucleus}-nlds.txt"
+        np.savetxt(fname=fname, X=np.array(densities).T, header=header)
+        logger.info(f"{fname = }, saved!")
 
 def loadtxt(
     path: str,
