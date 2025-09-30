@@ -3,6 +3,7 @@ import numpy as np
 from collections.abc import KeysView
 
 from .kshell_exceptions import KshellDataStructureError
+from ._log import logger
 
 def get_included_transitions_obtd_dict_keys(
     included_transitions: npt.NDArray,
@@ -54,10 +55,9 @@ def get_included_transitions_obtd_dict_keys(
 
     assert len(included_transitions_keys) == len(set(included_transitions_keys)), "Duplicate keys detected! Each key should only appear once!"
 
-    print(f"\nCould not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the given gamma energy range:")
+    logger.warning(f"Could not find OBTDs for the following (j_i, pi_i, j_f, pi_f) in the given gamma energy range:")
     for skip in obtd_skips:
-        print(skip)
-    print()
+        logger.warning(skip)
 
     return included_transitions_keys
 
