@@ -12,6 +12,7 @@ c: new feature to existing functionality
 d: bug fixes
 """
 
+from ._log import logger
 from .kshell_utilities import *
 from .general_utilities import *
 from .kshell_exceptions import *
