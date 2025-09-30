@@ -34,6 +34,7 @@ from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
 from .other_tools import HidePrint, conditional_red_text, chi2_pdf
+from ._log import logger
 
 class ReadKshellOutput:
     """
@@ -229,7 +230,7 @@ class ReadKshellOutput:
                 self.transitions_BE1 = transitions_npz["transitions_BE1"]
                 msg = "Level and transition data loaded from .npz!"
                 msg += " Delete the tmp/ directory to re-read data from the log files."
-                print(msg)
+                logger.info(msg)
                 return
             
         test_load_energy_logfile()
@@ -435,7 +436,7 @@ class ReadKshellOutput:
                     
                     obtd_dict[key_as_tuple] = obtd_dict[master_key][:, :, transition_idx]   # Create view of a 2D slice.
 
-                print("OBTD data loaded from .npz!")
+                logger.info("OBTD data loaded from .npz!")
 
                 if not run_test:
                     self.obtd_dict = obtd_dict
@@ -861,7 +862,7 @@ class ReadKshellOutput:
         include_n_levels: int = 1000,
         filter_spins: list | None = None,
         filter_parity: str | None = None,
-        color: str | None = "black",
+        color: str | None | tuple[str, str] = "black",
         use_relative_energy: bool = True,
         ax: None | plt.Axes = None,
         ):
@@ -881,7 +882,8 @@ class ReadKshellOutput:
             plotted. Defaults to `None`
 
         color : str | None
-            Set the color of the level lines.
+            Set the color of the level lines. Can be a tuple of two
+            colours for different parities.
 
         use_relative_energy : bool
             Use relative energy (with respect to the ground state) for
@@ -1842,7 +1844,7 @@ class ReadKshellOutput:
 
         plt.show()
 
-    def angular_momentum_distribution_plot(self,
+    def level_density_heatmap(self,
         bin_width: float = 0.2,
         E_min: float = 5,
         E_max: float = 10,
@@ -1879,17 +1881,9 @@ class ReadKshellOutput:
             If True, the plot will be shown.
         
         """
-        if not isinstance(filter_parity, (type(None), int, str)):
-            msg = f"'filter_parity' must be of type: None, int, str. Got {type(j_list)}."
-            raise TypeError(msg)
-
-        if isinstance(filter_parity, str):
-            valid_filter_parity = ["+", "-"]
-            if filter_parity not in valid_filter_parity:
-                msg = f"Valid parity filters are: {valid_filter_parity}."
-                raise ValueError(msg)
-            
-            filter_parity = 1 if (filter_parity == "+") else -1
+        if filter_parity == "+": filter_parity = +1
+        elif filter_parity == "-": filter_parity = -1
+        elif filter_parity == "both": filter_parity = None  # Tmp fix, should be fixed in the level density calculator.
 
         if j_list is None:
             """
@@ -1944,7 +1938,7 @@ class ReadKshellOutput:
             """
             Check that the total number of levels returned by the NLD
             function is actually the correct number of levels as counted
-            with the following stright-forward counter:
+            with the following straght-forward counter:
             """
             E_tmp = self.levels[self.levels[:, 1] == 2*angular_momenta[i]]  # Extract levels of correct angular momentum.
             if filter_parity is not None:
@@ -1971,17 +1965,10 @@ class ReadKshellOutput:
             densities[:, i] = np.concatenate((densities_tmp, np.zeros(n_missing_values)))
 
             if flags["debug"]:
-                print("-----------------------------------")
-                print("angular_momentum_distribution debug")
                 if all(densities_tmp == 0):
-                    print("No levels in this energy range!")
-                print(f"{angular_momenta[i] = }")
-                print(f"{filter_parity = }")
-                print(f"{bin_width = }")
-                print(f"{E_min = }")
-                print(f"{E_max = }")
-                print(f"densities extended with {n_missing_values} zeros")
-                print("-----------------------------------")
+                    logger.debug(f"J = {angular_momenta[i]}: No levels in this energy range!")
+                logger.debug(f"J = {angular_momenta[i]}: {filter_parity = }, {bin_width = }, {E_min = }, {E_max = }")
+                logger.debug(f"J = {angular_momenta[i]}: Densities extended with {n_missing_values} zeros")
 
         if filter_parity is None:
             exponent = r"$^{\pm}$"  # For exponent in yticklabels.
@@ -2031,16 +2018,22 @@ class ReadKshellOutput:
                 ax = ax
             )
 
-            ax.set_yticklabels(np.flip([f"{Fraction(i)}" + exponent for i in angular_momenta]), rotation=0)
+            ax.set_yticks(
+                ticks = [i+0.5 for i in range(len(angular_momenta))],
+                labels = np.flip([f"{Fraction(i)}" + exponent for i in angular_momenta]),
+                rotation = 0,
+            )
             ax.set_xlabel(r"$E$ [MeV]")
             ax.set_ylabel(r"$j$ [$\hbar$]")
+            
             if set_title:
                 ax.set_title(f"{self.nucleus_latex}, {self.interaction}")
+            
             cbar = ax.collections[0].colorbar
             cbar.ax.set_ylabel(r"NLD [MeV$^{-1}$]", rotation=90)
 
             if save_plot:
-                fig.savefig(f"{self.nucleus}_j{parity_str}_distribution_heatmap.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
+                fig.savefig(f"{self.nucleus}-nld-j{parity_str}-distribution-heatmap.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         
         if plot:
             plt.show()
@@ -3242,6 +3235,9 @@ class ReadKshellOutput:
             which implies that the selection rules emerge from the transition
             operator matrix element.
 
+            UPDATE2: The OBTDs are actually reduced OBTDs so there is in fact
+            built-in angular momentum conservation in them.
+
             [E, 2*spin, parity, idx, Hcm]
             (0, -1, 2, 2, -1, 3)
             (ji, pii, idxi, jf, pif, idxf)
@@ -3371,7 +3367,7 @@ class ReadKshellOutput:
             ax.set_xlabel(r"$a$")
             ax.tick_params(axis="y", rotation=0)
             # ax.set_title(f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$\rho_{\alpha \beta} = | \langle \Psi_f | \hat{c}^\dagger_\alpha \hat{c}_\beta | \Psi_i \rangle |$", fontsize=20)
-            title: str = f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$| ( \xi_f j_f || [c_a^{\dagger} \tilde{c}_b]_1 || \xi_i j_i) $"
+            title: str = f"{nucleon.replace('_', ' ').capitalize()} orbitals\n" + r"$| ( \xi_f J_f || [c_a^{\dagger} \tilde{c}_b]_1 || \xi_i J_i) $"
             
             if include_mred:
                 title += r"$( a || \hat{M}_1 || b ) |$"
@@ -3619,8 +3615,7 @@ def loadtxt(
     res = ReadKshellOutput(path, load_and_save_to_file, old_or_new)
 
     loadtxt_time = time.perf_counter() - loadtxt_time
-    if flags["debug"]:
-        print(f"{loadtxt_time = :.2f} s")
+    logger.info(f"{loadtxt_time = :.2f} s")
 
     return res
 
