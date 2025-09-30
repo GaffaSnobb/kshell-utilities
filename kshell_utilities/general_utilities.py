@@ -465,7 +465,7 @@ def gamma_strength_function_average(
     avg_gsf_time = time.perf_counter() - avg_gsf_time
 
     bins = np.linspace(0, Ex_max, n_bins + 1)
-    bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
+    bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins. NOTE: Why did I choose this...?
     bins = bins[:len(gSF_ExJpiavg)]
     included_transitions = np.array(included_transitions)
 
