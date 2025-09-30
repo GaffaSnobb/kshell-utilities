@@ -5,9 +5,12 @@ import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from scipy.stats import chi2
+
 from .parameters import (
-    flags, elements, latex_plot, DPI, MATPLOTLIB_SAVEFIG_FORMAT
+    flags, elements, latex_plot, DPI, MATPLOTLIB_SAVEFIG_FORMAT, GRID_ALPHA
 )
+from .other_tools import savefig
+from ._log import logger
 
 def isotope(name: str, A: int):
     protons = elements[name]
@@ -649,10 +652,12 @@ def level_plot(
 
     ax.set_xticks(spin_scope)
     ax.set_xticklabels([f"{Fraction(i)}" + r"$^{" + f"{parity_symbol}" + r"}$" for i in spin_scope])
-    ax.set_xlabel(r"$j^{\pi}$")
+    ax.set_xlabel(r"$j^{\pi}$", labelpad=-5)
     ax.set_ylabel(r"$E$ [MeV]")
+    ax.grid(visible=True, alpha=GRID_ALPHA)
 
     if not ax_input:
+        savefig(fig=fig, fname=f"level-plot.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         plt.show()
 
 def level_density(
@@ -736,7 +741,8 @@ def level_density(
         """
         if plot or save_plot:
             msg = "'plot' and 'save_plot' is ignored when an ax is supplied."
-            warnings.warn(message=msg)
+            logger.warning(msg)
+        
         plot = False
         save_plot = False
 
@@ -835,6 +841,11 @@ def level_density(
         
         energy_levels = energy_levels[:, 0]
 
+    if energy_levels.size == 0:
+        msg = f"No energy levels for {filter_parity = }, {filter_spins = }"
+        logger.error(msg)
+        raise RuntimeError(msg)
+
     E_max = min(E_max, energy_levels[-1] + 0.1) # E_max cant be larger than the largest energy in the data set. Add small number to include the final level(s) in the counting.
     if E_max <= E_min:
         """
@@ -851,7 +862,7 @@ def level_density(
         return bins, density
 
     bins = np.arange(E_min, E_max + bin_width, bin_width)
-    bins[-1] = E_max    # arange will mess up the final bin if it does not match the bin width.
+    # bins[-1] = E_max    # arange will mess up the final bin if it does not match the bin width. 2025-09-30: Don't know if I believe back-in-the-days myself here...
 
     n_bins = len(bins)
     counts = np.zeros(n_bins - 1)
@@ -882,9 +893,7 @@ def level_density(
         if plot: ax.grid()
         
         if save_plot:
-            fname = f"nld.{MATPLOTLIB_SAVEFIG_FORMAT}"
-            print(f"NLD saved as '{fname}'")
-            fig.savefig(fname=fname, dpi=DPI, format="pdf")
+            savefig(fig=fig, fname=f"nld.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
         
         if plot: plt.show()
 
