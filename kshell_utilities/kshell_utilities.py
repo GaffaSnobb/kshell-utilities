@@ -3381,15 +3381,22 @@ class ReadKshellOutput:
                 # plt.show()
 
     def com(self,
+        hw_type: int,
         j_list: list[int] | None = None,
         ax: plt.Axes | None = None,
     ):
         """
-        Plot the expectation value of the centre-of-mass Hamiltonian <H_CM> as
-        a function of excitation energy.
+        Plot the expectation value of the centre-of-mass Hamiltonian
+        <H_CM> as a function of excitation energy.
 
         Parameters
         ----------
+        hw_type: int
+            1 for 41*A**(-1/3), 2 for 45*A**(-1/3) - 25*A**(-2/3). In
+            the KSHELL log files, the value <Hcm> is actually
+            <Hcm>*A/(hw). We need the "hw type" (as defined in the
+            KSHELL code) to solve for <Hcm>.
+
         j_list: list[int] | None = None
             Plot only levels of total angular momenta in this list. If
             None, all are plotted.
@@ -3407,7 +3414,12 @@ class ReadKshellOutput:
             mask = np.full(self.levels.shape[0], True, dtype=bool)
 
         energies = self.levels[mask][:, 0] - self.ground_state_energy
-        Hcm = self.levels[mask][:, 4]
+
+        if hw_type == 1: hw = 41*self.A**(-1/3)
+        elif hw_type == 2: hw = 45*self.A**(-1/3) - 25*self.A**(-2/3)
+        else: raise ValueError("hw_type must be 1 for 41*A**(-1/3) or 2 for 45*A**(-1/3) - 25*A**(-2/3)")
+
+        Hcm = self.levels[mask][:, 4]*hw/self.A
 
         if ax is None:
             fig, ax = plt.subplots()
