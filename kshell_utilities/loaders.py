@@ -898,7 +898,7 @@ def _load_obtd(
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
     timing = time.perf_counter() - timing
-    logger.info(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies in {timing:.2f} s", end="")
+    logger.info(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies in {timing:.2f} s")
 
 def _load_obtd_parallel_wrapper(args: tuple[list[str], dict[tuple[int, int, int], float]]) -> dict[tuple[int, ...]]:
     """
