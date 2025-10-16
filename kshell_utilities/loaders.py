@@ -333,9 +333,7 @@ def _load_energy_logfile(
                         f"Trying to continue anyway... "
                         f"Original error: {e.__str__()}."
                     )
-                    print()
-                    warnings.warn(msg, RuntimeWarning)
-                    print()
+                    logger.warning(msg)
                     break
                 
                 E_current = float(tmp[2])
@@ -389,9 +387,7 @@ def _load_energy_logfile(
                     f"No energy eigenvalues in '{path}'! Something wrong with "
                     " the KSHELL calculations?"
                 )
-                print()
-                warnings.warn(msg, RuntimeWarning)
-                print()
+                logger.warning(msg, RuntimeWarning)
                 return np.zeros(shape=(0, 5), dtype=np.float64)
             else:
                 """
@@ -901,13 +897,8 @@ def _load_obtd(
         assert not if_levels_flipped
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
-    print(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies", end="")
-    
     timing = time.perf_counter() - timing
-    if flags["debug"]:
-        print(f" in {timing:.2f} s", end="")
-
-    print()
+    logger.info(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies in {timing:.2f} s", end="")
 
 def _load_obtd_parallel_wrapper(args: tuple[list[str], dict[tuple[int, int, int], float]]) -> dict[tuple[int, ...]]:
     """
