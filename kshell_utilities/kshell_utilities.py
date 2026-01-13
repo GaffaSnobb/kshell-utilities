@@ -1482,8 +1482,9 @@ class ReadKshellOutput:
         j_lists: list | None,
         BXL_bin_width: float,
         multipole_type: str,
-        E_gamma_min: float = 0.0,
-        E_gamma_max: float = np.inf,
+        E_gamma_min: float,
+        E_gamma_max: float,
+        bin_count_threshold: int,
         ):
         """
         Really just a wrapper to self.porter_thomas with j checks.
@@ -1508,6 +1509,19 @@ class ReadKshellOutput:
         multipole_type : str
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
+        
+        bin_count_threshold : int
+            Omit all bins which come after (and including) the first bin which
+            has fewer counts than `bin_count_threshold`.
+
+            Example:
+            ```
+            >>> bin_count_threshold = 21
+            >>> arr = np.array([300, 100, 50, 21, 5, 21, 2, 1, 1, 0])
+            >>> idx = np.where(arr < bin_count_threshold)[0][0]
+            >>> arr[:idx]
+            array([300, 100,  50,  21])
+            ```
         """        
         if isinstance(j_lists, list):
             if not j_lists:
@@ -1557,6 +1571,7 @@ class ReadKshellOutput:
         
         binss = []
         countss = []
+        countss_normalised = []
         chi2s = []
 
         for j_list in j_lists:
@@ -1571,23 +1586,29 @@ class ReadKshellOutput:
                 E_gamma_min = E_gamma_min,
                 E_gamma_max = E_gamma_max,
             )
-            idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
+
+            matches = np.where(counts < bin_count_threshold)[0]
+            idx = matches[0] if matches.size else -1
+
+            # idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
+            print(f"{np.int64(counts[0:idx]) = }")
+            counts_normalised = counts/np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
             # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
-            print(f"{np.trapezoid(counts, bins) = }")
+            print(f"{np.trapezoid(counts_normalised, bins) = }")
             print(f"{multipole_type = }")
             
             bins = bins[1:idx]
-            counts = counts[1:idx]
+            counts_normalised = counts_normalised[1:idx]
             # tmp_bins = np.copy(bins)
             # tmp_bins += BXL_bin_width
             chi2 = chi2_pdf(bins)
             
             binss.append(bins)
-            countss.append(counts)
+            countss_normalised.append(counts_normalised)
+            countss.append(counts[1:idx])
             chi2s.append(chi2)
 
-        return binss, countss, chi2s
+        return binss, countss_normalised, countss, chi2s
 
     def porter_thomas_j_plot(self,
         Ex_min: float = 5,
@@ -1597,8 +1618,9 @@ class ReadKshellOutput:
         multipole_type: str | list = "M1",
         E_gamma_min: float = 0.0,
         E_gamma_max: float = np.inf,
+        bin_count_threshold: int = -np.inf,
         include_relative_difference: bool = True,
-        set_title: bool = True
+        is_title: bool = True
         ):
         """
         Porter-Thomas analysis of the reduced transition probabilities
@@ -1610,7 +1632,7 @@ class ReadKshellOutput:
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'. Accepts a list of max 2 multipolarities.
 
-        set_title : bool
+        is_title : bool
             Toggle plot title on / off.
 
         See the docstring of _porter_thomas_j_plot_calculator for the
@@ -1674,6 +1696,7 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[0],
                 E_gamma_min = E_gamma_min,
                 E_gamma_max = E_gamma_max,
+                bin_count_threshold = bin_count_threshold,
             )
 
             for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
@@ -1699,7 +1722,7 @@ class ReadKshellOutput:
             )
             axd["upper"].legend(loc="upper right")
             axd["upper"].set_ylabel(r"Normalised counts")
-            if set_title:
+            if is_title:
                 axd["upper"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
@@ -1736,7 +1759,7 @@ class ReadKshellOutput:
                 constrained_layout = True,
                 sharex = True
             )
-            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+            binss, countss_normalised, countss, chi2s = self._porter_thomas_j_plot_calculator(
                 Ex_min = Ex_min,
                 Ex_max = Ex_max,
                 j_lists = j_lists,
@@ -1744,38 +1767,59 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[0],
                 E_gamma_min = E_gamma_min,
                 E_gamma_max = E_gamma_max,
+                bin_count_threshold = bin_count_threshold,
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
-                axd["upper left"].step(
+            fig_counts_0, ax_counts_0 = plt.subplots(figsize=FIGSIZE)
+
+            bins_longest = np.empty(0)
+            chi2_longest = np.empty(0)
+            for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
+                bins_longest = bins_longest if bins_longest.size > bins.size else bins
+                chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+                ax_counts_0.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
                     bins,
                     counts,
+                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
+                    color = color,
+                )
+                axd["upper left"].step(
+                    bins,
+                    counts_normalised,
                     label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
                     color = color
                 )
                 axd["lower left"].step(
                     bins,
-                    counts/chi2,
+                    counts_normalised/chi2,
                     color = color,
                     label = r"($j_i = [" + list_of_fracs_to_latex(j_list) + r"]/\chi_{\nu = 1}^2$",
                 )
+
+            del bins    # Don't want this to accidentally get used for something.
+            del counts_normalised
+            del counts
+            del chi2
+            del j_list
+            del color
         
             axd["upper left"].plot(
-                bins,
-                chi2,
+                bins_longest,
+                chi2_longest,
                 color = "tab:green",
                 label = r"$\chi_{\nu = 1}^2$"
             )
             axd["upper left"].legend(loc="upper right", fontsize=15)
             axd["upper left"].set_ylabel(r"Normalised counts")
 
-            axd["lower left"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+            axd["lower left"].hlines(y=1, xmin=bins_longest[0], xmax=bins_longest[-1], linestyle="--", color="black")
             axd["lower left"].set_xlabel(
                 r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
             )
             axd["lower left"].legend(loc="upper left", fontsize=15)
             axd["lower left"].set_ylabel(r"Relative error")
-            if set_title:
+            # axd["lower left"].set_yscale("log")   # Remember to do it with lower right too.
+            if is_title:
                 axd["upper left"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
@@ -1790,7 +1834,7 @@ class ReadKshellOutput:
 
                 j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
 
-            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+            binss, countss_normalised, countss, chi2s = self._porter_thomas_j_plot_calculator(
                 Ex_min = Ex_min,
                 Ex_max = Ex_max,
                 j_lists = j_lists,
@@ -1798,25 +1842,46 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[1],
                 E_gamma_min = E_gamma_min,
                 E_gamma_max = E_gamma_max,
+                bin_count_threshold = bin_count_threshold,
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
-                axd["upper right"].step(
+            fig_counts_1, ax_counts_1 = plt.subplots(figsize=FIGSIZE)
+
+            bins_longest = np.empty(0)
+            chi2_longest = np.empty(0)
+            for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
+                bins_longest = bins_longest if bins_longest.size > bins.size else bins
+                chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+
+                ax_counts_1.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
                     bins,
                     counts,
+                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
+                    color = color,
+                )
+                axd["upper right"].step(
+                    bins,
+                    counts_normalised,
                     label = r"$j_i = $" + f"{j_list}",
                     color = color
                 )
                 axd["lower right"].step(
                     bins,
-                    counts/chi2,
+                    counts_normalised/chi2,
                     color = color,
                     label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
                 )
+
+            del bins    # Don't want this to accidentally get used for something.
+            del counts_normalised
+            del counts
+            del chi2
+            del j_list
+            del color
         
             axd["upper right"].plot(
-                bins,
-                chi2,
+                bins_longest,
+                chi2_longest,
                 color = "tab:green",
                 label = r"$\chi_{\nu = 1}^2$"
             )
@@ -1824,27 +1889,54 @@ class ReadKshellOutput:
             axd["upper right"].set_yticklabels([])
             axd["upper right"].set_ylim(axd["upper left"].get_ylim())
 
-            axd["lower right"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
+            axd["lower right"].hlines(y=1, xmin=bins_longest[0], xmax=bins_longest[-1], linestyle="--", color="black")
             axd["lower right"].set_xlabel(
                 r"$B(" + f"{multipole_type[1]}" + r")/\langle B(" + f"{multipole_type[1]}" + r") \rangle$"
             )
             # axd["lower right"].legend(loc="upper left")
             axd["lower right"].set_yticklabels([])
             axd["lower right"].set_ylim(axd["lower left"].get_ylim())
-            if set_title:
+            if is_title:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
                 )
             for ax in axd.values():
                 ax.grid(visible=True, alpha=GRID_ALPHA)
 
-            fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
+            ax_counts_0.legend()
+            ax_counts_0.set_yscale("log")
+            ax_counts_0.grid(visible=True, alpha=GRID_ALPHA)
+            ax_counts_0.set_xlabel(
+                r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
+            )
+            ax_counts_0.set_ylabel(r"Counts")
+
+            ax_counts_1.legend()
+            ax_counts_1.set_yscale("log")
+            ax_counts_1.grid(visible=True, alpha=GRID_ALPHA)
+            ax_counts_1.set_xlabel(
+                r"$B(" + f"{multipole_type[1]}" + r")/\langle B(" + f"{multipole_type[1]}" + r") \rangle$"
+            )
+            ax_counts_1.set_ylabel(r"Counts")
+
+            fig_counts_0.savefig(
+                fname = f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.{MATPLOTLIB_SAVEFIG_FORMAT}",
+                dpi = DPI,
+            )
+            fig_counts_1.savefig(
+                fname = f"{self.nucleus}_porter_thomas_j_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}",
+                dpi = DPI,
+            )
+            fig.savefig(
+                fname = f"{self.nucleus}_porter_thomas_j_normalised_{multipole_type[0]}_{multipole_type[1]}.{MATPLOTLIB_SAVEFIG_FORMAT}",
+                dpi = DPI,
+            )
         else:
             msg = "Only 1 or 2 multipole types may be given at the same time!"
             msg += f" Got {len(multipole_type)}."
             raise ValueError(msg)
 
-        plt.show()
+        # plt.show()
 
     def level_density_heatmap(self,
         bin_width: float = 0.2,
