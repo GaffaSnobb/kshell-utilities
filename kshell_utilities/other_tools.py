@@ -83,7 +83,10 @@ def savefig(fig, fname, dpi):
 
 def frac_to_latex(val: float) -> str:
     val_frac = Fraction(val)
-    return f"{val_frac.numerator}" + r"/" + f"{val_frac.denominator}"
+    if val_frac.denominator == 1:
+        return f"{val_frac.numerator}"
+    else:
+        return f"{val_frac.numerator}" + r"/" + f"{val_frac.denominator}"
 
 def list_of_fracs_to_latex(vals: list[float]) -> str:
     res = ""
