@@ -34,7 +34,8 @@ from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
 from .other_tools import (
-    HidePrint, conditional_red_text, chi2_pdf, savefig, list_of_fracs_to_latex
+    HidePrint, conditional_red_text, chi2_pdf, savefig, list_of_fracs_to_latex,
+    frac_to_latex
 )
 from ._log import logger
 
@@ -1587,26 +1588,19 @@ class ReadKshellOutput:
                 E_gamma_max = E_gamma_max,
             )
 
-            matches = np.where(counts < bin_count_threshold)[0]
+            matches = np.where(counts < bin_count_threshold)[0] # Find the first occurrence where counts < bin_count_threshold.
             idx = matches[0] if matches.size else -1
 
-            # idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            print(f"{np.int64(counts[0:idx]) = }")
             counts_normalised = counts/np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
-            # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
-            print(f"{np.trapezoid(counts_normalised, bins) = }")
-            print(f"{multipole_type = }")
             
             bins = bins[1:idx]
             counts_normalised = counts_normalised[1:idx]
-            # tmp_bins = np.copy(bins)
-            # tmp_bins += BXL_bin_width
-            chi2 = chi2_pdf(bins)
+            counts = counts[1:idx]
             
             binss.append(bins)
             countss_normalised.append(counts_normalised)
-            countss.append(counts[1:idx])
-            chi2s.append(chi2)
+            countss.append(counts)
+            chi2s.append(chi2_pdf(bins))
 
         return binss, countss_normalised, countss, chi2s
 
@@ -1638,10 +1632,13 @@ class ReadKshellOutput:
         See the docstring of _porter_thomas_j_plot_calculator for the
         rest of the descriptions.
         """
+        colors = ["blue", "royalblue", "lightsteelblue"]
+        
         if j_lists is None:
             j_list_default = True
         else:
             j_list_default = False
+            colors = colors[:len(j_lists)]
 
         transitions_dict = {
             "E1": self.transitions_BE1,
@@ -1649,7 +1646,6 @@ class ReadKshellOutput:
             "E2": self.transitions_BE2,
         }
 
-        colors = ["blue", "royalblue", "lightsteelblue"]
         if isinstance(multipole_type, str):
             multipole_type = [multipole_type]
         
@@ -1777,23 +1773,38 @@ class ReadKshellOutput:
             for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
                 bins_longest = bins_longest if bins_longest.size > bins.size else bins
                 chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+
+                if len(j_list) > 3:
+                    first_step = j_list[1] - j_list[0]
+                    if all([((b - a) == first_step) for a, b in zip(j_list[:-1], j_list[1:])]):
+                        """
+                        Equally spaced j values.
+                        """
+                        list_as_latex = frac_to_latex(j_list[0]) + ", ..., " + frac_to_latex(j_list[-1])
+                    
+                    else:
+                        list_as_latex = "$\n$" + "$\n$".join([list_of_fracs_to_latex(lst) for lst in np.array_split(j_list, 3)])
+
+                else:
+                    list_as_latex = list_of_fracs_to_latex(j_list)
+
                 ax_counts_0.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
                     bins,
                     counts,
-                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
+                    label = r"$j_i = " + list_as_latex + r"$",
                     color = color,
                 )
                 axd["upper left"].step(
                     bins,
                     counts_normalised,
-                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
+                    label = r"$j_i = " + list_as_latex + r"$",
                     color = color
                 )
                 axd["lower left"].step(
                     bins,
                     counts_normalised/chi2,
                     color = color,
-                    label = r"($j_i = [" + list_of_fracs_to_latex(j_list) + r"]/\chi_{\nu = 1}^2$",
+                    label = r"$[j_i = " + list_as_latex + r"]/\chi_{\nu = 1}^2$",
                 )
 
             del bins    # Don't want this to accidentally get used for something.
@@ -1853,23 +1864,37 @@ class ReadKshellOutput:
                 bins_longest = bins_longest if bins_longest.size > bins.size else bins
                 chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
 
+                if len(j_list) > 3:
+                    first_step = j_list[1] - j_list[0]
+                    if all([((b - a) == first_step) for a, b in zip(j_list[:-1], j_list[1:])]):
+                        """
+                        Equally spaced j values.
+                        """
+                        list_as_latex = frac_to_latex(j_list[0]) + ", ..., " + frac_to_latex(j_list[-1])
+                    
+                    else:
+                        list_as_latex = "$\n$" + "$\n$".join([list_of_fracs_to_latex(lst) for lst in np.array_split(j_list, 3)])
+
+                else:
+                    list_as_latex = list_of_fracs_to_latex(j_list)
+
                 ax_counts_1.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
                     bins,
                     counts,
-                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
+                    label = r"$j_i = " + list_as_latex + r"$",
                     color = color,
                 )
                 axd["upper right"].step(
                     bins,
                     counts_normalised,
-                    label = r"$j_i = $" + f"{j_list}",
+                    label = r"$j_i = " + list_as_latex + r"$",
                     color = color
                 )
                 axd["lower right"].step(
                     bins,
                     counts_normalised/chi2,
                     color = color,
-                    label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+                    label = r"$[j_i = " + list_as_latex + r"]/\chi_{\nu = 1}^2$",
                 )
 
             del bins    # Don't want this to accidentally get used for something.
