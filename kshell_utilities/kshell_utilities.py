@@ -1285,8 +1285,8 @@ class ReadKshellOutput:
                     Ei_bin_width = Ei_bin_width,
                 )
                 idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-                counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                print(f"{np.trapz(counts, bins) = }")
+                counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                print(f"{np.trapezoid(counts, bins) = }")
                 bins = bins[1:idx]
                 counts = counts[1:idx]
                 
@@ -1319,8 +1319,8 @@ class ReadKshellOutput:
                 )
                 
                 idx = np.argmin(np.abs(bins - 10))
-                counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                print(f"{np.trapz(counts, bins) = }")
+                counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                print(f"{np.trapezoid(counts, bins) = }")
                 bins = bins[1:idx]
                 counts = counts[1:idx]
                 
@@ -1382,8 +1382,8 @@ class ReadKshellOutput:
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-                    counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                    print(f"{np.trapz(counts, bins) = }")
+                    counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                    print(f"{np.trapezoid(counts, bins) = }")
                     print(f"{multipole_type_ = }")
                     bins = bins[1:idx]
                     counts = counts[1:idx]
@@ -1416,8 +1416,8 @@ class ReadKshellOutput:
                     )
                     
                     idx = np.argmin(np.abs(bins - 10))
-                    counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                    print(f"{np.trapz(counts, bins) = }")
+                    counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
+                    print(f"{np.trapezoid(counts, bins) = }")
                     print(f"{multipole_type_ = }")
                     bins = bins[1:idx]
                     counts = counts[1:idx]
@@ -1572,9 +1572,9 @@ class ReadKshellOutput:
                 E_gamma_max = E_gamma_max,
             )
             idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
-            counts /= np.trapz(counts, bins)    # Normalise the distribution so that it integrates to 1.
+            counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
             # bins = (bins[:-1] + bins[1:])/2   # Middle point of the bins.
-            print(f"{np.trapz(counts, bins) = }")
+            print(f"{np.trapezoid(counts, bins) = }")
             print(f"{multipole_type = }")
             
             bins = bins[1:idx]
