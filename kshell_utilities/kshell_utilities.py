@@ -33,7 +33,9 @@ from .test_loaders import (
 from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
-from .other_tools import HidePrint, conditional_red_text, chi2_pdf, savefig
+from .other_tools import (
+    HidePrint, conditional_red_text, chi2_pdf, savefig, list_of_fracs_to_latex
+)
 from ._log import logger
 
 class ReadKshellOutput:
@@ -1748,14 +1750,14 @@ class ReadKshellOutput:
                 axd["upper left"].step(
                     bins,
                     counts,
-                    label = r"$j_i = $" + f"{j_list}",
+                    label = r"$j_i = " + list_of_fracs_to_latex(j_list) + r"$",
                     color = color
                 )
                 axd["lower left"].step(
                     bins,
                     counts/chi2,
                     color = color,
-                    label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
+                    label = r"($j_i = " + list_of_fracs_to_latex(j_list) + r"/\chi_{\nu = 1}^2$",
                 )
         
             axd["upper left"].plot(
@@ -3304,8 +3306,8 @@ class ReadKshellOutput:
             Hard-coded for sd-pf-sdg model space.
             """
             print("sd   pf   sdg")
-            print(f"p {np.sum(proton_data[:3, :3]):.1f} {np.sum(proton_data[3:7, 3:7]):.1f} {np.sum(proton_data[7:, 7:]):.1f}")
-            print(f"n {np.sum(neutron_data[:3, :3]):.1f} {np.sum(neutron_data[3:7, 3:7]):.1f} {np.sum(neutron_data[7:, 7:]):.1f}")
+            print(f"p {np.sum(proton_data[:3, :3]):.2f} {np.sum(proton_data[3:7, 3:7]):.2f} {np.sum(proton_data[7:, 7:]):.2f}")
+            print(f"n {np.sum(neutron_data[:3, :3]):.2f} {np.sum(neutron_data[3:7, 3:7]):.2f} {np.sum(neutron_data[7:, 7:]):.2f}")
 
         vmin = None
         vmax = None
@@ -3694,7 +3696,7 @@ class ReadKshellOutput:
 
         gamma_bins = np.arange(0, Ex_max + bin_width, bin_width)
         n_bins = len(gamma_bins)
-        mean_cos_thetas = np.zeros(n_bins - 1)  # NB!! Previous definition of mean cos theta: Actually a ratio of averages, not an average of all the values. Can therefore be > +1 and < -1.
+        mean_cos_thetas = np.zeros(n_bins - 1)
         
         for i in range(n_bins - 1):
             """
@@ -3721,8 +3723,6 @@ class ReadKshellOutput:
             fig, ax_ = plt.subplots(figsize=FIGSIZE)
         else:
             ax_ = ax
-        
-        # intersect_idx = np.argmin(np.abs(mean_cos_thetas - 90))
 
         ax_.step(
             gamma_bins[:-1],
@@ -3730,16 +3730,13 @@ class ReadKshellOutput:
             color = "black",
         )
         ax_.hlines(y=90, xmin=gamma_bins[0], xmax=gamma_bins[-2], linestyles="dashed", colors="gray")
-        # ax_.scatter(x=gamma_bins[intersect_idx], y=90, color="gray")
         ax_.text(x=0, y=90 + 1, s=r"$\theta = 90^\circ $", fontsize=15, color="gray")
-        # ax_.text(x=gamma_bins[intersect_idx] + 0.4, y=90 - 4, s=r"$E_\gamma = $" + f"{gamma_bins[intersect_idx]} MeV", fontsize=15, color="gray")
         ax_.set_ylabel(r"$\langle \theta \rangle$ [deg]")
         ax_.set_xlabel(r"$E_\gamma$ [MeV]", labelpad=-5)
         ax_.grid(alpha=GRID_ALPHA)
         
         if ax is None:
             savefig(fig=fig, fname=f"{self.nucleus}-interference-angle.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
-
 
 def loadtxt(
     path: str,

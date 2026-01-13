@@ -1,4 +1,6 @@
 import sys, os
+from fractions import Fraction
+
 import numpy as np
 
 from ._log import logger
@@ -78,3 +80,16 @@ def chi2_pdf(x):
 def savefig(fig, fname, dpi):
     fig.savefig(fname=fname, dpi=dpi)
     logger.info(f"{fname = }, {dpi = }, saved!")
+
+def frac_to_latex(val: float) -> str:
+    val_frac = Fraction(val)
+    return f"{val_frac.numerator}" + r"/" + f"{val_frac.denominator}"
+
+def list_of_fracs_to_latex(vals: list[float]) -> str:
+    res = ""
+    for val in vals:
+        res += frac_to_latex(val) + ", "
+
+    res = res[:-2]  # Remove the last comma.
+
+    return res
