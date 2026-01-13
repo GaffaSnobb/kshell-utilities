@@ -1757,7 +1757,7 @@ class ReadKshellOutput:
                     bins,
                     counts/chi2,
                     color = color,
-                    label = r"($j_i = " + list_of_fracs_to_latex(j_list) + r"/\chi_{\nu = 1}^2$",
+                    label = r"($j_i = [" + list_of_fracs_to_latex(j_list) + r"]/\chi_{\nu = 1}^2$",
                 )
         
             axd["upper left"].plot(
@@ -1766,14 +1766,14 @@ class ReadKshellOutput:
                 color = "tab:green",
                 label = r"$\chi_{\nu = 1}^2$"
             )
-            axd["upper left"].legend(loc="upper right")
+            axd["upper left"].legend(loc="upper right", fontsize=15)
             axd["upper left"].set_ylabel(r"Normalised counts")
 
             axd["lower left"].hlines(y=1, xmin=bins[0], xmax=bins[-1], linestyle="--", color="black")
             axd["lower left"].set_xlabel(
                 r"$B(" + f"{multipole_type[0]}" + r")/\langle B(" + f"{multipole_type[0]}" + r") \rangle$"
             )
-            axd["lower left"].legend(loc="upper left")
+            axd["lower left"].legend(loc="upper left", fontsize=15)
             axd["lower left"].set_ylabel(r"Relative error")
             if set_title:
                 axd["upper left"].set_title(
