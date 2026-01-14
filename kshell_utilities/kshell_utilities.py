@@ -1919,8 +1919,13 @@ class ReadKshellOutput:
                 r"$B(" + f"{multipole_type[1]}" + r")/\langle B(" + f"{multipole_type[1]}" + r") \rangle$"
             )
             # axd["lower right"].legend(loc="upper left")
+            low_left_ylim = axd["lower left"].get_ylim()
+            low_right_ylim = axd["lower right"].get_ylim()
+            low_new_ylim = ( min(low_left_ylim[0], low_right_ylim[0]), max(low_left_ylim[1], low_right_ylim[1]) )
+
             axd["lower right"].set_yticklabels([])
-            axd["lower right"].set_ylim(axd["lower left"].get_ylim())
+            axd["lower right"].set_ylim(low_new_ylim)
+            axd["lower left"].set_ylim(low_new_ylim)
             if is_title:
                 axd["upper right"].set_title(
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[1]}" + r"$"
