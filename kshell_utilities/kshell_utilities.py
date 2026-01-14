@@ -1738,16 +1738,7 @@ class ReadKshellOutput:
             fig.savefig(fname=f"{self.nucleus}_porter_thomas_j_{multipole_type[0]}.{MATPLOTLIB_SAVEFIG_FORMAT}", dpi=DPI)
 
         elif len(multipole_type) == 2:
-            if j_list_default:
-                """
-                Default j_lists values.
-                """
-                j_lists = []
-                for elem in np.unique(transitions_dict[multipole_type[0]][:, 0]):
-                    j_lists.append([elem/2])
-
-                j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
-
+            
             fig, axd = plt.subplot_mosaic(
                 [['upper left', 'upper right'], ['lower left', 'lower right']],
                 gridspec_kw = dict(height_ratios=[1, 0.5]),
@@ -1755,71 +1746,88 @@ class ReadKshellOutput:
                 constrained_layout = True,
                 sharex = True
             )
-            binss, countss_normalised, countss, chi2s = self._porter_thomas_j_plot_calculator(
-                Ex_min = Ex_min,
-                Ex_max = Ex_max,
-                j_lists = j_lists,
-                BXL_bin_width = BXL_bin_width,
-                multipole_type = multipole_type[0],
-                E_gamma_min = E_gamma_min,
-                E_gamma_max = E_gamma_max,
-                bin_count_threshold = bin_count_threshold,
-            )
 
-            fig_counts_0, ax_counts_0 = plt.subplots(figsize=FIGSIZE)
+            figax = {
+                multipole_type[0]: plt.subplots(figsize=FIGSIZE),   # For the non-normalised count distribution (to check how many B values there are in the bins).
+                multipole_type[1]: plt.subplots(figsize=FIGSIZE),
+            }
+            
+            for multipole_type_, left_or_right in zip(multipole_type, ["left", "right"]):
+                if j_list_default:
+                    """
+                    Default j_lists values.
+                    """
+                    j_lists = []
+                    for elem in np.unique(transitions_dict[multipole_type_][:, 0]):
+                        j_lists.append([elem/2])
 
-            bins_longest = np.empty(0)
-            chi2_longest = np.empty(0)
-            for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
-                bins_longest = bins_longest if bins_longest.size > bins.size else bins
-                chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+                    j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
 
-                if len(j_list) > 3:
-                    first_step = j_list[1] - j_list[0]
-                    if all([((b - a) == first_step) for a, b in zip(j_list[:-1], j_list[1:])]):
-                        """
-                        Equally spaced j values.
-                        """
-                        list_as_latex = frac_to_latex(j_list[0]) + ", ..., " + frac_to_latex(j_list[-1])
-                    
+                binss, countss_normalised, countss, chi2s = self._porter_thomas_j_plot_calculator(
+                    Ex_min = Ex_min,
+                    Ex_max = Ex_max,
+                    j_lists = j_lists,
+                    BXL_bin_width = BXL_bin_width,
+                    multipole_type = multipole_type_,
+                    E_gamma_min = E_gamma_min,
+                    E_gamma_max = E_gamma_max,
+                    bin_count_threshold = bin_count_threshold,
+                )
+
+                bins_longest = np.empty(0)
+                chi2_longest = np.empty(0)
+                for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
+                    bins_longest = bins_longest if bins_longest.size > bins.size else bins
+                    chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+
+                    if len(j_list) > 3:
+                        first_step = j_list[1] - j_list[0]
+                        if all([((b - a) == first_step) for a, b in zip(j_list[:-1], j_list[1:])]):
+                            """
+                            Equally spaced j values.
+                            """
+                            list_as_latex = frac_to_latex(j_list[0]) + ", ..., " + frac_to_latex(j_list[-1])
+                        
+                        else:
+                            list_as_latex = "$\n$" + "$\n$".join([list_of_fracs_to_latex(lst) for lst in np.array_split(j_list, 3)])
+
                     else:
-                        list_as_latex = "$\n$" + "$\n$".join([list_of_fracs_to_latex(lst) for lst in np.array_split(j_list, 3)])
+                        list_as_latex = list_of_fracs_to_latex(j_list)
 
-                else:
-                    list_as_latex = list_of_fracs_to_latex(j_list)
+                    ax_ = figax[multipole_type_][1]
+                    ax_.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
+                        bins,
+                        counts,
+                        label = r"$j_i = " + list_as_latex + r"$",
+                        color = color,
+                    )
+                    axd[f"upper {left_or_right}"].step(
+                        bins,
+                        counts_normalised,
+                        label = r"$j_i = " + list_as_latex + r"$",
+                        color = color
+                    )
+                    axd[f"lower {left_or_right}"].step(
+                        bins,
+                        counts_normalised/chi2,
+                        color = color,
+                        label = r"$[j_i = " + list_as_latex + r"]/\chi_{\nu = 1}^2$",
+                    )
 
-                ax_counts_0.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
-                    bins,
-                    counts,
-                    label = r"$j_i = " + list_as_latex + r"$",
-                    color = color,
-                )
-                axd["upper left"].step(
-                    bins,
-                    counts_normalised,
-                    label = r"$j_i = " + list_as_latex + r"$",
-                    color = color
-                )
-                axd["lower left"].step(
-                    bins,
-                    counts_normalised/chi2,
-                    color = color,
-                    label = r"$[j_i = " + list_as_latex + r"]/\chi_{\nu = 1}^2$",
+                del bins    # Don't want this to accidentally get used for something (maybe not important anymore after I made the multipole loop).
+                del counts_normalised
+                del counts
+                del chi2
+                del j_list
+                del color
+            
+                axd[f"upper {left_or_right}"].plot(
+                    bins_longest,
+                    chi2_longest,
+                    color = "tab:green",
+                    label = r"$\chi_{\nu = 1}^2$"
                 )
 
-            del bins    # Don't want this to accidentally get used for something.
-            del counts_normalised
-            del counts
-            del chi2
-            del j_list
-            del color
-        
-            axd["upper left"].plot(
-                bins_longest,
-                chi2_longest,
-                color = "tab:green",
-                label = r"$\chi_{\nu = 1}^2$"
-            )
             axd["upper left"].legend(loc="upper right", fontsize=15)
             axd["upper left"].set_ylabel(r"Normalised counts")
 
@@ -1835,81 +1843,6 @@ class ReadKshellOutput:
                     f"{self.nucleus_latex}, {self.interaction}, " + r"$" + f"{multipole_type[0]}" + r"$"
                 )
 
-            if j_list_default:
-                """
-                Default j_lists values.
-                """
-                j_lists = []
-                for elem in np.unique(transitions_dict[multipole_type[1]][:, 0]):
-                    j_lists.append([elem/2])
-
-                j_lists = j_lists[:3]   # _porter_thomas_j_plot_calculator supports max. 3 lists of j values.
-
-            binss, countss_normalised, countss, chi2s = self._porter_thomas_j_plot_calculator(
-                Ex_min = Ex_min,
-                Ex_max = Ex_max,
-                j_lists = j_lists,
-                BXL_bin_width = BXL_bin_width,
-                multipole_type = multipole_type[1],
-                E_gamma_min = E_gamma_min,
-                E_gamma_max = E_gamma_max,
-                bin_count_threshold = bin_count_threshold,
-            )
-
-            fig_counts_1, ax_counts_1 = plt.subplots(figsize=FIGSIZE)
-
-            bins_longest = np.empty(0)
-            chi2_longest = np.empty(0)
-            for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
-                bins_longest = bins_longest if bins_longest.size > bins.size else bins
-                chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
-
-                if len(j_list) > 3:
-                    first_step = j_list[1] - j_list[0]
-                    if all([((b - a) == first_step) for a, b in zip(j_list[:-1], j_list[1:])]):
-                        """
-                        Equally spaced j values.
-                        """
-                        list_as_latex = frac_to_latex(j_list[0]) + ", ..., " + frac_to_latex(j_list[-1])
-                    
-                    else:
-                        list_as_latex = "$\n$" + "$\n$".join([list_of_fracs_to_latex(lst) for lst in np.array_split(j_list, 3)])
-
-                else:
-                    list_as_latex = list_of_fracs_to_latex(j_list)
-
-                ax_counts_1.step(   # Plot a non-normalised histogram, useful for seeing where the number of transitions become too low for good statistics.
-                    bins,
-                    counts,
-                    label = r"$j_i = " + list_as_latex + r"$",
-                    color = color,
-                )
-                axd["upper right"].step(
-                    bins,
-                    counts_normalised,
-                    label = r"$j_i = " + list_as_latex + r"$",
-                    color = color
-                )
-                axd["lower right"].step(
-                    bins,
-                    counts_normalised/chi2,
-                    color = color,
-                    label = r"$[j_i = " + list_as_latex + r"]/\chi_{\nu = 1}^2$",
-                )
-
-            del bins    # Don't want this to accidentally get used for something.
-            del counts_normalised
-            del counts
-            del chi2
-            del j_list
-            del color
-        
-            axd["upper right"].plot(
-                bins_longest,
-                chi2_longest,
-                color = "tab:green",
-                label = r"$\chi_{\nu = 1}^2$"
-            )
             # axd["upper right"].legend(loc="upper right")
             axd["upper right"].set_yticklabels([])
             axd["upper right"].set_ylim(axd["upper left"].get_ylim())
@@ -1933,6 +1866,9 @@ class ReadKshellOutput:
             for ax in axd.values():
                 ax.grid(visible=True, alpha=GRID_ALPHA)
 
+            fig_counts_0, ax_counts_0 = figax[multipole_type[0]]
+            fig_counts_1, ax_counts_1 = figax[multipole_type[1]]
+            
             ax_counts_0.legend()
             ax_counts_0.set_yscale("log")
             ax_counts_0.grid(visible=True, alpha=GRID_ALPHA)
