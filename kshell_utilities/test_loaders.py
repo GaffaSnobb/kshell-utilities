@@ -1,4 +1,4 @@
-import pkg_resources
+import pkg_resources, logging
 
 import numpy.typing as npt
 import numpy as np
@@ -147,6 +147,7 @@ def test_load_obtd():
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/obtd_test/OBTD_L_V50_GCLSTsdpfsdgix5pn_j6n_V50_GCLSTsdpfsdgix5pn_j6n.txt'),
         obtd_dict = obtd_dict,
         level_dict = level_dict,
+        log_level = logging.DEBUG,
     )
 
     expected_keys = [
@@ -268,6 +269,7 @@ def test_load_obtd():
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/obtd_test/OBTD_S_V50_GCLSTsdpfsdgix5pn_j6n_V50_GCLSTsdpfsdgix5pn_j6n.txt'),
         obtd_dict = obtd_dict,
         level_dict = level_dict,
+        log_level = logging.DEBUG,
     )
     expected_S = np.array(
         [
@@ -303,6 +305,7 @@ def test_load_obtd():
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/obtd_test/OBTD_L_V50_GCLSTsdpfsdgix5pn_j2p_V50_GCLSTsdpfsdgix5pn_j4p.txt'),
         obtd_dict = obtd_dict,
         level_dict = level_dict,
+        log_level = logging.DEBUG,
     )
     expected_keys.extend(
         [
@@ -674,6 +677,7 @@ def test_load_obtd():
         path = pkg_resources.resource_filename('kshell_utilities', 'test_files/obtd_test/OBTD_S_V50_GCLSTsdpfsdgix5pn_j2p_V50_GCLSTsdpfsdgix5pn_j4p.txt'),
         obtd_dict = obtd_dict,
         level_dict = level_dict,
+        log_level = logging.DEBUG,
     )
 
     expected_210410[:, 4] = expected_S_210410

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import time, sys, ast, warnings, re
+import time, sys, ast, warnings, re, logging
 from fractions import Fraction
 from typing import TextIO
 
@@ -406,6 +406,7 @@ def _load_obtd(
     path: str,
     obtd_dict: dict[tuple[int, ...]],
     level_dict: dict[tuple[int, int, int], float],
+    log_level: int = logging.INFO
 ) -> None:
     """
     Read one-body transition densities from the OBTD files from KSHELL.
@@ -898,7 +899,10 @@ def _load_obtd(
         assert n_transitions_flipped == n_transitions_flipped_skipped
 
     timing = time.perf_counter() - timing
-    logger.info(f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies in {timing:.2f} s")
+    logger.log(
+        level = log_level,
+        msg = f"{path.split('/')[-1]} - Loaded: {n_transitions_not_flipped + n_transitions_flipped - n_transitions_flipped_skipped}, Skipped: {n_moments} moments and {n_same_energy} same energies in {timing:.2f} s"
+    )
 
 def _load_obtd_parallel_wrapper(args: tuple[list[str], dict[tuple[int, int, int], float]]) -> dict[tuple[int, ...]]:
     """
