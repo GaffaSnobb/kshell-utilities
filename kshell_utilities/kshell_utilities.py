@@ -34,7 +34,7 @@ from .onebody_transition_density_tools import (
     get_included_transitions_obtd_dict_keys, make_level_dict
 )
 from .other_tools import (
-    HidePrint, conditional_red_text, chi2_pdf, savefig, list_of_fracs_to_latex,
+    conditional_red_text, chi2_pdf, savefig, list_of_fracs_to_latex,
     frac_to_latex
 )
 from ._log import logger
@@ -370,7 +370,7 @@ class ReadKshellOutput:
         159) gives a view to the 2D slice which contains the OBTDs for
         0+(50) -> 1+(159).
         """
-        with HidePrint(): test_load_obtd()
+        test_load_obtd()
         self.level_dict = make_level_dict(self.levels)  # I want this to happen even if OBTDs are loaded from .npz.
         obtd_fname = f"{self.npy_path}/{self.base_fname}_obtd_{self.unique_id}.npz"
 
@@ -1179,6 +1179,9 @@ class ReadKshellOutput:
         Wrapper for general_utilities.porter_thomas. See that docstring
         for details.
 
+        TODO: Consider removing this wrapper method. Will I ever call
+        `porter_thomas` directly instead of using  `porter_thomas_j_plot`?
+
         Parameters
         ----------
         multipole_type : str
@@ -1485,7 +1488,7 @@ class ReadKshellOutput:
         multipole_type: str,
         E_gamma_min: float,
         E_gamma_max: float,
-        bin_count_threshold: int,
+        BXL_bin_count_threshold: int,
         ):
         """
         Really just a wrapper to self.porter_thomas with j checks.
@@ -1511,15 +1514,15 @@ class ReadKshellOutput:
             Choose the multipolarity of the transitions. 'E1', 'M1',
             'E2'.
         
-        bin_count_threshold : int
+        BXL_bin_count_threshold : int
             Omit all bins which come after (and including) the first bin which
-            has fewer counts than `bin_count_threshold`.
+            has fewer counts than `BXL_bin_count_threshold`.
 
             Example:
             ```
-            >>> bin_count_threshold = 21
+            >>> BXL_bin_count_threshold = 21
             >>> arr = np.array([300, 100, 50, 21, 5, 21, 2, 1, 1, 0])
-            >>> idx = np.where(arr < bin_count_threshold)[0][0]
+            >>> idx = np.where(arr < BXL_bin_count_threshold)[0][0]
             >>> arr[:idx]
             array([300, 100,  50,  21])
             ```
@@ -1588,7 +1591,7 @@ class ReadKshellOutput:
                 E_gamma_max = E_gamma_max,
             )
 
-            matches = np.where(counts < bin_count_threshold)[0] # Find the first occurrence where counts < bin_count_threshold.
+            matches = np.where(counts < BXL_bin_count_threshold)[0] # Find the first occurrence where counts < BXL_bin_count_threshold.
             idx = matches[0] if matches.size else -1
 
             counts_normalised = counts/np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
@@ -1602,6 +1605,15 @@ class ReadKshellOutput:
             countss.append(counts)
             chi2s.append(chi2_pdf(bins))
 
+            if not bins.size:
+                msg = (
+                    "There are no bins with counts with the selected BXL bin"
+                    f" width of {BXL_bin_width} and the selected BXL bin count"
+                    f" threshold of {BXL_bin_count_threshold}. Consider"
+                    " lowering the BXL bin width."
+                )
+                raise ValueError(msg)
+
         return binss, countss_normalised, countss, chi2s
 
     def porter_thomas_j_plot(self,
@@ -1612,7 +1624,7 @@ class ReadKshellOutput:
         multipole_type: str | list = "M1",
         E_gamma_min: float = 0.0,
         E_gamma_max: float = np.inf,
-        bin_count_threshold: int = -np.inf,
+        BXL_bin_count_threshold: int = -np.inf,
         include_relative_difference: bool = True,
         is_title: bool = True
         ):
@@ -1692,7 +1704,7 @@ class ReadKshellOutput:
                 multipole_type = multipole_type[0],
                 E_gamma_min = E_gamma_min,
                 E_gamma_max = E_gamma_max,
-                bin_count_threshold = bin_count_threshold,
+                BXL_bin_count_threshold = BXL_bin_count_threshold,
             )
 
             for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
@@ -1771,7 +1783,7 @@ class ReadKshellOutput:
                     multipole_type = multipole_type_,
                     E_gamma_min = E_gamma_min,
                     E_gamma_max = E_gamma_max,
-                    bin_count_threshold = bin_count_threshold,
+                    BXL_bin_count_threshold = BXL_bin_count_threshold,
                 )
 
                 bins_longest = np.empty(0)
@@ -1779,6 +1791,8 @@ class ReadKshellOutput:
                 for bins, counts_normalised, counts, chi2, j_list, color in zip(binss, countss_normalised, countss, chi2s, j_lists, colors, strict=True):
                     bins_longest = bins_longest if bins_longest.size > bins.size else bins
                     chi2_longest = chi2_longest if chi2_longest.size > chi2.size else chi2
+
+                    # if not bins.size: continue
 
                     if len(j_list) > 3:
                         first_step = j_list[1] - j_list[0]
