@@ -907,6 +907,7 @@ def porter_thomas(
     Ei: int | float | list,
     BXL_bin_width: int | float,
     j_list: list | None = None,
+    pi_list: list | None = None,
     Ei_bin_width: int | float = 0.1,
     E_gamma_min: float = 0.0,
     E_gamma_max: float = np.inf,
@@ -1007,25 +1008,29 @@ def porter_thomas(
 
     n_B_skips = 0
     for pii in pii_masks:
+        """
+        Are these loops only for normalising the B values correctly?
+        """
         for idxi in idxi_masks:
             for ji in ji_masks:
                 mask = np.logical_and(ji, np.logical_and(pii, idxi))
-                tmp = BXL[mask][:, 9]   # 9 is B decay.
-                n_B_skips += sum(tmp == 0)  # Count the number of zero values.
-                tmp = tmp[tmp != 0] # Remove all zero values.
-                if not tmp.size:
+                BXL_selection = BXL[mask][:, 9]   # 9 is B decay.
+                n_B_skips += sum(BXL_selection == 0)  # Count the number of zero values.
+                BXL_selection = BXL_selection[BXL_selection != 0] # Remove all zero values.
+                if not BXL_selection.size:
                     """
                     Some combinations of masks might not match any
                     levels.
                     """
                     continue
                 
-                BXL_tmp.extend(tmp/tmp.mean())  # Normalise to the mean value per bin.
-                # BXL_tmp.extend(tmp)
+                BXL_tmp.extend(BXL_selection/BXL_selection.mean())  # Normalise to the mean value per bin.
+                # BXL_tmp.extend(BXL_selection)
 
     BXL = np.asarray(BXL_tmp)
+    del BXL_tmp # Should not be used anymore!
     BXL.sort()
-    # BXL = BXL/np.mean(BXL)    # Normalise to the total mean value.
+    # BXL = BXL/np.mean(BXL)    # Normalise to the total mean value (I dont think this is right).
     n_BXL_after = len(BXL)
     assert np.all(BXL > 0)  # Sanity check.
 
@@ -1052,26 +1057,18 @@ def porter_thomas(
     
     pt_count_time = time.perf_counter() - pt_count_time
 
-    if flags["debug"]:
-        print("--------------------------------")
-        print(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
-        print(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
-        print(f"{sum(BXL_counts) = }")
-        print(f"{n_B_skips = }")
-        print(f"{Ei = }")
-        print(f"{Ei_bin_width = }")
-        print(f"{j_list = }")
-        print(f"{E_gamma_min = }")
-        print(f"{E_gamma_max = }")
-        print(f"{np.mean(BXL) = }")
-        print(f"{np.var(BXL) = }")
-
-        # flattened = []
-        # for b, c in zip(BXL_bins, BXL_counts):
-        #     flattened += [b]*int(c)
-
-        # print(f"{np.var(flattened) = }")
-        # print(f"{np.mean(flattened) = }")
+    logger.debug("--------------------------------")
+    logger.debug(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
+    logger.debug(f"Porter-Thomas: Count time: {pt_count_time:.3f} s")
+    logger.debug(f"{sum(BXL_counts) = }")
+    logger.debug(f"{n_B_skips = }")
+    logger.debug(f"{Ei = }")
+    logger.debug(f"{Ei_bin_width = }")
+    logger.debug(f"{j_list = }")
+    logger.debug(f"{E_gamma_min = }")
+    logger.debug(f"{E_gamma_max = }")
+    logger.debug(f"{np.mean(BXL) = }")
+    logger.debug(f"{np.var(BXL) = }")
 
     return BXL_bins, BXL_counts
 
