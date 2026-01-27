@@ -9,7 +9,7 @@ from scipy.stats import chi2
 from .parameters import (
     flags, elements, latex_plot, DPI, MATPLOTLIB_SAVEFIG_FORMAT, GRID_ALPHA
 )
-from .other_tools import savefig
+from .other_tools import savefig, histogram
 from ._log import logger
 
 def isotope(name: str, A: int):
@@ -911,7 +911,7 @@ def porter_thomas(
     Ei_bin_width: int | float = 0.1,
     E_gamma_min: float = 0.0,
     E_gamma_max: float = np.inf,
-) -> tuple[npt.NDArray, npt.NDArray]:
+) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
     """
     Calculate the distribution of B(XL)/mean(B(XL)) values.
 
@@ -992,12 +992,16 @@ def porter_thomas(
     pii_masks = []
     ji_masks = []
     BXL_tmp = []
+    BXL_means: list[float] = [] # Each entry will be a mean value of all the B values for a level where that level is the initial level of a transition. Each level gets its own mean value.
 
-    initial_indices = np.unique(BXL[:, 2]).astype(int)
+    initial_indices = np.unique(BXL[:, 2]).astype(int)  # Fetch all initial level indices after the user-defined filters have been applied.
     initial_parities = np.unique(BXL[:, 1]).astype(int)
     initial_j = np.unique(BXL[:, 0])
 
     for idxi in initial_indices:
+        """
+        Make masks for each of the initial level indices.
+        """
         idxi_masks.append(BXL[:, 2] == idxi)
 
     for pii in initial_parities:
@@ -1009,7 +1013,12 @@ def porter_thomas(
     n_B_skips = 0
     for pii in pii_masks:
         """
-        Are these loops only for normalising the B values correctly?
+        Loop over the parity, index, and total angular momentum masks.
+        The purpose is to select B values which all come from the same
+        initial level so that the B values can be normalised by the mean
+        B value taken over all the B values from the same initial level.
+
+        This is, I believe, what was done in JEM's PhD.
         """
         for idxi in idxi_masks:
             for ji in ji_masks:
@@ -1024,12 +1033,16 @@ def porter_thomas(
                     """
                     continue
                 
-                BXL_tmp.extend(BXL_selection/BXL_selection.mean())  # Normalise to the mean value per bin.
+                mean_tmp: float = BXL_selection.mean()
+                BXL_means.append(mean_tmp)
+                BXL_tmp.extend(BXL_selection/mean_tmp)  # Normalise to the mean value per bin.
                 # BXL_tmp.extend(BXL_selection)
 
     BXL = np.asarray(BXL_tmp)
     del BXL_tmp # Should not be used anymore!
-    BXL.sort()
+    BXL_means_arr = np.asarray(BXL_means)
+    del BXL_means
+    
     # BXL = BXL/np.mean(BXL)    # Normalise to the total mean value (I dont think this is right).
     n_BXL_after = len(BXL)
     assert np.all(BXL > 0)  # Sanity check.
@@ -1042,20 +1055,26 @@ def porter_thomas(
         msg += f"\n{n_B_skips = }"
         raise RuntimeError(msg)
 
-    BXL_bins = np.arange(0, BXL[-1] + BXL_bin_width, BXL_bin_width)
-    n_BXL_bins = len(BXL_bins)
-    BXL_counts = np.zeros(n_BXL_bins)
     pt_prepare_data_time = time.perf_counter() - pt_prepare_data_time
-    
     pt_count_time = time.perf_counter()
-    for i in range(n_BXL_bins - 1):
-        """
-        Calculate the number of transitions with BXL values between
-        BXL_bins[i] and BXL_bins[i + 1].
-        """
-        BXL_counts[i] = np.sum(BXL_bins[i] <= BXL[BXL < BXL_bins[i + 1]])
-    
+    BXL_bins, BXL_counts = histogram(arr=BXL, bin_width=BXL_bin_width)
+    BXL_means_bins, BXL_means_counts = histogram(arr=BXL_means_arr, bin_width=BXL_bin_width)
     pt_count_time = time.perf_counter() - pt_count_time
+
+    # def histogram():
+    #     BXL_bins = np.arange(0, BXL[-1] + BXL_bin_width, BXL_bin_width)
+    #     n_BXL_bins = len(BXL_bins)
+    #     BXL_counts = np.zeros(n_BXL_bins)
+    #     pt_prepare_data_time = time.perf_counter() - pt_prepare_data_time
+        
+    #     pt_count_time = time.perf_counter()
+    #     for i in range(n_BXL_bins - 1):
+    #         """
+    #         Calculate the number of BXL values between BXL_bins[i] and
+    #         BXL_bins[i + 1].
+    #         """
+    #         BXL_counts[i] = np.sum(BXL_bins[i] <= BXL[BXL < BXL_bins[i + 1]])
+    
 
     logger.debug("--------------------------------")
     logger.debug(f"Porter-Thomas: Prepare data time: {pt_prepare_data_time:.3f} s")
@@ -1070,7 +1089,7 @@ def porter_thomas(
     logger.debug(f"{np.mean(BXL) = }")
     logger.debug(f"{np.var(BXL) = }")
 
-    return BXL_bins, BXL_counts
+    return BXL_bins, BXL_counts, BXL_means_bins, BXL_means_counts
 
 def nuclear_shell_model(
     show_spectroscopic_notation: bool = True,
