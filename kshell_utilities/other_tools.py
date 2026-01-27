@@ -2,6 +2,7 @@ import sys, os
 from fractions import Fraction
 
 import numpy as np
+import numpy.typing as npt
 
 from ._log import logger
 
@@ -96,3 +97,21 @@ def list_of_fracs_to_latex(vals: list[float]) -> str:
     res = res[:-2]  # Remove the last comma.
 
     return res
+
+def histogram(arr: npt.NDArray, bin_width: float) -> tuple[npt.NDArray, npt.NDArray]:
+    """
+    Make a histogram
+    """
+    arr.sort()
+    bins = np.arange(0, arr[-1] + bin_width, bin_width)
+    n_bins = len(bins)
+    counts = np.zeros(n_bins)
+
+    for i in range(n_bins - 1):
+        """
+        Calculate the number of arr values between bins[i] and
+        bins[i + 1].
+        """
+        counts[i] = np.sum(bins[i] <= arr[arr < bins[i + 1]])
+
+    return bins, counts
