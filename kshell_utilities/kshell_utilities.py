@@ -1582,7 +1582,7 @@ class ReadKshellOutput:
             """
             Calculate for the j values in j_list (note: not in j_lists).
             """
-            bins, counts = self.porter_thomas(
+            bins, counts, means_bins, means_counts = self.porter_thomas(
                 multipole_type = multipole_type,
                 j_list = j_list,
                 Ei = [Ex_min, Ex_max],
