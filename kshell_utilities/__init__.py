@@ -1,5 +1,5 @@
 __author__ = "Jon Kristian Dahl, Johannes Heines"
-__version__ = "1.5.1.0"
+__version__ = "2.0.0.0"
 __credits__ = "Noritaka Shimizu, Jørgen Eriksson Midtbø"
 
 """

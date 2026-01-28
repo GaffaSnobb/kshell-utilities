@@ -2,13 +2,13 @@ from setuptools import setup
 
 setup(
     name = 'kshell-utilities',
-    version = '1.5.1.0',    
+    version = '2.0.0.0',    
     description = 'Handy utilities for handling nuclear shell model calculations from KSHELL',
     url = 'https://github.com/GaffaSnobb/kshell-utilities',
     author = ['Jon Kristian Dahl', 'Johannes Heines'],
     author_email = 'jonkd@uio.no',
     packages = ['kshell_utilities'],
-    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'tqdm'],
+    install_requires = ['numpy', 'matplotlib', 'seaborn', 'scipy', 'numba', 'tqdm', 'vum'],
     package_data = {
         'kshell_utilities': ['test_files/*.txt', 'test_files/obtd_test/*.txt'],
     },
