@@ -241,13 +241,18 @@ class ReadKshellOutput:
         
         levels = []
 
+        logger.debug(f"{level_log_fnames = }")
         for i, level_log_fname in enumerate(level_log_fnames):
             """
             Load energy levels.
             """
-            levels.append(_load_energy_logfile(
-                path = f"{self.path}/{level_log_fname}"
-            ))
+            try:
+                levels.append(_load_energy_logfile(
+                    path = f"{self.path}/{level_log_fname}"
+                ))
+            except UnicodeDecodeError as e:
+                extra_msg = f"failed to read level file '{level_log_fname}'"
+                raise UnicodeDecodeError(e.encoding, e.object, e.start, e.end, f"{e.reason} - {extra_msg}") from e
             msg = (
                 f"({i+1}/{len(level_log_fnames)}) {level_log_fname}"
                 f"\n    Levels: {len(levels[i])}"

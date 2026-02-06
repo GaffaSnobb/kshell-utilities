@@ -277,7 +277,7 @@ def _load_energy_logfile(
     levels appear. It is needed when several energy log file arrays are
     concatenated so that we can keep track of the energy order per j pi.
     """
-    with open(path, "r") as infile:
+    with open(path, "r", encoding="utf-8", errors="surrogateescape") as infile:
         for line in infile:
             if "N_EIGEN" in line:
                 """
