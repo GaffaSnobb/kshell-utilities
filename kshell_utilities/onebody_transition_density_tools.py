@@ -78,7 +78,9 @@ def make_level_dict(levels: npt.NDArray[np.float64]) -> dict[tuple[int, int, int
         
         if key in level_dict:
             msg = (
-                f"Key {key} already exists in the level_dict and it should not!"
+                # f"Key J: {j}, pi: {pi}, idx: {idx} at energy E: {E} ({key = }) already exists in the level_dict and it should not! {len(level_dict) = }"
+                f"Key already exists in the level_dict and it should not!"
+                f" Existing key: level_dict[{key}] = {level_dict[key]}, new key: level_dict[{key}] = {E}"
             )
             raise KshellDataStructureError(msg)
         
