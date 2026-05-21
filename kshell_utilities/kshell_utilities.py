@@ -1287,7 +1287,7 @@ class ReadKshellOutput:
                 Calculate in a bin size of 'Ei_bin_width' around given Ei
                 values.
                 """
-                bins, counts = self.porter_thomas(
+                bins, counts, _, _ = self.porter_thomas(
                     multipole_type = multipole_type[0],
                     Ei = Ei,
                     BXL_bin_width = BXL_bin_width,
@@ -1295,7 +1295,7 @@ class ReadKshellOutput:
                 )
                 idx = np.argmin(np.abs(bins - 10))  # Slice the arrays at approx 10.
                 counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                print(f"{np.trapezoid(counts, bins) = }")
+                logger.info(f"{np.trapezoid(counts, bins) = }")
                 bins = bins[1:idx]
                 counts = counts[1:idx]
                 
@@ -1321,17 +1321,17 @@ class ReadKshellOutput:
                 """
                 Calculate in the specified range of Ei values.
                 """
-                bins, counts = self.porter_thomas(
+                bins, counts, _, _ = self.porter_thomas(
                     multipole_type = multipole_type[0],
                     Ei = [Ei_range[i], Ei_range[i+1]],
                     BXL_bin_width = BXL_bin_width,
                 )
-                
                 idx = np.argmin(np.abs(bins - 10))
                 counts /= np.trapezoid(counts, bins)    # Normalise the distribution so that it integrates to 1.
-                print(f"{np.trapezoid(counts, bins) = }")
+                logger.info(f"{np.trapezoid(counts, bins) = }")
                 bins = bins[1:idx]
                 counts = counts[1:idx]
+                chi2 = chi2_pdf(bins)
                 
                 axd["middle"].step(
                     bins,
