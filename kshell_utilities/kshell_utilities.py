@@ -1701,7 +1701,7 @@ class ReadKshellOutput:
                     sharex = True
                 )
 
-            binss, countss, chi2s = self._porter_thomas_j_plot_calculator(
+            binss, countss_normalised, _, chi2s = self._porter_thomas_j_plot_calculator(
                 Ex_min = Ex_min,
                 Ex_max = Ex_max,
                 j_lists = j_lists,
@@ -1712,17 +1712,17 @@ class ReadKshellOutput:
                 BXL_bin_count_threshold = BXL_bin_count_threshold,
             )
 
-            for bins, counts, chi2, j_list, color in zip(binss, countss, chi2s, j_lists, colors, strict=True):
+            for bins, counts_normalised, chi2, j_list, color in zip(binss, countss_normalised, chi2s, j_lists, colors, strict=True):
                 axd["upper"].step(
                     bins,
-                    counts,
+                    counts_normalised,
                     label = r"$j_i = $" + f"{j_list}",
                     color = color
                 )
                 if include_relative_difference:
                     axd["lower"].step(
                         bins,
-                        counts/chi2,
+                        counts_normalised/chi2,
                         color = color,
                         label = r"($j_i = $" + f"{j_list})" + r"$/\chi_{\nu = 1}^2$",
                     )
