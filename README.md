@@ -1,4 +1,7 @@
 # kshell-utilities
+
+> Development has moved to Forgejo: ssh://git@git.joncloud.no:222/GaffaSnobb/kshell-utilities.git
+
 Handy utilities for processing nuclear shell model data from `KSHELL`. Se the [KSHELL repository](https://github.com/GaffaSnobb/kshell) for installation and usage instructions for `KSHELL`.
 
 ## Installation
