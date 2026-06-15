@@ -246,13 +246,16 @@ class ReadKshellOutput:
             """
             Load energy levels.
             """
-            try:
-                levels.append(_load_energy_logfile(
-                    path = f"{self.path}/{level_log_fname}"
-                ))
-            except UnicodeDecodeError as e:
-                extra_msg = f"failed to read level file '{level_log_fname}'"
-                raise UnicodeDecodeError(e.encoding, e.object, e.start, e.end, f"{e.reason} - {extra_msg}") from e
+            levels.append(_load_energy_logfile(
+                path = f"{self.path}/{level_log_fname}"
+            ))
+            # try:
+            #     levels.append(_load_energy_logfile(
+            #         path = f"{self.path}/{level_log_fname}"
+            #     ))
+            # except UnicodeDecodeError as e:
+            #     extra_msg = f"failed to read level file '{level_log_fname}'"
+            #     raise UnicodeDecodeError(e.encoding, e.object, e.start, e.end, f"{e.reason} - {extra_msg}") from e
             msg = (
                 f"({i+1}/{len(level_log_fnames)}) {level_log_fname}"
                 f"\n    Levels: {len(levels[i])}"
@@ -3709,6 +3712,7 @@ class ReadKshellOutput:
         gs_p: float = GS_FREE_PROTON,
         gs_n: float = GS_FREE_NEUTRON,
         ax: None | plt.Axes = None,
+        exclude_orbitals_if: list[tuple[str, str]] = [],
     ):
         """
         Calculate the average interference angle between the L and S
@@ -3720,7 +3724,7 @@ class ReadKshellOutput:
             bin_width = bin_width,
             Ex_min = Ex_min,
             Ex_max = Ex_max,
-            multipole_type = 'M1',
+            multipole_type = "M1",
             plot = False,
             save_plot = False,
         )
@@ -3764,6 +3768,8 @@ class ReadKshellOutput:
             s_proton = matrix_elem_s[proton_mask]
             l_neutron = matrix_elem_l[neutron_mask]
             s_neutron = matrix_elem_s[neutron_mask]
+
+            # Filter on orbitals here
 
             M1_l_array[i] = (np.sum(obtd_proton*gl_p*l_proton) + np.sum(obtd_neutron*gl_n*l_neutron))/FAC   # FAC has prob. no effect on the end-result, but technically it should be there.
             M1_s_array[i] = (np.sum(obtd_proton*gs_p*s_proton) + np.sum(obtd_neutron*gs_n*s_neutron))/FAC
